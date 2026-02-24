@@ -26,80 +26,83 @@
     placeholder="Attention Is All You Need&#10;A Survey on Visual Foundation Models&#10;..."></textarea>
 </div>
 
-<!-- Config Accordion -->
-<div class="accordion mb-4" id="config-accordion">
-  <div class="accordion-item">
-    <h2 class="accordion-header">
-      <button class="accordion-button collapsed" type="button"
-          data-bs-toggle="collapse" data-bs-target="#config-panel">
-        <i class="bi bi-sliders" style="color:var(--accent)"></i>&nbsp; API 配置
-        <span style="font-size:11px;color:var(--light);margin-left:8px;font-weight:400">点击展开 / 折叠</span>
-      </button>
-    </h2>
-    <div id="config-panel" class="accordion-collapse collapse">
-      <div class="accordion-body">
-        <div class="row g-3">
-          <div class="col-md-6">
-            <label class="form-label">ScraperAPI Key(s) <span style="color:var(--light)">(多个用英文逗号分隔)</span></label>
-            <input type="text" id="idx-scraper-keys" class="form-control" placeholder="key1,key2,key3">
-          </div>
-          <div class="col-md-6">
-            <label class="form-label">OpenAI 兼容 API Key</label>
-            <input type="password" id="idx-openai-key" class="form-control" placeholder="sk-...">
-          </div>
-          <div class="col-md-6">
-            <label class="form-label">Base URL</label>
-            <input type="text" id="idx-openai-url" class="form-control" placeholder="https://api.gpt.ge/v1/">
-          </div>
-          <div class="col-md-3">
-            <label class="form-label">Search Model</label>
-            <select id="idx-openai-model" class="form-select">
-              <option value="gemini-3-flash-preview-search" selected>gemini-3-flash-preview-search</option>
-              <option value="gemini-3.1-pro-preview-search">gemini-3.1-pro-preview-search</option>
-              <option value="gpt-5-search-api">gpt-5-search-api</option>
-              <option value="deepseek-r1-search">deepseek-r1-search</option>
-              <option value="deepseek-v3-search">deepseek-v3-search</option>
-            </select>
-          </div>
-          <div class="col-md-3">
-            <label class="form-label">输出文件前缀</label>
-            <input type="text" id="idx-output-prefix" class="form-control" value="paper">
-          </div>
-          <div class="col-12">
-            <div style="display:flex;flex-wrap:wrap;gap:16px;margin-top:4px">
-              <label style="display:flex;align-items:center;gap:7px;font-size:12.5px;color:var(--muted);cursor:pointer">
-                <input class="form-check-input" type="checkbox" id="idx-renowned-scholar">
-                启用著名学者筛选
-              </label>
-              <label style="display:flex;align-items:center;gap:7px;font-size:12.5px;color:var(--muted);cursor:pointer">
-                <input class="form-check-input" type="checkbox" id="idx-author-verify">
-                启用作者信息验证
-              </label>
-              <label style="display:flex;align-items:center;gap:7px;font-size:12.5px;color:var(--muted);cursor:pointer">
-                <input class="form-check-input" type="checkbox" id="idx-citing-description">
-                启用引用描述搜索
-                <span style="font-size:11px;color:var(--light)">(Phase 4，耗时较长)</span>
-              </label>
-              <label style="display:flex;align-items:center;gap:7px;font-size:12.5px;color:var(--muted);cursor:pointer">
-                <input class="form-check-input" type="checkbox" id="idx-dashboard">
-                启用画像报告生成
-                <span style="font-size:11px;color:var(--light)">(Phase 5，需先启用著名学者筛选)</span>
-              </label>
-            </div>
-          </div>
-          <div class="col-md-5" id="idx-dashboard-model-row" style="display:none;">
-            <label class="form-label">画像报告模型 <span style="color:var(--light);font-weight:400">(Phase 5 LLM，无需 web search)</span></label>
-            <input type="text" id="idx-dashboard-model" class="form-control"
-                placeholder="gemini-3-flash-preview-nothinking">
-            <div class="form-text">推荐使用非 search 模型，与上方 Search Model 独立</div>
-          </div>
-          <div class="col-12" style="display:flex;align-items:center;gap:10px;justify-content:flex-end">
-            <button id="idx-save-config-btn" class="btn-agent-sm">
-              <i class="bi bi-check2"></i> 保存配置
-            </button>
-            <span id="idx-save-indicator">✓ 已保存</span>
-          </div>
+<!-- API Config Card -->
+<div class="agent-card mb-4">
+  <div class="agent-card-label">
+    <i class="bi bi-key" style="color:var(--accent)"></i>&nbsp; API 配置
+  </div>
+  <div class="row g-3">
+    <div class="col-md-6">
+      <label class="form-label">ScraperAPI Key(s) <span style="color:var(--light);font-weight:400">(多个用英文逗号分隔)</span></label>
+      <input type="text" id="idx-scraper-keys" class="form-control" placeholder="key1,key2,key3">
+    </div>
+    <div class="col-md-6">
+      <label class="form-label">OpenAI 兼容 API Key</label>
+      <input type="password" id="idx-openai-key" class="form-control" placeholder="sk-...">
+    </div>
+  </div>
+  <div style="margin-top:12px">
+    <button class="btn-agent-sm" type="button"
+        data-bs-toggle="collapse" data-bs-target="#config-advanced"
+        aria-expanded="false" aria-controls="config-advanced"
+        id="idx-advanced-toggle">
+      <i class="bi bi-sliders"></i> 更多配置
+      <span style="font-size:11px;color:var(--light);margin-left:4px">模型 / 功能开关 / 高级选项</span>
+    </button>
+  </div>
+  <div class="collapse" id="config-advanced">
+    <div class="row g-3" style="margin-top:4px">
+      <div class="col-md-6">
+        <label class="form-label">Base URL</label>
+        <input type="text" id="idx-openai-url" class="form-control" placeholder="https://api.gpt.ge/v1/">
+      </div>
+      <div class="col-md-3">
+        <label class="form-label">Search Model</label>
+        <select id="idx-openai-model" class="form-select">
+          <option value="gemini-3-flash-preview-search" selected>gemini-3-flash-preview-search</option>
+          <option value="gemini-3.1-pro-preview-search">gemini-3.1-pro-preview-search</option>
+          <option value="gpt-5-search-api">gpt-5-search-api</option>
+          <option value="deepseek-r1-search">deepseek-r1-search</option>
+          <option value="deepseek-v3-search">deepseek-v3-search</option>
+        </select>
+      </div>
+      <div class="col-md-3">
+        <label class="form-label">输出文件前缀</label>
+        <input type="text" id="idx-output-prefix" class="form-control" value="paper">
+      </div>
+      <div class="col-12">
+        <div style="display:flex;flex-wrap:wrap;gap:16px;margin-top:4px">
+          <label style="display:flex;align-items:center;gap:7px;font-size:12.5px;color:var(--muted);cursor:pointer">
+            <input class="form-check-input" type="checkbox" id="idx-renowned-scholar" checked>
+            启用著名学者筛选
+          </label>
+          <label style="display:flex;align-items:center;gap:7px;font-size:12.5px;color:var(--muted);cursor:pointer">
+            <input class="form-check-input" type="checkbox" id="idx-author-verify">
+            启用作者信息验证
+          </label>
+          <label style="display:flex;align-items:center;gap:7px;font-size:12.5px;color:var(--muted);cursor:pointer">
+            <input class="form-check-input" type="checkbox" id="idx-citing-description" checked>
+            启用引用描述搜索
+            <span style="font-size:11px;color:var(--light)">(Phase 4，耗时较长)</span>
+          </label>
+          <label style="display:flex;align-items:center;gap:7px;font-size:12.5px;color:var(--muted);cursor:pointer">
+            <input class="form-check-input" type="checkbox" id="idx-dashboard" checked>
+            启用画像报告生成
+            <span style="font-size:11px;color:var(--light)">(Phase 5，需先启用著名学者筛选)</span>
+          </label>
         </div>
+      </div>
+      <div class="col-md-5" id="idx-dashboard-model-row">
+        <label class="form-label">画像报告模型 <span style="color:var(--light);font-weight:400">(Phase 5 LLM，无需 web search)</span></label>
+        <input type="text" id="idx-dashboard-model" class="form-control"
+            placeholder="gemini-3-flash-preview-nothinking">
+        <div class="form-text">推荐使用非 search 模型，与上方 Search Model 独立</div>
+      </div>
+      <div class="col-12" style="display:flex;align-items:center;gap:10px;justify-content:flex-end">
+        <button id="idx-save-config-btn" class="btn-agent-sm">
+          <i class="bi bi-check2"></i> 保存配置
+        </button>
+        <span id="idx-save-indicator">✓ 已保存</span>
       </div>
     </div>
   </div>

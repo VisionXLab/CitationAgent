@@ -29,13 +29,11 @@ function initIndexPage() {
             el('idx-openai-url').value = cfg.openai_base_url || '';
             el('idx-openai-model').value = cfg.openai_model || '';
             el('idx-output-prefix').value = cfg.default_output_prefix || 'paper';
-            el('idx-renowned-scholar').checked = cfg.enable_renowned_scholar_filter || false;
+            el('idx-renowned-scholar').checked = cfg.enable_renowned_scholar_filter !== false;
             el('idx-author-verify').checked = cfg.enable_author_verification || false;
-            el('idx-citing-description').checked = cfg.enable_citing_description || false;
-            el('idx-dashboard').checked = cfg.enable_dashboard || false;
+            el('idx-citing-description').checked = cfg.enable_citing_description !== false;
+            el('idx-dashboard').checked = cfg.enable_dashboard !== false;
             el('idx-dashboard-model').value = cfg.dashboard_model || 'gemini-3-flash-preview-nothinking';
-            document.getElementById('idx-dashboard-model-row').style.display =
-                cfg.enable_dashboard ? 'block' : 'none';
         } catch (e) {
             console.error('加载配置失败:', e);
         }
@@ -44,12 +42,6 @@ function initIndexPage() {
     // 保存配置按钮
     document.getElementById('idx-save-config-btn').addEventListener('click', async () => {
         await saveIndexConfig();
-    });
-
-    // 画像报告开关 → 控制模型输入框显示
-    document.getElementById('idx-dashboard').addEventListener('change', function () {
-        document.getElementById('idx-dashboard-model-row').style.display =
-            this.checked ? 'block' : 'none';
     });
 
     async function saveIndexConfig() {
