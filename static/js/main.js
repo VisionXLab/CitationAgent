@@ -981,7 +981,7 @@ document.addEventListener('DOMContentLoaded', function() {
             document.getElementById('author-search-prompt1').value = config.author_search_prompt1 || '';
             document.getElementById('author-search-prompt2').value = config.author_search_prompt2 || '';
             document.getElementById('enable-renowned-scholar').checked = config.enable_renowned_scholar_filter || false;
-            document.getElementById('renowned-scholar-model').value = config.renowned_scholar_model || 'gpt-5-nano';
+            document.getElementById('renowned-scholar-model').value = config.renowned_scholar_model || 'gemini-3-pro-preview-nothinking';
             document.getElementById('renowned-scholar-prompt').value = config.renowned_scholar_prompt || '';
 
             // 根据enable_renowned_scholar_filter设置显示/隐藏高级配置

@@ -21,7 +21,7 @@ class AppConfig(BaseModel):
     default_output_prefix: str = Field(default="paper", description="默认输出文件前缀")
     sleep_between_pages: int = Field(default=10, description="翻页间隔（秒）")
     sleep_between_authors: float = Field(default=0.5, description="搜索作者间隔（秒）")
-    parallel_author_search: int = Field(default=1, description="并行作者搜索数量(1=串行, >1=并行)")
+    parallel_author_search: int = Field(default=5, description="并行作者搜索数量(1=串行, >1=并行)")
 
     # 断点续爬
     resume_page_count: int = Field(default=0, description="从第几页继续")
@@ -41,7 +41,8 @@ class AppConfig(BaseModel):
 
     # 重试配置
     retry_max_attempts: int = Field(default=3, description="HTTP/登录页错误的最大重试次数")
-    retry_intervals: str = Field(default="5,10,20", description="重试间隔（秒），逗号分隔。如 '10' 表示固定10秒，'5,10,20' 表示依次等待5/10/20秒")
+    retry_intervals: str = Field(default="5,10,20",
+                                 description="重试间隔（秒），逗号分隔。如 '10' 表示固定10秒，'5,10,20' 表示依次等待5/10/20秒")
     dc_retry_max_attempts: int = Field(default=5, description="数据中心不一致时的最大重试次数（每次自动切换国家代码）")
 
     # 作者搜索Prompt配置
@@ -56,9 +57,32 @@ class AppConfig(BaseModel):
 
     # 二次筛选大佬配置
     enable_renowned_scholar_filter: bool = Field(default=True, description="是否启用二次筛选重要学者")
-    renowned_scholar_model: str = Field(default="gpt-5-nano", description="二次筛选使用的模型（cheaper model）")
+    renowned_scholar_model: str = Field(default="gemini-3-pro-preview-nothinking",
+                                        description="二次筛选使用的模型（cheaper model）")
     renowned_scholar_prompt: str = Field(
-        default="这是一篇论文的作者列表信息。现在，请你根据这些作者信息，找到那些国内外享誉盛名的学者。对于中国学者，着重找到那些院士级别、校长等重要行政职务的学者。对于海外学者，着重找到那些来自国际著名研究机构如谷歌、微软，以及有海外院士头衔的学者。若该作者列表里没有这样的重要学者，则输出\"无\"。",
+        default=(
+            "以上是一篇论文的作者列表信息。\n"
+            "### 任务指南：\n"
+            "1. **高影响力判定 (is_high_impact)**：学术影响力大（院士、知名学会Fellow、国家杰青/长江/优青等）或企业界大佬（首席科学家、VP、负责人）。除此之外，其他级别的学者或教授一律不保留。\n"
+            "2. **无重量级作者**：若作者信息明确说明无重量级作者，只需要输出'无任何重量级学者'。\n\n"
+            "3. **有重量级作者**：若有重量级作者，只输出那些顶级大佬级别的学者，进一步总结每位重量级作者的元信息，包括姓名、机构、国家、职务、荣誉称号。每位重量级作者之间用 $$$分隔符$$$ 来隔开，输出格式参考如下：\n\n"
+            "（输出格式参考）：\n"
+            "$$$分隔符$$$\n"
+            "重量级作者1\n"
+            "姓名\n"
+            "机构（当前最新任职单位）\n"
+            "国家\n"
+            "职务（在行政单位或著名研究机构的职务或职称）\n"
+            "荣誉称号（所获得的学术头衔或国际重量级头衔）\n"
+            "$$$分隔符$$$\n"
+            "重量级作者2\n"
+            "姓名\n"
+            "机构（当前最新任职单位）\n"
+            "国家\n"
+            "职务（在行政单位或著名研究机构的职务或职称）\n"
+            "荣誉称号（所获得的学术头衔或国际重量级头衔）\n"
+
+            "直至所有的重量级作者都被记录下来。记住，无需任何前言后记。"),
         description="二次筛选重要学者的Prompt"
     )
 
@@ -82,12 +106,11 @@ class AppConfig(BaseModel):
         description="作者信息校验的Prompt"
     )
 
-
     # 引用描述搜索配置
     enable_citing_description: bool = Field(default=True, description="是否搜索引用描述（Phase 4）")
     enable_dashboard: bool = Field(default=True, description="是否生成 HTML 画像报告（Phase 5）")
     dashboard_model: str = Field(default="gemini-3-flash-preview-nothinking",
-                                  description="画像报告 LLM 分析使用的模型")
+                                 description="画像报告 LLM 分析使用的模型")
 
 
 class ConfigManager:
