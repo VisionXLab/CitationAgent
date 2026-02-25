@@ -17,7 +17,7 @@ class AuthorSearcher:
         prompt1: str = None,
         prompt2: str = None,
         enable_renowned_scholar: bool = False,
-        renowned_scholar_model: str = "gemini-3-pro-preview-nothinking",
+        renowned_scholar_model: str = "gemini-3-flash-preview-nothinking",
         renowned_scholar_prompt: str = None,
         enable_author_verification: bool = False,
         author_verify_model: str = "gemini-3-pro-preview-search",

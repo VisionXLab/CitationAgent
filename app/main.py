@@ -120,7 +120,7 @@ class ConfigUpdate(BaseModel):
     author_search_prompt1: str = "这是一篇论文。请你根据这个paper_link和paper_title，去搜索查阅这篇论文的作者列表，然后输出每个作者的名字及其对应的单位名称。"
     author_search_prompt2: str = "这是一篇论文及作者列表。请你根据这篇论文、作者名字和作者单位，去搜索该每位作者的个人信息，输出每位作者的谷歌学术累积引用（如有）、重大学术头衔（比如是否IEEE/ACM/ACL等学术Fellow、中国科学院院士、中国工程院院士、国外院士如欧洲科学院院士、诺贝尔奖得主、图灵奖得主，国家杰青、长江学者、优青，或在AI领域的国际知名人物），行政职位（如国内外知名大学的校长或院长）。"
     enable_renowned_scholar_filter: bool = True
-    renowned_scholar_model: str = "gemini-3-pro-preview-nothinking"
+    renowned_scholar_model: str = "gemini-3-flash-preview-nothinking"
     renowned_scholar_prompt: str = "这是一篇论文的作者列表信息。现在，请你根据这些作者信息，找到那些国内外享誉盛名的学者。对于中国学者，着重找到那些院士级别、校长等重要行政职务的学者。对于海外学者，着重找到那些来自国际著名研究机构如谷歌、微软，以及有海外院士头衔的学者。若该作者列表里没有这样的重要学者，则输出\"无\"。"
     enable_author_verification: bool = False
     author_verify_model: str = "gemini-3-pro-preview-search"

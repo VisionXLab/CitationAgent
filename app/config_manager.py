@@ -57,7 +57,7 @@ class AppConfig(BaseModel):
 
     # 二次筛选大佬配置
     enable_renowned_scholar_filter: bool = Field(default=True, description="是否启用二次筛选重要学者")
-    renowned_scholar_model: str = Field(default="gemini-3-pro-preview-nothinking",
+    renowned_scholar_model: str = Field(default="gemini-3-flash-preview-nothinking",
                                         description="二次筛选使用的模型（cheaper model）")
     renowned_scholar_prompt: str = Field(
         default=(
