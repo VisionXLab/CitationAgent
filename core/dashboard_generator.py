@@ -23,15 +23,19 @@ class DashboardGenerator:
         base_url: str,
         model: str,
         log_callback: Callable,
+        test_mode: bool = False,
     ):
         self.client = OpenAI(api_key=api_key, base_url=base_url)
         self.model = model
         self.log = log_callback
+        self.test_mode = test_mode
 
     # ─────────────────────────────────────────────────────────────
     # LLM helpers
     # ─────────────────────────────────────────────────────────────
     def _llm(self, prompt: str) -> str:
+        if self.test_mode:
+            return ""   # 测试模式：跳过 LLM，让各处 fallback 自动生效
         try:
             comp = self.client.chat.completions.create(
                 model=self.model,
@@ -553,6 +557,12 @@ body { font-family: 'Noto Sans SC', -apple-system, BlinkMacSystemFont, 'Segoe UI
 .header-subtitle { font-size: 13.5px; color: rgba(200,220,255,0.70); max-width: 580px; line-height: 1.75; }
 .header-divider { position: absolute; bottom: 0; left: 0; right: 0; height: 3px;
   background: linear-gradient(90deg, transparent, rgba(120,180,255,0.6) 30%, rgba(80,200,160,0.5) 70%, transparent); }
+.header-targets { display: flex; flex-direction: column; gap: 6px; margin: 14px 0 16px; }
+.header-target-item { display: flex; align-items: baseline; gap: 10px; }
+.header-target-num { font-size: 10px; font-weight: 700; color: rgba(147,197,253,0.6);
+  letter-spacing: 1px; flex-shrink: 0; }
+.header-target-title { font-size: 15px; font-weight: 600; color: #e2eeff;
+  line-height: 1.4; word-break: break-word; }
 .stats-bar { background: var(--surface); border-bottom: 1px solid var(--border);
   display: flex; overflow-x: auto; box-shadow: var(--shadow-sm); }
 .stat-item { flex: 1; min-width: 120px; padding: 22px 20px; text-align: center;
@@ -813,7 +823,8 @@ a.author-pill:hover { background: var(--teal-light); border-color: var(--teal); 
 
     def _build_html(self, papers, total_papers, top_scholars, all_scholars,
                     stats, keywords, citation_analysis, prediction, insights,
-                    unique_citing_papers=None, download_filenames=None, citing_pairs=None):
+                    unique_citing_papers=None, download_filenames=None, citing_pairs=None,
+                    canonical_titles=None):
         now = datetime.now()
         download_filenames = download_filenames or {}
         citing_pairs = citing_pairs or []
@@ -1141,12 +1152,28 @@ a.author-pill:hover { background: var(--teal-light); border-color: var(--teal); 
 
         gen_date = f"{now.year}.{str(now.month).zfill(2)}.{str(now.day).zfill(2)}"
 
+        # ── Target paper title display
+        canonical_titles = canonical_titles or []
+        if canonical_titles:
+            target_items = "".join(
+                f'<div class="header-target-item">'
+                f'<span class="header-target-num">{str(i+1).zfill(2)}</span>'
+                f'<span class="header-target-title">{t}</span>'
+                f'</div>'
+                for i, t in enumerate(canonical_titles)
+            )
+            header_targets_html = f'<div class="header-targets">{target_items}</div>'
+            page_title = canonical_titles[0] if len(canonical_titles) == 1 else f"{canonical_titles[0]} 等 {len(canonical_titles)} 篇论文"
+        else:
+            header_targets_html = ""
+            page_title = "论文被引多维画像分析报告"
+
         html = f"""<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>论文被引多维画像分析报告</title>
+<title>{page_title} · 被引画像报告</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
@@ -1160,6 +1187,7 @@ a.author-pill:hover { background: var(--teal-light); border-color: var(--teal); 
 <div class="header">
   <div class="header-eyebrow">Citation Intelligence · {now.year}</div>
   <h1>引用论文<em>多维画像</em>分析报告</h1>
+  {header_targets_html}
   <p class="header-subtitle">
     基于 {total_papers} 篇引用论文与 {stats['unique_scholars']} 位知名学者（含 {stats['fellow_count']} 位院士/Fellow）数据，
     结合大模型对引用描述的深度解读，全面呈现学术影响力格局
@@ -1501,6 +1529,7 @@ new Chart(document.getElementById('cTrend'), {{
         renowned_all_xlsx: Path,
         renowned_top_xlsx: Path,
         output_html: Path,
+        canonical_titles: Optional[list] = None,
         download_filenames: Optional[dict] = None,
     ) -> Path:
         """
@@ -1533,6 +1562,7 @@ new Chart(document.getElementById('cTrend'), {{
             unique_citing_papers=unique_citing_papers,
             download_filenames=download_filenames or {},
             citing_pairs=citing_pairs,
+            canonical_titles=canonical_titles or [],
         )
 
         output_html.parent.mkdir(parents=True, exist_ok=True)

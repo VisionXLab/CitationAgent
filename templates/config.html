@@ -402,6 +402,17 @@
                             开启后每页抓取完成都会在 <code>debug/</code> 目录下保存原始 HTML 和解析日志，方便排查抓取异常
                         </div>
                     </div>
+                    <div class="mb-3">
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" id="test-mode" role="switch">
+                            <label class="form-check-label" for="test-mode">
+                                🧪 测试模式 <span class="text-muted small">(使用伪造数据，跳过真实 API 调用)</span>
+                            </label>
+                        </div>
+                        <div class="form-text">
+                            开启后使用 <code>test/mock_author_info.jsonl</code> 中的预设数据，不消耗任何 API 配额，用于验证曾用名合并、仪表盘渲染等效果
+                        </div>
+                    </div>
 
                     <!-- 按钮组 -->
                     <div class="d-grid gap-2 mt-4">

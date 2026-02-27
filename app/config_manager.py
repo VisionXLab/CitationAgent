@@ -32,6 +32,9 @@ class AppConfig(BaseModel):
     # 调试模式
     debug_mode: bool = Field(default=False, description="是否启用调试模式（输出详细日志和HTML）")
 
+    # 测试模式
+    test_mode: bool = Field(default=False, description="测试模式：跳过真实API调用，使用test/mock_author_info.jsonl中的伪造数据")
+
     # ScraperAPI高级选项
     scraper_premium: bool = Field(default=False, description="启用ScraperAPI Premium代理")
     scraper_ultra_premium: bool = Field(default=False, description="启用ScraperAPI Ultra Premium代理")

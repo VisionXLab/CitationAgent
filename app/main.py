@@ -73,6 +73,7 @@ class ConfigUpdate(BaseModel):
     resume_page_count: int = 0
     enable_year_traverse: bool = False
     debug_mode: bool = False
+    test_mode: bool = False
     scraper_premium: bool = False
     scraper_ultra_premium: bool = False
     scraper_session: bool = False
@@ -200,8 +201,13 @@ async def import_task(file: UploadFile = File(...)):
         )
 
 
+class PaperInput(BaseModel):
+    title: str
+    aliases: List[str] = []
+
+
 class RunRequest(BaseModel):
-    paper_titles: List[str]   # 论文题目列表
+    papers: List[PaperInput]   # 每篇论文：正式标题 + 曾用名列表
     output_prefix: str = "paper"
 
 
@@ -212,20 +218,22 @@ async def run_pipeline(request: RunRequest):
         return JSONResponse(status_code=400,
             content={"status": "error", "message": "任务运行中，请等待"})
 
-    titles = [t.strip() for t in request.paper_titles if t.strip()]
-    if not titles:
+    groups = [{"title": p.title.strip(), "aliases": [a.strip() for a in p.aliases if a.strip()]}
+              for p in request.papers if p.title.strip()]
+    if not groups:
         return JSONResponse(status_code=400,
             content={"status": "error", "message": "请输入至少一篇论文题目"})
 
     config = config_manager.get()
     task_executor.current_task = asyncio.create_task(
         task_executor.execute_for_titles(
-            paper_titles=titles,
+            paper_groups=groups,
             config=config,
             output_prefix=request.output_prefix,
         )
     )
-    return {"status": "success", "message": f"已启动，共 {len(titles)} 篇论文"}
+    total = sum(1 + len(g["aliases"]) for g in groups)
+    return {"status": "success", "message": f"已启动，共 {len(groups)} 篇论文（含 {total} 个搜索标题）"}
 
 
 @app.post("/api/task/cancel")
@@ -332,27 +340,39 @@ async def list_results():
     return results
 
 
-@app.get("/api/results/view/{filename}")
-async def view_result_html(filename: str):
+def _safe_data_path(filepath: str) -> Path:
+    """规范化路径并验证在 data/ 目录下（防路径穿越）"""
+    norm = filepath.replace("\\", "/")
+    p = Path(norm)
+    try:
+        p.resolve().relative_to(Path("data").resolve())
+    except ValueError:
+        raise HTTPException(status_code=403, detail="不允许访问该路径")
+    return p
+
+
+@app.get("/api/results/view/{filepath:path}")
+async def view_result_html(filepath: str):
     """在浏览器内查看 HTML 报告（返回 text/html）"""
-    file_path = Path("data/html") / filename
-    if file_path.exists() and file_path.is_file():
-        return FileResponse(path=file_path, media_type="text/html")
+    p = _safe_data_path(filepath)
+    if p.exists() and p.is_file():
+        return FileResponse(path=p, media_type="text/html")
     raise HTTPException(status_code=404, detail="文件不存在")
 
 
-@app.get("/api/results/download/{filename}")
-async def download_result(filename: str):
-    """下载结果文件"""
+@app.get("/api/results/download/{filepath:path}")
+async def download_result(filepath: str):
+    """下载结果文件（支持完整相对路径或仅文件名向下兼容）"""
+    p = _safe_data_path(filepath)
+    # 直接路径命中
+    if p.exists() and p.is_file():
+        return FileResponse(path=p, filename=p.name, media_type="application/octet-stream")
+    # 向下兼容：仅传文件名时在旧目录中查找
+    fname = p.name
     for dir_path in [Path("data/excel"), Path("data/json"), Path("data/jsonl")]:
-        file_path = dir_path / filename
-        if file_path.exists() and file_path.is_file():
-            return FileResponse(
-                path=file_path,
-                filename=filename,
-                media_type="application/octet-stream"
-            )
-
+        legacy = dir_path / fname
+        if legacy.exists() and legacy.is_file():
+            return FileResponse(path=legacy, filename=fname, media_type="application/octet-stream")
     raise HTTPException(status_code=404, detail="文件不存在")
 
 

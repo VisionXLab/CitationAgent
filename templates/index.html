@@ -20,10 +20,11 @@
 <div class="agent-card">
   <div class="agent-card-label">
     <i class="bi bi-file-text" style="color:var(--accent)"></i>&nbsp; 目标论文题目
-    <span style="color:var(--light);font-weight:400;text-transform:none;letter-spacing:0;margin-left:8px">每行一篇，支持多篇同时分析</span>
+    <span style="color:var(--light);font-weight:400;text-transform:none;letter-spacing:0;margin-left:8px">按回车添加，支持多篇同时分析</span>
   </div>
-  <textarea id="paper-titles" class="agent-textarea" rows="4"
-    placeholder="Attention Is All You Need&#10;A Survey on Visual Foundation Models&#10;..."></textarea>
+  <div id="paper-list"></div>
+  <input type="text" id="paper-input" autocomplete="off"
+    placeholder="输入论文题目，按回车添加…">
 </div>
 
 <!-- API Config Card -->

@@ -1,7 +1,159 @@
+// ==================== 论文列表管理 ====================
+(function () {
+    let _idCounter = 0;
+    const STORAGE_KEY = 'citation_agent_papers';
+
+    function _saveState() {
+        try {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(window.getPaperGroups()));
+        } catch (e) {}
+    }
+
+    // autoFocus=true 时聚焦（用户点+按钮），false 时静默恢复（从 localStorage 恢复）
+    function _addAliasRow(item, initialText, autoFocus) {
+        const aliasesEl = item.querySelector('.paper-aliases');
+        const row = document.createElement('div');
+        row.className = 'paper-alias-row';
+
+        const prefix = document.createElement('span');
+        prefix.className = 'paper-alias-prefix';
+        prefix.textContent = '↳';
+
+        const alias = document.createElement('span');
+        alias.className = 'paper-alias';
+        alias.contentEditable = 'true';
+        if (initialText) alias.textContent = initialText;
+
+        alias.addEventListener('keydown', e => {
+            if (e.key === 'Enter') { e.preventDefault(); alias.blur(); }
+        });
+        alias.addEventListener('blur', () => {
+            if (!alias.textContent.trim()) row.remove();
+            _saveState();
+        });
+
+        row.appendChild(prefix);
+        row.appendChild(alias);
+        aliasesEl.appendChild(row);
+        if (autoFocus) alias.focus();
+    }
+
+    function _deletePaperItem(item) {
+        item.remove();
+        _saveState();
+    }
+
+    // savedAliases: 从 localStorage 恢复时传入的曾用名列表
+    window.addPaper = function (title, savedAliases) {
+        const id = ++_idCounter;
+        const item = document.createElement('div');
+        item.className = 'paper-item';
+        item.dataset.id = id;
+
+        const main = document.createElement('div');
+        main.className = 'paper-item-main';
+
+        const titleEl = document.createElement('span');
+        titleEl.className = 'paper-item-title';
+        titleEl.contentEditable = 'true';
+        titleEl.textContent = title;
+        titleEl.addEventListener('keydown', e => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                document.getElementById('paper-input').focus();
+            }
+        });
+        titleEl.addEventListener('blur', () => {
+            if (!titleEl.textContent.trim()) _deletePaperItem(item);
+            else _saveState();
+        });
+
+        const actions = document.createElement('div');
+        actions.className = 'paper-item-actions';
+
+        const btnAlias = document.createElement('button');
+        btnAlias.className = 'paper-btn-alias';
+        btnAlias.title = '添加曾用名';
+        btnAlias.textContent = '+';
+        btnAlias.addEventListener('click', () => _addAliasRow(item, '', true));
+
+        const btnDel = document.createElement('button');
+        btnDel.className = 'paper-btn-delete';
+        btnDel.title = '删除';
+        btnDel.innerHTML = '<i class="bi bi-trash"></i>';
+        btnDel.addEventListener('click', () => _deletePaperItem(item));
+
+        actions.appendChild(btnAlias);
+        actions.appendChild(btnDel);
+        main.appendChild(titleEl);
+        main.appendChild(actions);
+
+        const aliasesEl = document.createElement('div');
+        aliasesEl.className = 'paper-aliases';
+
+        item.appendChild(main);
+        item.appendChild(aliasesEl);
+        document.getElementById('paper-list').appendChild(item);
+
+        // 恢复已保存的曾用名（不自动聚焦）
+        if (savedAliases && savedAliases.length) {
+            savedAliases.forEach(a => { if (a.trim()) _addAliasRow(item, a, false); });
+        }
+        _saveState();
+    };
+
+    window.getPaperGroups = function () {
+        const groups = [];
+        document.querySelectorAll('.paper-item').forEach(item => {
+            const title = item.querySelector('.paper-item-title').textContent.trim();
+            if (!title) return;
+            const aliases = [];
+            item.querySelectorAll('.paper-alias').forEach(a => {
+                const t = a.textContent.trim();
+                if (t) aliases.push(t);
+            });
+            groups.push({ title, aliases });
+        });
+        return groups;
+    };
+
+    // 从 localStorage 恢复论文列表（在页面加载时调用）
+    window.restorePaperList = function () {
+        try {
+            const saved = localStorage.getItem(STORAGE_KEY);
+            if (!saved) return;
+            const groups = JSON.parse(saved);
+            if (!Array.isArray(groups)) return;
+            groups.forEach(g => {
+                if (g && g.title) window.addPaper(g.title, g.aliases || []);
+            });
+        } catch (e) {}
+    };
+})();
+
 // ==================== 新首页逻辑（自动化流水线）====================
 function initIndexPage() {
     const runBtn = document.getElementById('idx-run-btn');
     if (!runBtn) return;
+
+    // 恢复上次保存的论文列表（页面切换后不丢失）
+    if (window.restorePaperList) window.restorePaperList();
+
+    // 论文输入框：按 Enter 添加条目
+    const paperInput = document.getElementById('paper-input');
+    if (paperInput) {
+        paperInput.addEventListener('keydown', e => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                const title = paperInput.value.trim();
+                if (title) {
+                    addPaper(title);
+                    paperInput.value = '';
+                }
+                paperInput.focus();
+            }
+        });
+    }
 
     // 初始化 WebSocket
     const ws = new WebSocketManager();
@@ -96,9 +248,14 @@ function initIndexPage() {
 
     // 开始分析按钮
     runBtn.addEventListener('click', async () => {
-        const titlesRaw = document.getElementById('paper-titles').value;
-        const titles = titlesRaw.split('\n').map(t => t.trim()).filter(t => t);
-        if (titles.length === 0) {
+        // 先把输入框里未提交的内容也加进列表
+        const paperInput = document.getElementById('paper-input');
+        if (paperInput && paperInput.value.trim()) {
+            addPaper(paperInput.value.trim());
+            paperInput.value = '';
+        }
+        const groups = getPaperGroups();
+        if (groups.length === 0) {
             alert('请输入至少一篇论文题目');
             return;
         }
@@ -130,7 +287,7 @@ function initIndexPage() {
             const resp = await fetch('/api/run', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ paper_titles: titles, output_prefix: outputPrefix })
+                body: JSON.stringify({ papers: groups, output_prefix: outputPrefix })
             });
             const data = await resp.json();
             if (data.status !== 'success') {
@@ -241,6 +398,9 @@ function initIndexPage() {
         }
     }
 
+    // 规范化后端返回的文件路径：反斜杠→正斜杠
+    function normPath(s) { return s ? s.replace(/\\/g, '/') : ''; }
+
     async function showIndexResults(data) {
         resetRunBtn();
         const section = document.getElementById('idx-results-section');
@@ -250,34 +410,37 @@ function initIndexPage() {
         let html = '';
 
         if (data && data.excel) {
-            const name = data.excel.split('/').pop();
+            const path = normPath(data.excel);
+            const name = path.split('/').pop();
             html += `<div class="result-file-row">
                 <span class="result-file-icon">📊</span>
                 <span class="result-file-name">${name}</span>
-                <a href="/api/results/download/${encodeURIComponent(name)}" class="btn-download btn-dl-excel" download>
+                <a href="/api/results/download/${path}" class="btn-download btn-dl-excel" download>
                     <i class="bi bi-download"></i> Excel
                 </a>
             </div>`;
         }
         if (data && data.json) {
-            const name = data.json.split('/').pop();
+            const path = normPath(data.json);
+            const name = path.split('/').pop();
             html += `<div class="result-file-row">
                 <span class="result-file-icon">📋</span>
                 <span class="result-file-name">${name}</span>
-                <a href="/api/results/download/${encodeURIComponent(name)}" class="btn-download btn-dl-json" download>
+                <a href="/api/results/download/${path}" class="btn-download btn-dl-json" download>
                     <i class="bi bi-download"></i> JSON
                 </a>
             </div>`;
         }
         if (data && data.dashboard) {
-            const name = data.dashboard.split('/').pop();
+            const path = normPath(data.dashboard);
+            const name = path.split('/').pop();
             html += `<div class="dashboard-cta">
                 <span class="result-file-icon">🔭</span>
                 <div class="dashboard-cta-text">
                     <strong style="color:#bc8cff">多维画像分析报告已生成</strong><br>
                     <span style="font-size:11.5px">${name}</span>
                 </div>
-                <a href="/api/results/view/${encodeURIComponent(name)}" target="_blank" class="btn-download btn-dl-report">
+                <a href="/api/results/view/${path}" target="_blank" class="btn-download btn-dl-report">
                     <i class="bi bi-eye"></i> 查看报告
                 </a>
             </div>`;
@@ -340,6 +503,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 resume_page_count: parseInt(document.getElementById('resume-page').value) || 0,
                 enable_year_traverse: document.getElementById('enable-year-traverse').checked,
                 debug_mode: document.getElementById('debug-mode').checked,
+                test_mode: document.getElementById('test-mode').checked,
                 retry_max_attempts: parseInt(document.getElementById('retry-max-attempts').value) || 3,
                 retry_intervals: document.getElementById('retry-intervals').value || '5,10,20',
                 scraper_premium: document.getElementById('scraper-premium').checked,
@@ -404,6 +568,7 @@ document.addEventListener('DOMContentLoaded', function() {
             'resume-page',
             'enable-year-traverse',
             'debug-mode',
+            'test-mode',
             'retry-max-attempts',
             'retry-intervals',
             'scraper-premium',
@@ -418,7 +583,10 @@ document.addEventListener('DOMContentLoaded', function() {
             'renowned-scholar-prompt',
             'enable-author-verification',
             'author-verify-model',
-            'author-verify-prompt'
+            'author-verify-prompt',
+            'enable-citing-description',
+            'enable-dashboard',
+            'dashboard-model'
         ];
 
         configInputs.forEach(id => {
@@ -931,6 +1099,7 @@ document.addEventListener('DOMContentLoaded', function() {
             document.getElementById('resume-page').value = config.resume_page_count;
             document.getElementById('enable-year-traverse').checked = config.enable_year_traverse || false;
             document.getElementById('debug-mode').checked = config.debug_mode || false;
+            document.getElementById('test-mode').checked = config.test_mode || false;
             document.getElementById('retry-max-attempts').value = config.retry_max_attempts || 3;
             document.getElementById('retry-intervals').value = config.retry_intervals || '5,10,20';
             document.getElementById('scraper-premium').checked = config.scraper_premium || false;
