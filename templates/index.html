@@ -72,6 +72,24 @@
         <input type="text" id="idx-output-prefix" class="form-control" value="paper">
       </div>
       <div class="col-12">
+          <div style="margin-bottom:12px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+            <label style="font-size:12.5px;color:var(--muted);white-space:nowrap;font-weight:500">服务层级</label>
+            <select id="idx-service-tier" class="form-select form-select-sm" style="width:auto;min-width:260px;font-size:12.5px">
+              <option value="full">全面版 — 搜索学者 + 筛选大佬 + 逐篇引用描述</option>
+              <option value="lite">省token版 — 搜索学者 + 只搜大佬的引用描述</option>
+              <option value="minimal">更省版 — 搜索学者 + 不搜引用描述</option>
+              <option value="specified">指定学者版 — 跳过搜索，只搜指定学者引用描述</option>
+              <option value="verify">学者查证版 — 验证指定学者是否引用了论文</option>
+              <option value="custom">自定义 (手动设置下方开关)</option>
+            </select>
+          </div>
+          <div id="idx-specified-scholars-row" style="display:none;margin-bottom:12px;width:100%">
+            <label class="form-label" style="font-size:12.5px;color:var(--muted);margin-bottom:4px">
+              指定学者名单 <span style="color:var(--light);font-weight:400">(英文逗号分隔)</span>
+            </label>
+            <input type="text" id="idx-specified-scholars" class="form-control form-control-sm"
+              placeholder="John Smith, 张三, Alice Wang">
+          </div>
         <div style="display:flex;flex-wrap:wrap;gap:16px;margin-top:4px">
           <label style="display:flex;align-items:center;gap:7px;font-size:12.5px;color:var(--muted);cursor:pointer">
             <input class="form-check-input" type="checkbox" id="idx-renowned-scholar" checked>
@@ -90,6 +108,14 @@
             <input class="form-check-input" type="checkbox" id="idx-dashboard" checked>
             启用画像报告生成
             <span style="font-size:11px;color:var(--light)">(Phase 5，需先启用著名学者筛选)</span>
+          </label>
+          <label style="display:flex;align-items:center;gap:7px;font-size:12.5px;color:var(--muted);cursor:pointer">
+            Phase 4 范围:
+            <select id="idx-citing-scope" class="form-select form-select-sm" style="width:auto;min-width:120px;font-size:12px">
+              <option value="all">全部论文</option>
+              <option value="renowned_only">仅院士/Fellow</option>
+              <option value="specified_only">仅指定学者</option>
+            </select>
           </label>
         </div>
       </div>
