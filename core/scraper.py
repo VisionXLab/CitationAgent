@@ -219,6 +219,7 @@ class GoogleScholarScraper:
                 r'约\s*([\d,]+)\s*条',
                 r'([\d,]+)\s*条结果',
                 r'About\s+([\d,]+)\s+results?',
+                r'^([\d,]+)\s+results?\b',
             ]
             candidates = []
             id_elem = soup.find(id='gs_ab_mdw')
@@ -244,6 +245,7 @@ class GoogleScholarScraper:
             r'约\s*(?:<[^>]+>)?\s*([\d,]+)\s*(?:<[^>]+>)?\s*条结果',
             r'About\s+(?:<[^>]+>)?\s*([\d,]+)\s+results?',
             r'([\d,]+)\s*条结果',
+            r'>(\d[\d,]*)\s+results?\b',
         ]
         for pattern in patterns:
             match = re.search(pattern, html, re.IGNORECASE)

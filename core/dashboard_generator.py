@@ -960,6 +960,47 @@ a.author-pill:hover { background: var(--teal-light); border-color: var(--teal); 
           <div>{f}</div>
         </div>"""
 
+        # ── Section 03 body: show placeholder when citing analysis was skipped
+        has_citing_data = bool(ctypes) or bool(themes) or bool(citation_analysis.get("key_findings"))
+        if has_citing_data:
+            section_03_body = f"""<div class="grid-2">
+  <div class="card">
+    <div class="card-title"><div class="card-title-dot"></div>引用类型分布</div>
+    <div class="cite-type-bar">{ct_items}</div>
+    <div style="margin-top:20px;padding-top:16px;border-top:1px solid var(--border)">
+      <div class="card-title" style="margin-bottom:12px"><div class="card-title-dot sage"></div>引用情感倾向</div>
+      <canvas id="cSentiment" style="max-height:200px"></canvas>
+      {sentiment_html}
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-title"><div class="card-title-dot amber"></div>引用出现位置分布</div>
+    <canvas id="cPosition" height="200"></canvas>
+    <div style="margin-top:20px;padding-top:16px;border-top:1px solid var(--border)">
+      <div class="card-title" style="margin-bottom:10px"><div class="card-title-dot violet"></div>高频引用主题词</div>
+      <div class="theme-tags">{theme_html}</div>
+    </div>
+  </div>
+</div>
+<div class="grid-2">
+  <div class="card">
+    <div class="card-title"><div class="card-title-dot violet"></div>引用深度结构（核心 vs 参考 vs 补充）</div>
+    <canvas id="cDepth" style="max-height:200px"></canvas>
+  </div>
+  <div class="card">
+    <div class="card-title"><div class="card-title-dot sage"></div>AI 引用洞察摘要</div>
+    <div class="findings-list">{findings_html}</div>
+  </div>
+</div>"""
+        else:
+            section_03_body = """<div class="grid-1">
+  <div class="card" style="text-align:center;padding:48px 24px;color:rgba(180,210,255,0.45)">
+    <div style="font-size:32px;margin-bottom:12px">🚫</div>
+    <div style="font-size:14px;font-weight:600;margin-bottom:6px;color:rgba(180,210,255,0.6)">未启用被引描述分析</div>
+    <div style="font-size:12px">当前服务层级未开启 Phase 4（引用描述搜索），此部分无数据。如需查看，请在首页选择「全面版」或「省token版」后重新运行。</div>
+  </div>
+</div>"""
+
         # ── Scholar deduplication: normalize names to detect variants
         # e.g. "Zhang Wei", "Zhang Wei (张伟)", "张伟" → same person
         def _norm_scholar_name(name):
@@ -1264,35 +1305,7 @@ a.author-pill:hover { background: var(--teal-light); border-color: var(--teal); 
   <span class="section-title">被引描述深度分析</span>
   <div class="section-divider"></div>
 </div>
-<div class="grid-2">
-  <div class="card">
-    <div class="card-title"><div class="card-title-dot"></div>引用类型分布</div>
-    <div class="cite-type-bar">{ct_items}</div>
-    <div style="margin-top:20px;padding-top:16px;border-top:1px solid var(--border)">
-      <div class="card-title" style="margin-bottom:12px"><div class="card-title-dot sage"></div>引用情感倾向</div>
-      <canvas id="cSentiment" style="max-height:200px"></canvas>
-      {sentiment_html}
-    </div>
-  </div>
-  <div class="card">
-    <div class="card-title"><div class="card-title-dot amber"></div>引用出现位置分布</div>
-    <canvas id="cPosition" height="200"></canvas>
-    <div style="margin-top:20px;padding-top:16px;border-top:1px solid var(--border)">
-      <div class="card-title" style="margin-bottom:10px"><div class="card-title-dot violet"></div>高频引用主题词</div>
-      <div class="theme-tags">{theme_html}</div>
-    </div>
-  </div>
-</div>
-<div class="grid-2">
-  <div class="card">
-    <div class="card-title"><div class="card-title-dot violet"></div>引用深度结构（核心 vs 参考 vs 补充）</div>
-    <canvas id="cDepth" style="max-height:200px"></canvas>
-  </div>
-  <div class="card">
-    <div class="card-title"><div class="card-title-dot sage"></div>AI 引用洞察摘要</div>
-    <div class="findings-list">{findings_html}</div>
-  </div>
-</div>
+{section_03_body}
 
 <!-- SECTION 04 -->
 <div class="section-header">
@@ -1473,6 +1486,7 @@ new Chart(document.getElementById('cCite'), {{
       y: {{ grid: {{ display: false }}, ticks: {{ font: {{ size: 10 }} }} }} }} }}
 }});
 
+if (document.getElementById('cPosition')) {{
 new Chart(document.getElementById('cPosition'), {{
   type: 'bar',
   data: {{ labels: {pos_labels}, datasets: [{{ data: {pos_data},
@@ -1481,7 +1495,9 @@ new Chart(document.getElementById('cPosition'), {{
   options: {{ indexAxis: 'y', responsive: true, plugins: {{ legend: {{ display: false }} }},
     scales: {{ x: {{ beginAtZero: true, grid: {{ color:'rgba(180,190,220,0.2)' }} }}, y: {{ grid: {{ display: false }} }} }} }}
 }});
+}}
 
+if (document.getElementById('cSentiment')) {{
 new Chart(document.getElementById('cSentiment'), {{
   type: 'doughnut',
   data: {{ labels: ['正面引用','中性引用','批评探讨'],
@@ -1491,7 +1507,9 @@ new Chart(document.getElementById('cSentiment'), {{
   options: {{ cutout:'60%', responsive:true, maintainAspectRatio:true,
     plugins:{{ legend:{{ position:'bottom', labels:{{ padding:8,font:{{size:10}} }} }} }} }}
 }});
+}}
 
+if (document.getElementById('cDepth')) {{
 new Chart(document.getElementById('cDepth'), {{
   type: 'doughnut',
   data: {{ labels: ['核心引用 (方法依据)','参考引用 (背景对比)','补充说明'],
@@ -1500,6 +1518,7 @@ new Chart(document.getElementById('cDepth'), {{
   options: {{ cutout:'55%', responsive:true, maintainAspectRatio:true,
     plugins:{{ legend:{{ position:'bottom', labels:{{ padding:10,font:{{size:10}} }} }} }} }}
 }});
+}}
 
 new Chart(document.getElementById('cTrend'), {{
   type: 'line',

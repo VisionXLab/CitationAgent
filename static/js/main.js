@@ -131,6 +131,318 @@
     };
 })();
 
+// ==================== SPA Router ====================
+var SpaRouter = (function () {
+    let _currentPanel = 'home';
+    let _configLoaded = false;
+
+    function switchTo(name) {
+        // Hide all panels (both class and inline style for cache-safety)
+        document.querySelectorAll('.spa-panel').forEach(p => {
+            p.classList.remove('spa-panel-active');
+            p.style.display = 'none';
+        });
+        // Show target
+        const target = document.getElementById('spa-panel-' + name);
+        if (target) {
+            target.classList.add('spa-panel-active');
+            target.style.display = '';
+        }
+        // Update navbar active state
+        document.querySelectorAll('[data-spa-panel]').forEach(link => {
+            link.classList.toggle('active', link.dataset.spaPanel === name);
+        });
+        _currentPanel = name;
+
+        // Lazy-load data for panels
+        if (name === 'config' && !_configLoaded) {
+            _configLoaded = true;
+            loadConfig();
+            checkExistingFiles();
+        } else if (name === 'config') {
+            // Refresh config each time we switch to it
+            loadConfig();
+        }
+        if (name === 'results') {
+            loadResults();
+        }
+
+        // Update URL without reload
+        var url = new URL(window.location);
+        if (name === 'home') {
+            url.searchParams.delete('panel');
+        } else {
+            url.searchParams.set('panel', name);
+        }
+        history.replaceState(null, '', url);
+    }
+
+    function init() {
+        // Bind all data-spa-panel links (navbar + inline links)
+        document.addEventListener('click', function (e) {
+            var link = e.target.closest('[data-spa-panel]');
+            if (link) {
+                e.preventDefault();
+                switchTo(link.dataset.spaPanel);
+            }
+        });
+
+        // Check URL for ?panel= parameter
+        var params = new URLSearchParams(window.location.search);
+        var panel = params.get('panel');
+        if (panel && document.getElementById('spa-panel-' + panel)) {
+            switchTo(panel);
+        } else {
+            switchTo('home');
+        }
+    }
+
+    return { init: init, switchTo: switchTo, current: function () { return _currentPanel; } };
+})();
+
+// ==================== Global Progress Bar ====================
+var GlobalProgress = (function () {
+    function show(label, pct) {
+        var el = document.getElementById('global-progress');
+        if (!el) return;
+        el.classList.add('active');
+        if (label) {
+            var lbl = document.getElementById('global-progress-label');
+            if (lbl) lbl.textContent = label;
+        }
+        if (pct !== undefined) {
+            update(pct);
+        }
+    }
+
+    function update(pct) {
+        var bar = document.getElementById('global-progress-bar');
+        var pctEl = document.getElementById('global-progress-pct');
+        if (bar) bar.style.width = pct + '%';
+        if (pctEl) pctEl.textContent = pct > 0 ? (pct + '%') : '';
+    }
+
+    function setLabel(label) {
+        var lbl = document.getElementById('global-progress-label');
+        if (lbl) lbl.textContent = label;
+    }
+
+    function hide() {
+        var el = document.getElementById('global-progress');
+        if (el) el.classList.remove('active');
+    }
+
+    function init() {
+        var el = document.getElementById('global-progress');
+        if (el) {
+            el.addEventListener('click', function () {
+                SpaRouter.switchTo('home');
+                var log = document.getElementById('idx-log-section');
+                if (log) log.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            });
+        }
+    }
+
+    return { show: show, update: update, setLabel: setLabel, hide: hide, init: init };
+})();
+
+// ==================== Shared Utility ====================
+function escapeHtml(unsafe) {
+    return unsafe
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+}
+
+// ==================== Config Panel Functions (module scope) ====================
+async function loadConfig() {
+    try {
+        const response = await fetch('/api/config');
+        const config = await response.json();
+
+        const el = id => document.getElementById(id);
+
+        // Config panel fields
+        if (el('scraper-api-keys')) el('scraper-api-keys').value = (config.scraper_api_keys || []).join(',');
+        if (el('openai-api-key')) el('openai-api-key').value = config.openai_api_key || '';
+        if (el('openai-base-url')) el('openai-base-url').value = config.openai_base_url || '';
+        if (el('openai-model')) el('openai-model').value = config.openai_model || '';
+        if (el('output-prefix')) el('output-prefix').value = config.default_output_prefix || 'paper';
+        if (el('sleep-between-pages')) el('sleep-between-pages').value = config.sleep_between_pages || 10;
+        if (el('parallel-author-search')) el('parallel-author-search').value = config.parallel_author_search || 1;
+        if (el('resume-page')) el('resume-page').value = config.resume_page_count || 0;
+        if (el('enable-year-traverse')) el('enable-year-traverse').checked = config.enable_year_traverse || false;
+        if (el('debug-mode')) el('debug-mode').checked = config.debug_mode || false;
+        if (el('test-mode')) el('test-mode').checked = config.test_mode || false;
+        if (el('retry-max-attempts')) el('retry-max-attempts').value = config.retry_max_attempts || 3;
+        if (el('retry-intervals')) el('retry-intervals').value = config.retry_intervals || '5,10,20';
+        if (el('scraper-premium')) el('scraper-premium').checked = config.scraper_premium || false;
+        if (el('scraper-ultra-premium')) el('scraper-ultra-premium').checked = config.scraper_ultra_premium || false;
+        if (el('scraper-session')) el('scraper-session').checked = config.scraper_session || false;
+        if (el('scholar-no-filter')) el('scholar-no-filter').checked = config.scholar_no_filter || false;
+        if (el('scraper-geo-rotate')) el('scraper-geo-rotate').checked = config.scraper_geo_rotate || false;
+        if (el('author-search-prompt1')) el('author-search-prompt1').value = config.author_search_prompt1 || '';
+        if (el('author-search-prompt2')) el('author-search-prompt2').value = config.author_search_prompt2 || '';
+        if (el('enable-renowned-scholar')) el('enable-renowned-scholar').checked = config.enable_renowned_scholar_filter || false;
+        if (el('renowned-scholar-model')) el('renowned-scholar-model').value = config.renowned_scholar_model || 'gemini-3-flash-preview-nothinking';
+        if (el('renowned-scholar-prompt')) el('renowned-scholar-prompt').value = config.renowned_scholar_prompt || '';
+        if (el('enable-author-verification')) el('enable-author-verification').checked = config.enable_author_verification || false;
+        if (el('author-verify-model')) el('author-verify-model').value = config.author_verify_model || 'gemini-3-pro-preview-search';
+        if (el('author-verify-prompt')) el('author-verify-prompt').value = config.author_verify_prompt || '';
+
+        // Toggle visibility for sub-config sections
+        var renownedScholarConfig = el('renowned-scholar-config');
+        if (renownedScholarConfig) {
+            renownedScholarConfig.style.display = config.enable_renowned_scholar_filter ? 'block' : 'none';
+        }
+        var authorVerificationConfig = el('author-verification-config');
+        if (authorVerificationConfig) {
+            authorVerificationConfig.style.display = config.enable_author_verification ? 'block' : 'none';
+        }
+    } catch (error) {
+        console.error('加载配置失败:', error);
+    }
+}
+
+async function checkExistingFiles() {
+    try {
+        const response = await fetch('/api/results/list');
+        const files = await response.json();
+
+        const jsonlFiles = files.filter(f => f.type === '.jsonl');
+
+        if (jsonlFiles.length > 0) {
+            const alertDiv = document.getElementById('existing-files-alert');
+            const listDiv = document.getElementById('existing-files-list');
+            if (!alertDiv || !listDiv) return;
+
+            jsonlFiles.sort((a, b) => b.modified - a.modified);
+
+            const recentFiles = jsonlFiles.slice(0, 5);
+            listDiv.innerHTML = '<strong>最近的结果文件:</strong><ul class="mb-0 mt-1">' +
+                recentFiles.map(f => {
+                    const date = new Date(f.modified * 1000).toLocaleString('zh-CN');
+                    const size = (f.size / 1024).toFixed(1);
+                    return `<li><code>${f.name}</code> (${size} KB, ${date})</li>`;
+                }).join('') +
+                '</ul>';
+
+            if (jsonlFiles.length > 5) {
+                listDiv.innerHTML += `<div class="mt-1 text-muted">...还有 ${jsonlFiles.length - 5} 个文件</div>`;
+            }
+
+            alertDiv.style.display = 'block';
+        }
+    } catch (error) {
+        console.error('检查已有文件失败:', error);
+    }
+}
+
+async function loadResults() {
+    const loading = document.getElementById('loading-indicator');
+    const empty = document.getElementById('empty-state');
+    const tableContainer = document.getElementById('results-table-container');
+    const table = document.getElementById('results-table');
+
+    if (!loading || !table) return;
+
+    loading.style.display = 'block';
+    empty.style.display = 'none';
+    tableContainer.style.display = 'none';
+
+    try {
+        const response = await fetch('/api/results/list');
+        const files = await response.json();
+
+        loading.style.display = 'none';
+
+        if (files.length === 0) {
+            empty.style.display = 'block';
+        } else {
+            tableContainer.style.display = 'block';
+            table.innerHTML = '';
+
+            files.forEach(file => {
+                const row = document.createElement('tr');
+
+                const typeClass = file.type === '.xlsx' ? 'success' :
+                                file.type === '.json' ? 'info' : 'warning';
+
+                const size = (file.size / 1024).toFixed(2);
+                const date = new Date(file.modified * 1000).toLocaleString('zh-CN');
+
+                row.innerHTML = `
+                    <td>
+                        <i class="bi bi-file-earmark-${file.type === '.xlsx' ? 'excel' : 'code'}"></i>
+                        ${file.name}
+                    </td>
+                    <td><span class="badge bg-${typeClass}">${file.type}</span></td>
+                    <td>${size} KB</td>
+                    <td>${date}</td>
+                    <td>
+                        <a href="/api/results/download/${file.name}"
+                           class="btn btn-sm btn-primary"
+                           download>
+                            <i class="bi bi-download"></i> 下载
+                        </a>
+                    </td>
+                `;
+                table.appendChild(row);
+            });
+
+            document.getElementById('file-count').textContent = files.length;
+        }
+    } catch (error) {
+        console.error('加载结果失败:', error);
+        if (loading) loading.style.display = 'none';
+        if (empty) empty.style.display = 'block';
+    }
+}
+
+function collectConfig() {
+    return {
+        scraper_api_keys: document.getElementById('scraper-api-keys').value
+            .split(',').map(k => k.trim()).filter(k => k),
+        openai_api_key: document.getElementById('openai-api-key').value,
+        openai_base_url: document.getElementById('openai-base-url').value,
+        openai_model: document.getElementById('openai-model').value,
+        default_output_prefix: document.getElementById('output-prefix').value,
+        sleep_between_pages: parseInt(document.getElementById('sleep-between-pages').value) || 10,
+        parallel_author_search: parseInt(document.getElementById('parallel-author-search').value) || 1,
+        resume_page_count: parseInt(document.getElementById('resume-page').value) || 0,
+        enable_year_traverse: document.getElementById('enable-year-traverse').checked,
+        debug_mode: document.getElementById('debug-mode').checked,
+        test_mode: document.getElementById('test-mode').checked,
+        retry_max_attempts: parseInt(document.getElementById('retry-max-attempts').value) || 3,
+        retry_intervals: document.getElementById('retry-intervals').value || '5,10,20',
+        scraper_premium: document.getElementById('scraper-premium').checked,
+        scraper_ultra_premium: document.getElementById('scraper-ultra-premium').checked,
+        scraper_session: document.getElementById('scraper-session').checked,
+        scholar_no_filter: document.getElementById('scholar-no-filter').checked,
+        scraper_geo_rotate: document.getElementById('scraper-geo-rotate').checked,
+        author_search_prompt1: document.getElementById('author-search-prompt1').value,
+        author_search_prompt2: document.getElementById('author-search-prompt2').value,
+        enable_renowned_scholar_filter: document.getElementById('enable-renowned-scholar').checked,
+        renowned_scholar_model: document.getElementById('renowned-scholar-model').value,
+        renowned_scholar_prompt: document.getElementById('renowned-scholar-prompt').value,
+        enable_author_verification: document.getElementById('enable-author-verification').checked,
+        author_verify_model: document.getElementById('author-verify-model').value,
+        author_verify_prompt: document.getElementById('author-verify-prompt').value
+    };
+}
+
+async function saveConfigNow() {
+    const config = collectConfig();
+    const response = await fetch('/api/config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(config)
+    });
+    return await response.json();
+}
+
 // ==================== 新首页逻辑（自动化流水线）====================
 function initIndexPage() {
     const runBtn = document.getElementById('idx-run-btn');
@@ -178,7 +490,7 @@ function initIndexPage() {
     };
     let currentPhase = '处理中...';
 
-    // 加载配置并填充表单
+    // 加载配置并填充 Home 面板表单
     (async () => {
         try {
             const resp = await fetch('/api/config');
@@ -288,10 +600,22 @@ function initIndexPage() {
     });
 
     // WebSocket 事件监听
-    ws.on('log', log => appendIndexLog(log));
+    ws.on('log', log => {
+        appendIndexLog(log);
+        // Show global progress on any log activity
+        GlobalProgress.show(currentPhase);
+    });
     ws.on('history', logs => logs.forEach(log => appendIndexLog(log)));
-    ws.on('progress', progress => updateIndexProgress(progress));
-    ws.on('all_done', data => showIndexResults(data));
+    ws.on('progress', progress => {
+        updateIndexProgress(progress);
+        // Update global progress bar
+        GlobalProgress.show(currentPhase, progress.percentage || 0);
+    });
+    ws.on('all_done', data => {
+        showIndexResults(data);
+        // Hide global progress after 3 seconds
+        setTimeout(() => { GlobalProgress.hide(); }, 3000);
+    });
 
     // 开始分析按钮
     runBtn.addEventListener('click', async () => {
@@ -330,6 +654,9 @@ function initIndexPage() {
         currentPhase = '初始化中...';
         document.getElementById('idx-phase-label').textContent = currentPhase;
 
+        // Show global progress bar
+        GlobalProgress.show('初始化中...', 0);
+
         try {
             const resp = await fetch('/api/run', {
                 method: 'POST',
@@ -357,6 +684,7 @@ function initIndexPage() {
             console.error('取消失败:', e);
         }
         resetRunBtn();
+        GlobalProgress.hide();
     });
 
     // 清空日志
@@ -391,6 +719,8 @@ function initIndexPage() {
         }
         const lbl = document.getElementById('idx-phase-label');
         if (lbl) lbl.textContent = currentPhase;
+        // Also update global progress label
+        GlobalProgress.setLabel(currentPhase);
     }
 
     function appendIndexLog(log) {
@@ -521,736 +851,221 @@ function initIndexPage() {
     }
 }
 
-// 主JavaScript逻辑
-document.addEventListener('DOMContentLoaded', function() {
-    // 初始化新首页
-    initIndexPage();
-
-    // ==================== 首页逻辑 ====================
-    // ==================== 配置页逻辑 ====================
+// ==================== Config Panel Init ====================
+function initConfigPanel() {
     const configForm = document.getElementById('config-form');
-    if (configForm) {
-        // 加载配置
-        loadConfig();
+    if (!configForm) return;
 
-        // 检查已有文件
-        checkExistingFiles();
-
-        // 从表单读取当前配置
-        function collectConfig() {
-            return {
-                scraper_api_keys: document.getElementById('scraper-api-keys').value
-                    .split(',').map(k => k.trim()).filter(k => k),
-                openai_api_key: document.getElementById('openai-api-key').value,
-                openai_base_url: document.getElementById('openai-base-url').value,
-                openai_model: document.getElementById('openai-model').value,
-                default_output_prefix: document.getElementById('output-prefix').value,
-                sleep_between_pages: parseInt(document.getElementById('sleep-between-pages').value) || 10,
-                parallel_author_search: parseInt(document.getElementById('parallel-author-search').value) || 1,
-                resume_page_count: parseInt(document.getElementById('resume-page').value) || 0,
-                enable_year_traverse: document.getElementById('enable-year-traverse').checked,
-                debug_mode: document.getElementById('debug-mode').checked,
-                test_mode: document.getElementById('test-mode').checked,
-                retry_max_attempts: parseInt(document.getElementById('retry-max-attempts').value) || 3,
-                retry_intervals: document.getElementById('retry-intervals').value || '5,10,20',
-                scraper_premium: document.getElementById('scraper-premium').checked,
-                scraper_ultra_premium: document.getElementById('scraper-ultra-premium').checked,
-                scraper_session: document.getElementById('scraper-session').checked,
-                scholar_no_filter: document.getElementById('scholar-no-filter').checked,
-                scraper_geo_rotate: document.getElementById('scraper-geo-rotate').checked,
-                author_search_prompt1: document.getElementById('author-search-prompt1').value,
-                author_search_prompt2: document.getElementById('author-search-prompt2').value,
-                enable_renowned_scholar_filter: document.getElementById('enable-renowned-scholar').checked,
-                renowned_scholar_model: document.getElementById('renowned-scholar-model').value,
-                renowned_scholar_prompt: document.getElementById('renowned-scholar-prompt').value,
-                enable_author_verification: document.getElementById('enable-author-verification').checked,
-                author_verify_model: document.getElementById('author-verify-model').value,
-                author_verify_prompt: document.getElementById('author-verify-prompt').value
-            };
-        }
-
-        // 立即保存配置到服务器
-        async function saveConfigNow() {
-            const config = collectConfig();
-            const response = await fetch('/api/config', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(config)
-            });
-            return await response.json();
-        }
-
-        // 自动保存配置（带防抖）
-        let autoSaveTimeout;
-        const autoSaveConfig = () => {
-            clearTimeout(autoSaveTimeout);
-            autoSaveTimeout = setTimeout(async () => {
-                try {
-                    const data = await saveConfigNow();
-                    if (data.status === 'success') {
-                        const saveIndicator = document.getElementById('save-indicator');
-                        if (saveIndicator) {
-                            saveIndicator.textContent = '✓ 已保存';
-                            saveIndicator.style.opacity = '1';
-                            setTimeout(() => {
-                                saveIndicator.style.opacity = '0';
-                            }, 2000);
-                        }
-                    }
-                } catch (error) {
-                    console.error('自动保存配置失败:', error);
-                }
-            }, 1000); // 1秒防抖
-        };
-
-        // 监听所有配置输入框的变化
-        const configInputs = [
-            'scraper-api-keys',
-            'openai-api-key',
-            'openai-base-url',
-            'openai-model',
-            'output-prefix',
-            'sleep-between-pages',
-            'parallel-author-search',
-            'resume-page',
-            'enable-year-traverse',
-            'debug-mode',
-            'test-mode',
-            'retry-max-attempts',
-            'retry-intervals',
-            'scraper-premium',
-            'scraper-ultra-premium',
-            'scraper-session',
-            'scholar-no-filter',
-            'scraper-geo-rotate',
-            'author-search-prompt1',
-            'author-search-prompt2',
-            'enable-renowned-scholar',
-            'renowned-scholar-model',
-            'renowned-scholar-prompt',
-            'enable-author-verification',
-            'author-verify-model',
-            'author-verify-prompt',
-            'enable-citing-description',
-            'enable-dashboard',
-            'dashboard-model'
-        ];
-
-        configInputs.forEach(id => {
-            const element = document.getElementById(id);
-            if (element) {
-                element.addEventListener('input', autoSaveConfig);
-                element.addEventListener('change', autoSaveConfig);
-            }
-        });
-
-        // 监听重要学者筛选开关，控制高级配置显示/隐藏
-        const enableRenownedScholar = document.getElementById('enable-renowned-scholar');
-        const renownedScholarConfig = document.getElementById('renowned-scholar-config');
-        if (enableRenownedScholar && renownedScholarConfig) {
-            enableRenownedScholar.addEventListener('change', () => {
-                renownedScholarConfig.style.display = enableRenownedScholar.checked ? 'block' : 'none';
-            });
-        }
-
-        // 监听作者信息校验开关，控制高级配置显示/隐藏
-        const enableAuthorVerification = document.getElementById('enable-author-verification');
-        const authorVerificationConfig = document.getElementById('author-verification-config');
-        if (enableAuthorVerification && authorVerificationConfig) {
-            enableAuthorVerification.addEventListener('change', () => {
-                authorVerificationConfig.style.display = enableAuthorVerification.checked ? 'block' : 'none';
-            });
-        }
-
-        // 保存配置（手动触发）
-        configForm.addEventListener('submit', async (e) => {
-            e.preventDefault();
-            // 清除防抖计时器，立即保存
-            clearTimeout(autoSaveTimeout);
-            autoSaveConfig();
-        });
-
-        // 测试API
-        document.getElementById('test-api-btn')?.addEventListener('click', async function() {
-            const apiKey = document.getElementById('openai-api-key').value;
-            const baseUrl = document.getElementById('openai-base-url').value;
-            const model = document.getElementById('openai-model').value;
-            const testQuery = document.getElementById('test-query').value;
-
-            if (!apiKey || !baseUrl || !model) {
-                alert('请先填写完整的API配置（API Key、Base URL、模型名称）');
-                return;
-            }
-
-            if (!testQuery) {
-                alert('请输入测试问题');
-                return;
-            }
-
-            const btn = this;
-            const originalHtml = btn.innerHTML;
-            btn.disabled = true;
-            btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> 测试中...';
-
-            const resultDiv = document.getElementById('api-test-result');
-            const alertDiv = document.getElementById('api-test-alert');
-
+    // 自动保存配置（带防抖）
+    let autoSaveTimeout;
+    const autoSaveConfig = () => {
+        clearTimeout(autoSaveTimeout);
+        autoSaveTimeout = setTimeout(async () => {
             try {
-                const response = await fetch('/api/test_openai', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        api_key: apiKey,
-                        base_url: baseUrl,
-                        model: model,
-                        test_query: testQuery
-                    })
-                });
-
-                const data = await response.json();
-
-                resultDiv.style.display = 'block';
-
+                const data = await saveConfigNow();
                 if (data.status === 'success') {
-                    if (data.has_web_search) {
-                        alertDiv.className = 'alert alert-success';
-                        alertDiv.innerHTML = `
-                            <strong><i class="bi bi-check-circle-fill"></i> ${data.message}</strong>
-                            <hr>
-                            <div class="mt-2">
-                                <strong>✅ Web Search功能:</strong> 已启用
-                            </div>
-                            <div class="mt-3">
-                                <strong>📝 测试问题:</strong>
-                                <div class="bg-light p-2 mt-1 border rounded">${escapeHtml(testQuery)}</div>
-                            </div>
-                            <div class="mt-3">
-                                <strong>🔍 不带Web Search的回答:</strong>
-                                <div class="bg-light p-3 mt-1 border rounded" style="white-space: pre-wrap; word-wrap: break-word;">${escapeHtml(data.test_results.without_web_search)}</div>
-                            </div>
-                            <div class="mt-3">
-                                <strong>🌐 带Web Search的回答:</strong>
-                                <div class="bg-light p-3 mt-1 border rounded" style="white-space: pre-wrap; word-wrap: break-word;">${escapeHtml(data.test_results.with_web_search)}</div>
-                            </div>
-                        `;
-                    } else {
-                        alertDiv.className = 'alert alert-warning';
-                        alertDiv.innerHTML = `
-                            <strong><i class="bi bi-exclamation-triangle-fill"></i> ${data.message}</strong>
-                            <hr>
-                            <div class="mt-2">
-                                <strong>⚠️ Web Search功能:</strong> 未检测到或不支持
-                            </div>
-                            <div class="mt-3">
-                                <strong>📝 测试问题:</strong>
-                                <div class="bg-light p-2 mt-1 border rounded">${escapeHtml(testQuery)}</div>
-                            </div>
-                            <div class="mt-3">
-                                <strong>🔍 不带Web Search的回答:</strong>
-                                <div class="bg-light p-3 mt-1 border rounded" style="white-space: pre-wrap; word-wrap: break-word;">${escapeHtml(data.test_results.without_web_search)}</div>
-                            </div>
-                            <div class="mt-3">
-                                <strong>🌐 带Web Search的回答:</strong>
-                                <div class="bg-light p-3 mt-1 border rounded" style="white-space: pre-wrap; word-wrap: break-word;">${escapeHtml(data.test_results.with_web_search)}</div>
-                            </div>
-                        `;
+                    const saveIndicator = document.getElementById('save-indicator');
+                    if (saveIndicator) {
+                        saveIndicator.textContent = '✓ 已保存';
+                        saveIndicator.style.opacity = '1';
+                        setTimeout(() => {
+                            saveIndicator.style.opacity = '0';
+                        }, 2000);
                     }
-                } else {
-                    alertDiv.className = 'alert alert-danger';
-                    alertDiv.innerHTML = `
-                        <strong><i class="bi bi-x-circle-fill"></i> 测试失败</strong>
-                        <hr>
-                        <div class="mt-2">${escapeHtml(data.message)}</div>
-                    `;
                 }
             } catch (error) {
-                resultDiv.style.display = 'block';
+                console.error('自动保存配置失败:', error);
+            }
+        }, 1000);
+    };
+
+    // 监听所有配置输入框的变化
+    const configInputs = [
+        'scraper-api-keys',
+        'openai-api-key',
+        'openai-base-url',
+        'openai-model',
+        'output-prefix',
+        'sleep-between-pages',
+        'parallel-author-search',
+        'resume-page',
+        'enable-year-traverse',
+        'debug-mode',
+        'test-mode',
+        'retry-max-attempts',
+        'retry-intervals',
+        'scraper-premium',
+        'scraper-ultra-premium',
+        'scraper-session',
+        'scholar-no-filter',
+        'scraper-geo-rotate',
+        'author-search-prompt1',
+        'author-search-prompt2',
+        'enable-renowned-scholar',
+        'renowned-scholar-model',
+        'renowned-scholar-prompt',
+        'enable-author-verification',
+        'author-verify-model',
+        'author-verify-prompt',
+        'enable-citing-description',
+        'enable-dashboard',
+        'dashboard-model'
+    ];
+
+    configInputs.forEach(id => {
+        const element = document.getElementById(id);
+        if (element) {
+            element.addEventListener('input', autoSaveConfig);
+            element.addEventListener('change', autoSaveConfig);
+        }
+    });
+
+    // 监听重要学者筛选开关，控制高级配置显示/隐藏
+    const enableRenownedScholar = document.getElementById('enable-renowned-scholar');
+    const renownedScholarConfig = document.getElementById('renowned-scholar-config');
+    if (enableRenownedScholar && renownedScholarConfig) {
+        enableRenownedScholar.addEventListener('change', () => {
+            renownedScholarConfig.style.display = enableRenownedScholar.checked ? 'block' : 'none';
+        });
+    }
+
+    // 监听作者信息校验开关，控制高级配置显示/隐藏
+    const enableAuthorVerification = document.getElementById('enable-author-verification');
+    const authorVerificationConfig = document.getElementById('author-verification-config');
+    if (enableAuthorVerification && authorVerificationConfig) {
+        enableAuthorVerification.addEventListener('change', () => {
+            authorVerificationConfig.style.display = enableAuthorVerification.checked ? 'block' : 'none';
+        });
+    }
+
+    // 保存配置（手动触发）
+    configForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        clearTimeout(autoSaveTimeout);
+        autoSaveConfig();
+    });
+
+    // 测试API
+    document.getElementById('test-api-btn')?.addEventListener('click', async function() {
+        const apiKey = document.getElementById('openai-api-key').value;
+        const baseUrl = document.getElementById('openai-base-url').value;
+        const model = document.getElementById('openai-model').value;
+        const testQuery = document.getElementById('test-query').value;
+
+        if (!apiKey || !baseUrl || !model) {
+            alert('请先填写完整的API配置（API Key、Base URL、模型名称）');
+            return;
+        }
+
+        if (!testQuery) {
+            alert('请输入测试问题');
+            return;
+        }
+
+        const btn = this;
+        const originalHtml = btn.innerHTML;
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> 测试中...';
+
+        const resultDiv = document.getElementById('api-test-result');
+        const alertDiv = document.getElementById('api-test-alert');
+
+        try {
+            const response = await fetch('/api/test_openai', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    api_key: apiKey,
+                    base_url: baseUrl,
+                    model: model,
+                    test_query: testQuery
+                })
+            });
+
+            const data = await response.json();
+
+            resultDiv.style.display = 'block';
+
+            if (data.status === 'success') {
+                if (data.has_web_search) {
+                    alertDiv.className = 'alert alert-success';
+                    alertDiv.innerHTML = `
+                        <strong><i class="bi bi-check-circle-fill"></i> ${data.message}</strong>
+                        <hr>
+                        <div class="mt-2">
+                            <strong>Web Search功能:</strong> 已启用
+                        </div>
+                        <div class="mt-3">
+                            <strong>测试问题:</strong>
+                            <div class="bg-light p-2 mt-1 border rounded">${escapeHtml(testQuery)}</div>
+                        </div>
+                        <div class="mt-3">
+                            <strong>不带Web Search的回答:</strong>
+                            <div class="bg-light p-3 mt-1 border rounded" style="white-space: pre-wrap; word-wrap: break-word;">${escapeHtml(data.test_results.without_web_search)}</div>
+                        </div>
+                        <div class="mt-3">
+                            <strong>带Web Search的回答:</strong>
+                            <div class="bg-light p-3 mt-1 border rounded" style="white-space: pre-wrap; word-wrap: break-word;">${escapeHtml(data.test_results.with_web_search)}</div>
+                        </div>
+                    `;
+                } else {
+                    alertDiv.className = 'alert alert-warning';
+                    alertDiv.innerHTML = `
+                        <strong><i class="bi bi-exclamation-triangle-fill"></i> ${data.message}</strong>
+                        <hr>
+                        <div class="mt-2">
+                            <strong>Web Search功能:</strong> 未检测到或不支持
+                        </div>
+                        <div class="mt-3">
+                            <strong>测试问题:</strong>
+                            <div class="bg-light p-2 mt-1 border rounded">${escapeHtml(testQuery)}</div>
+                        </div>
+                        <div class="mt-3">
+                            <strong>不带Web Search的回答:</strong>
+                            <div class="bg-light p-3 mt-1 border rounded" style="white-space: pre-wrap; word-wrap: break-word;">${escapeHtml(data.test_results.without_web_search)}</div>
+                        </div>
+                        <div class="mt-3">
+                            <strong>带Web Search的回答:</strong>
+                            <div class="bg-light p-3 mt-1 border rounded" style="white-space: pre-wrap; word-wrap: break-word;">${escapeHtml(data.test_results.with_web_search)}</div>
+                        </div>
+                    `;
+                }
+            } else {
                 alertDiv.className = 'alert alert-danger';
                 alertDiv.innerHTML = `
                     <strong><i class="bi bi-x-circle-fill"></i> 测试失败</strong>
                     <hr>
-                    <div class="mt-2">网络错误: ${escapeHtml(error.toString())}</div>
+                    <div class="mt-2">${escapeHtml(data.message)}</div>
                 `;
-            } finally {
-                btn.disabled = false;
-                btn.innerHTML = originalHtml;
             }
-        });
-
-        // 开始任务（仅跳转到任务页面，不自动开始）
-        document.getElementById('start-task-btn').addEventListener('click', async () => {
-            const url = document.getElementById('captured-url')?.textContent?.trim();
-
-            if (!url) {
-                alert('未检测到URL,请先从首页启动浏览器捕获URL');
-                return;
-            }
-
-            // 跳转前强制保存配置（取消 debounce，立即执行）
-            clearTimeout(autoSaveTimeout);
-            try {
-                await saveConfigNow();
-            } catch (e) {
-                console.error('跳转前保存配置失败:', e);
-            }
-
-            // 保存URL和配置到sessionStorage
-            const outputPrefix = document.getElementById('output-prefix').value;
-            const resumePage = parseInt(document.getElementById('resume-page').value) || 0;
-            sessionStorage.setItem('task_url', url);
-            sessionStorage.setItem('task_output_prefix', outputPrefix);
-            sessionStorage.setItem('task_resume_page', resumePage);
-
-            // 跳转到任务页面
-            window.location.href = '/task';
-        });
-    }
-
-    // ==================== 任务页逻辑 ====================
-    const logContainer = document.getElementById('log-container');
-    if (logContainer) {
-        // 初始化WebSocket
-        wsManager = new WebSocketManager();
-        wsManager.connect();
-
-        let autoScroll = true;
-
-        // 监听日志
-        wsManager.on('log', (log) => {
-            appendLog(log);
-        });
-
-        // 监听历史日志
-        wsManager.on('history', (logs) => {
-            logs.forEach(log => appendLog(log));
-        });
-
-        // 监听进度
-        wsManager.on('progress', (progress) => {
-            updateProgress(progress);
-        });
-
-        // 监听阶段1完成事件
-        wsManager.on('stage1_complete', (data) => {
-            console.log('阶段1完成:', data);
-            // 隐藏初始选择
-            document.getElementById('initial-choice').style.display = 'none';
-            // 隐藏取消按钮
-            document.getElementById('cancel-btn').style.display = 'none';
-            // 显示继续按钮
-            document.getElementById('continue-btn').style.display = 'block';
-        });
-
-        // 开始抓取按钮
-        document.getElementById('start-scraping-btn')?.addEventListener('click', async () => {
-            const url = sessionStorage.getItem('task_url');
-            const outputPrefix = sessionStorage.getItem('task_output_prefix') || 'paper';
-            const resumePage = parseInt(sessionStorage.getItem('task_resume_page')) || 0;
-
-            if (!url) {
-                alert('未检测到URL，请从配置页面重新进入');
-                window.location.href = '/config';
-                return;
-            }
-
-            if (!confirm('确定要开始抓取Google Scholar引用列表吗？')) {
-                return;
-            }
-
-            const startBtn = document.getElementById('start-scraping-btn');
-            startBtn.disabled = true;
-            startBtn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> 启动中...';
-
-            try {
-                const response = await fetch('/api/task/start', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ url, output_prefix: outputPrefix, resume_page: resumePage })
-                });
-
-                const data = await response.json();
-
-                if (data.status === 'success') {
-                    // 隐藏初始选择
-                    document.getElementById('initial-choice').style.display = 'none';
-                    // 显示取消按钮
-                    document.getElementById('cancel-btn').style.display = 'block';
-                } else {
-                    alert('启动失败: ' + data.message);
-                    startBtn.disabled = false;
-                    startBtn.innerHTML = '<i class="bi bi-play-circle"></i> 开始抓取';
-                }
-            } catch (error) {
-                console.error('启动抓取失败:', error);
-                alert('启动失败，请检查控制台');
-                startBtn.disabled = false;
-                startBtn.innerHTML = '<i class="bi bi-play-circle"></i> 开始抓取';
-            }
-        });
-
-        // 导入历史记录按钮
-        document.getElementById('import-history-btn')?.addEventListener('click', async () => {
-            // 创建文件选择器
-            const fileInput = document.createElement('input');
-            fileInput.type = 'file';
-            fileInput.accept = '.jsonl';
-            fileInput.onchange = async (e) => {
-                const file = e.target.files[0];
-                if (!file) return;
-
-                if (!file.name.endsWith('.jsonl')) {
-                    alert('请选择.jsonl文件');
-                    return;
-                }
-
-                const importBtn = document.getElementById('import-history-btn');
-                importBtn.disabled = true;
-                importBtn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> 导入中...';
-
-                try {
-                    const formData = new FormData();
-                    formData.append('file', file);
-
-                    const response = await fetch('/api/task/import', {
-                        method: 'POST',
-                        body: formData
-                    });
-
-                    const data = await response.json();
-
-                    if (data.status === 'success') {
-                        alert(`导入成功！\n文件: ${data.file_name}\n论文数: ${data.paper_count}`);
-                        // 隐藏初始选择
-                        document.getElementById('initial-choice').style.display = 'none';
-                        // 显示继续按钮
-                        document.getElementById('continue-btn').style.display = 'block';
-                    } else {
-                        alert('导入失败: ' + data.message);
-                        importBtn.disabled = false;
-                        importBtn.innerHTML = '<i class="bi bi-folder-open"></i> 导入历史记录';
-                    }
-                } catch (error) {
-                    console.error('导入失败:', error);
-                    alert('导入失败，请检查控制台');
-                    importBtn.disabled = false;
-                    importBtn.innerHTML = '<i class="bi bi-folder-open"></i> 导入历史记录';
-                }
-            };
-            fileInput.click();
-        });
-
-        // 继续按钮点击事件
-        document.getElementById('continue-btn')?.addEventListener('click', async () => {
-            if (!confirm('确定要继续执行阶段2和3吗？\n这将开始搜索作者信息，可能会消耗较多API配额。')) {
-                return;
-            }
-
-            const continueBtn = document.getElementById('continue-btn');
-            continueBtn.disabled = true;
-            continueBtn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> 启动中...';
-
-            try {
-                const response = await fetch('/api/task/continue', { method: 'POST' });
-                const data = await response.json();
-
-                if (data.status === 'success') {
-                    // 隐藏继续按钮
-                    continueBtn.style.display = 'none';
-                    // 显示取消按钮
-                    const cancelBtn = document.getElementById('cancel-btn');
-                    if (cancelBtn) {
-                        cancelBtn.style.display = 'block';
-                    }
-                } else {
-                    alert('启动失败: ' + data.message);
-                    continueBtn.disabled = false;
-                    continueBtn.innerHTML = '<i class="bi bi-play-fill"></i> 继续执行阶段2/3';
-                }
-            } catch (error) {
-                console.error('启动阶段2/3失败:', error);
-                alert('启动失败，请检查控制台');
-                continueBtn.disabled = false;
-                continueBtn.innerHTML = '<i class="bi bi-play-fill"></i> 继续执行阶段2/3';
-            }
-        });
-
-        // 添加日志到终端
-        function appendLog(log) {
-            // 移除"等待日志"提示
-            const waitingMsg = logContainer.querySelector('.text-muted');
-            if (waitingMsg) {
-                logContainer.innerHTML = '';
-            }
-
-            const logEntry = document.createElement('div');
-            logEntry.className = 'log-entry';
-
-            let levelColor = '#d4d4d4';
-            let levelIcon = 'info-circle';
-            if (log.level === 'ERROR') {
-                levelColor = '#f48771';
-                levelIcon = 'x-circle';
-            } else if (log.level === 'WARNING') {
-                levelColor = '#dcdcaa';
-                levelIcon = 'exclamation-triangle';
-            } else if (log.level === 'SUCCESS') {
-                levelColor = '#4ec9b0';
-                levelIcon = 'check-circle';
-            }
-
-            logEntry.innerHTML = `
-                <span class="log-timestamp">[${log.timestamp}]</span>
-                <span class="log-level" style="color: ${levelColor};">
-                    <i class="bi bi-${levelIcon}"></i> [${log.level}]
-                </span>
-                <span class="log-message">${escapeHtml(log.message)}</span>
+        } catch (error) {
+            resultDiv.style.display = 'block';
+            alertDiv.className = 'alert alert-danger';
+            alertDiv.innerHTML = `
+                <strong><i class="bi bi-x-circle-fill"></i> 测试失败</strong>
+                <hr>
+                <div class="mt-2">网络错误: ${escapeHtml(error.toString())}</div>
             `;
-
-            logContainer.appendChild(logEntry);
-
-            // 更新任务阶段
-            updateStage(log.message);
-
-            // 自动滚动
-            if (autoScroll) {
-                logContainer.scrollTop = logContainer.scrollHeight;
-            }
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = originalHtml;
         }
+    });
+}
 
-        // 更新进度条
-        function updateProgress(progress) {
-            const progressBar = document.getElementById('progress-bar');
-            const progressText = document.getElementById('progress-text');
-
-            progressBar.style.width = progress.percentage + '%';
-            progressBar.textContent = progress.percentage + '%';
-            progressBar.setAttribute('aria-valuenow', progress.percentage);
-
-            if (progressText) {
-                progressText.innerHTML = `<i class="bi bi-hourglass-split"></i> ${progress.current} / ${progress.total}`;
-            }
-        }
-
-        // 更新任务阶段显示
-        function updateStage(message) {
-            if (message.includes('阶段1')) {
-                updateStageIcon('stage-1', 'play-circle', 'primary');
-            } else if (message.includes('阶段2')) {
-                updateStageIcon('stage-1', 'check-circle', 'success');
-                updateStageIcon('stage-2', 'play-circle', 'primary');
-            } else if (message.includes('阶段3')) {
-                updateStageIcon('stage-2', 'check-circle', 'success');
-                updateStageIcon('stage-3', 'play-circle', 'primary');
-            } else if (message.includes('全部任务完成')) {
-                updateStageIcon('stage-3', 'check-circle', 'success');
-            }
-        }
-
-        function updateStageIcon(stageId, icon, color) {
-            const stage = document.getElementById(stageId);
-            if (stage) {
-                const iconEl = stage.querySelector('i');
-                iconEl.className = `bi bi-${icon} text-${color}`;
-            }
-        }
-
-        // 清空日志
-        document.getElementById('clear-logs-btn')?.addEventListener('click', () => {
-            logContainer.innerHTML = '<div class="text-muted text-center p-4">日志已清空</div>';
-        });
-
-        // 自动滚动切换
-        document.getElementById('auto-scroll-btn')?.addEventListener('click', function() {
-            autoScroll = !autoScroll;
-            this.classList.toggle('active');
-        });
-
-        // 取消任务
-        document.getElementById('cancel-btn')?.addEventListener('click', async () => {
-            if (!confirm('确定要取消当前任务吗?')) {
-                return;
-            }
-
-            try {
-                const response = await fetch('/api/task/cancel', { method: 'POST' });
-                const data = await response.json();
-                if (data.status === 'success') {
-                    showToast('任务取消中...', 'warning');
-                }
-            } catch (error) {
-                console.error('取消任务失败:', error);
-            }
-        });
-    }
-
-    // ==================== 结果页逻辑 ====================
-    const resultsTable = document.getElementById('results-table');
-    if (resultsTable) {
+// ==================== Results Panel Init ====================
+function initResultsPanel() {
+    // 刷新按钮
+    document.getElementById('refresh-btn')?.addEventListener('click', () => {
         loadResults();
+    });
+}
 
-        // 刷新按钮
-        document.getElementById('refresh-btn')?.addEventListener('click', () => {
-            loadResults();
-        });
-    }
-
-    // ==================== 工具函数 ====================
-    async function checkExistingFiles() {
-        try {
-            const response = await fetch('/api/results/list');
-            const files = await response.json();
-
-            // 过滤出JSONL文件
-            const jsonlFiles = files.filter(f => f.type === '.jsonl');
-
-            if (jsonlFiles.length > 0) {
-                const alertDiv = document.getElementById('existing-files-alert');
-                const listDiv = document.getElementById('existing-files-list');
-
-                // 按修改时间排序（最新的在前）
-                jsonlFiles.sort((a, b) => b.modified - a.modified);
-
-                // 显示最近的5个文件
-                const recentFiles = jsonlFiles.slice(0, 5);
-                listDiv.innerHTML = '<strong>最近的结果文件:</strong><ul class="mb-0 mt-1">' +
-                    recentFiles.map(f => {
-                        const date = new Date(f.modified * 1000).toLocaleString('zh-CN');
-                        const size = (f.size / 1024).toFixed(1);
-                        return `<li><code>${f.name}</code> (${size} KB, ${date})</li>`;
-                    }).join('') +
-                    '</ul>';
-
-                if (jsonlFiles.length > 5) {
-                    listDiv.innerHTML += `<div class="mt-1 text-muted">...还有 ${jsonlFiles.length - 5} 个文件</div>`;
-                }
-
-                alertDiv.style.display = 'block';
-            }
-        } catch (error) {
-            console.error('检查已有文件失败:', error);
-        }
-    }
-
-    async function loadConfig() {
-        try {
-            const response = await fetch('/api/config');
-            const config = await response.json();
-
-            document.getElementById('scraper-api-keys').value = config.scraper_api_keys.join(',');
-            document.getElementById('openai-api-key').value = config.openai_api_key;
-            document.getElementById('openai-base-url').value = config.openai_base_url;
-            document.getElementById('openai-model').value = config.openai_model;
-            document.getElementById('output-prefix').value = config.default_output_prefix;
-            document.getElementById('sleep-between-pages').value = config.sleep_between_pages || 10;
-            document.getElementById('parallel-author-search').value = config.parallel_author_search || 1;
-            document.getElementById('resume-page').value = config.resume_page_count;
-            document.getElementById('enable-year-traverse').checked = config.enable_year_traverse || false;
-            document.getElementById('debug-mode').checked = config.debug_mode || false;
-            document.getElementById('test-mode').checked = config.test_mode || false;
-            document.getElementById('retry-max-attempts').value = config.retry_max_attempts || 3;
-            document.getElementById('retry-intervals').value = config.retry_intervals || '5,10,20';
-            document.getElementById('scraper-premium').checked = config.scraper_premium || false;
-            document.getElementById('scraper-ultra-premium').checked = config.scraper_ultra_premium || false;
-            document.getElementById('scraper-session').checked = config.scraper_session || false;
-            document.getElementById('scholar-no-filter').checked = config.scholar_no_filter || false;
-            document.getElementById('scraper-geo-rotate').checked = config.scraper_geo_rotate || false;
-            document.getElementById('author-search-prompt1').value = config.author_search_prompt1 || '';
-            document.getElementById('author-search-prompt2').value = config.author_search_prompt2 || '';
-            document.getElementById('enable-renowned-scholar').checked = config.enable_renowned_scholar_filter || false;
-            document.getElementById('renowned-scholar-model').value = config.renowned_scholar_model || 'gemini-3-flash-preview-nothinking';
-            document.getElementById('renowned-scholar-prompt').value = config.renowned_scholar_prompt || '';
-
-            // 根据enable_renowned_scholar_filter设置显示/隐藏高级配置
-            const renownedScholarConfig = document.getElementById('renowned-scholar-config');
-            if (renownedScholarConfig) {
-                renownedScholarConfig.style.display = config.enable_renowned_scholar_filter ? 'block' : 'none';
-            }
-
-            // 加载作者校验配置
-            document.getElementById('enable-author-verification').checked = config.enable_author_verification || false;
-            document.getElementById('author-verify-model').value = config.author_verify_model || 'gemini-3-pro-preview-search';
-            document.getElementById('author-verify-prompt').value = config.author_verify_prompt || '';
-
-            // 根据enable_author_verification设置显示/隐藏高级配置
-            const authorVerificationConfig = document.getElementById('author-verification-config');
-            if (authorVerificationConfig) {
-                authorVerificationConfig.style.display = config.enable_author_verification ? 'block' : 'none';
-            }
-        } catch (error) {
-            console.error('加载配置失败:', error);
-        }
-    }
-
-    async function loadResults() {
-        const loading = document.getElementById('loading-indicator');
-        const empty = document.getElementById('empty-state');
-        const tableContainer = document.getElementById('results-table-container');
-        const table = document.getElementById('results-table');
-
-        loading.style.display = 'block';
-        empty.style.display = 'none';
-        tableContainer.style.display = 'none';
-
-        try {
-            const response = await fetch('/api/results/list');
-            const files = await response.json();
-
-            loading.style.display = 'none';
-
-            if (files.length === 0) {
-                empty.style.display = 'block';
-            } else {
-                tableContainer.style.display = 'block';
-                table.innerHTML = '';
-
-                files.forEach(file => {
-                    const row = document.createElement('tr');
-
-                    const typeClass = file.type === '.xlsx' ? 'success' :
-                                    file.type === '.json' ? 'info' : 'warning';
-
-                    const size = (file.size / 1024).toFixed(2);
-                    const date = new Date(file.modified * 1000).toLocaleString('zh-CN');
-
-                    row.innerHTML = `
-                        <td>
-                            <i class="bi bi-file-earmark-${file.type === '.xlsx' ? 'excel' : 'code'}"></i>
-                            ${file.name}
-                        </td>
-                        <td><span class="badge bg-${typeClass}">${file.type}</span></td>
-                        <td>${size} KB</td>
-                        <td>${date}</td>
-                        <td>
-                            <a href="/api/results/download/${file.name}"
-                               class="btn btn-sm btn-primary"
-                               download>
-                                <i class="bi bi-download"></i> 下载
-                            </a>
-                        </td>
-                    `;
-                    table.appendChild(row);
-                });
-
-                document.getElementById('file-count').textContent = files.length;
-            }
-        } catch (error) {
-            console.error('加载结果失败:', error);
-            loading.style.display = 'none';
-            empty.style.display = 'block';
-        }
-    }
-
-    function showToast(message, type = 'info') {
-        // 简单的Toast通知
-        alert(message);
-    }
-
-    function escapeHtml(unsafe) {
-        return unsafe
-            .replace(/&/g, "&amp;")
-            .replace(/</g, "&lt;")
-            .replace(/>/g, "&gt;")
-            .replace(/"/g, "&quot;")
-            .replace(/'/g, "&#039;");
-    }
+// ==================== DOMContentLoaded ====================
+document.addEventListener('DOMContentLoaded', function() {
+    SpaRouter.init();
+    GlobalProgress.init();
+    initIndexPage();     // Home 面板
+    initConfigPanel();   // Config 面板
+    initResultsPanel();  // Results 面板
 });
