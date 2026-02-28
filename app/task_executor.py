@@ -720,6 +720,7 @@ class TaskExecutor:
                         "all_renowned": _fwd(all_renowned),
                         "top_renowned": _fwd(top_renowned),
                     },
+                    skip_citing_analysis=config.dashboard_skip_citing_analysis,
                 )
 
             self.log_manager.success("=" * 50)

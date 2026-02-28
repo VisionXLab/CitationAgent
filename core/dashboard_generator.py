@@ -1531,6 +1531,7 @@ new Chart(document.getElementById('cTrend'), {{
         output_html: Path,
         canonical_titles: Optional[list] = None,
         download_filenames: Optional[dict] = None,
+        skip_citing_analysis: bool = False,
     ) -> Path:
         """
         Full pipeline: load data → LLM analysis → build HTML → write file.
@@ -1551,7 +1552,17 @@ new Chart(document.getElementById('cTrend'), {{
         self.log("🤖 启动 AI 分析...")
         titles = [p["title"] for p in papers]
         keywords = self._analyze_keywords(titles)
-        citation_analysis = self._analyze_citation_descriptions(descriptions, citing_pairs)
+        if skip_citing_analysis:
+            self.log("⏭ 跳过引用描述分析（dashboard_skip_citing_analysis=True）")
+            citation_analysis = {
+                "citation_types": [], "citation_positions": [],
+                "citation_themes": [],
+                "sentiment_distribution": {"positive": 0, "neutral": 0, "critical": 0},
+                "key_findings": [],
+                "citation_depth": {"core_citation": 0, "reference_citation": 0, "supplementary_citation": 0},
+            }
+        else:
+            citation_analysis = self._analyze_citation_descriptions(descriptions, citing_pairs)
         prediction = self._generate_prediction(papers, stats)
         insights = self._generate_insights(papers, stats, citation_analysis)
 
