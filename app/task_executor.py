@@ -427,6 +427,7 @@ class TaskExecutor:
                     all_search_titles.append((alias, canonical))
 
             author_info_files = []   # 收集每篇/每别名的 Phase 2 输出
+            citing_files = []        # 收集每篇/每别名的 Phase 1 输出
             total = len(all_search_titles)
 
             if config.test_mode:
@@ -503,87 +504,130 @@ class TaskExecutor:
                     )
                     if self.should_cancel:
                         break
+                    citing_files.append((citing_file, canonical))
 
-                    # —— Phase 2：搜索作者信息（以 canonical 为 Citing_Paper 值）——
-                    self.log_manager.info("▶ Phase 2: 搜索作者信息")
-                    searcher = AuthorSearcher(
-                        api_key=config.openai_api_key,
-                        base_url=config.openai_base_url,
-                        model=config.openai_model,
-                        log_callback=self.log_manager.info,
-                        progress_callback=self.log_manager.update_progress,
-                        prompt1=config.author_search_prompt1,
-                        prompt2=config.author_search_prompt2,
-                        enable_renowned_scholar=config.enable_renowned_scholar_filter,
-                        renowned_scholar_model=config.renowned_scholar_model,
-                        renowned_scholar_prompt=config.renowned_scholar_prompt,
-                        enable_author_verification=config.enable_author_verification,
-                        author_verify_model=config.author_verify_model,
-                        author_verify_prompt=config.author_verify_prompt,
-                        debug_mode=config.debug_mode,
-                    )
-                    author_file = result_dir / f"{paper_slug}_authors.jsonl"
-                    await searcher.search(
-                        input_file=citing_file,
-                        output_file=author_file,
-                        sleep_seconds=config.sleep_between_authors,
-                        parallel_workers=config.parallel_author_search,
-                        cancel_check=lambda: self.should_cancel,
-                        citing_paper=canonical,   # 始终用正式标题写入 Citing_Paper
-                    )
-                    if self.should_cancel:
-                        break
-                    author_info_files.append(author_file)
+                    if not config.skip_author_search:
+                        # —— Phase 2：搜索作者信息（以 canonical 为 Citing_Paper 值）——
+                        self.log_manager.info("▶ Phase 2: 搜索作者信息")
+                        searcher = AuthorSearcher(
+                            api_key=config.openai_api_key,
+                            base_url=config.openai_base_url,
+                            model=config.openai_model,
+                            log_callback=self.log_manager.info,
+                            progress_callback=self.log_manager.update_progress,
+                            prompt1=config.author_search_prompt1,
+                            prompt2=config.author_search_prompt2,
+                            enable_renowned_scholar=config.enable_renowned_scholar_filter,
+                            renowned_scholar_model=config.renowned_scholar_model,
+                            renowned_scholar_prompt=config.renowned_scholar_prompt,
+                            enable_author_verification=config.enable_author_verification,
+                            author_verify_model=config.author_verify_model,
+                            author_verify_prompt=config.author_verify_prompt,
+                            debug_mode=config.debug_mode,
+                        )
+                        author_file = result_dir / f"{paper_slug}_authors.jsonl"
+                        await searcher.search(
+                            input_file=citing_file,
+                            output_file=author_file,
+                            sleep_seconds=config.sleep_between_authors,
+                            parallel_workers=config.parallel_author_search,
+                            cancel_check=lambda: self.should_cancel,
+                            citing_paper=canonical,   # 始终用正式标题写入 Citing_Paper
+                        )
+                        if self.should_cancel:
+                            break
+                        author_info_files.append(author_file)
+                    else:
+                        self.log_manager.info("⏭ 跳过 Phase 2（skip_author_search=True）")
 
-            if not author_info_files:
-                self.log_manager.warning("没有成功处理的论文，任务结束")
-                return
+            if not config.skip_author_search:
+                if not author_info_files:
+                    self.log_manager.warning("没有成功处理的论文，任务结束")
+                    return
 
-            # —— 合并所有 author JSONL，按 (Paper_Link, Citing_Paper) 去重 ——
-            # 注意：每行格式为 {count: record_dict}，需提取内层 record_dict 才能访问字段
-            merged_file = result_dir / "merged_authors.jsonl"
-            seen_links: set[str] = set()
-            with open(merged_file, "w", encoding="utf-8") as out_f:
-                for af in author_info_files:
-                    if not af.exists():
+                # —— 合并所有 author JSONL，按 (Paper_Link, Citing_Paper) 去重 ——
+                # 注意：每行格式为 {count: record_dict}，需提取内层 record_dict 才能访问字段
+                merged_file = result_dir / "merged_authors.jsonl"
+                seen_links: set[str] = set()
+                with open(merged_file, "w", encoding="utf-8") as out_f:
+                    for af in author_info_files:
+                        if not af.exists():
+                            continue
+                        for line in af.read_text(encoding="utf-8").splitlines():
+                            line = line.strip()
+                            if not line:
+                                continue
+                            try:
+                                outer = _json.loads(line)
+                                # 每行格式：{count_key: record_dict}
+                                inner = next(iter(outer.values())) if outer else {}
+                            except Exception:
+                                out_f.write(line + "\n")
+                                continue
+                            # 用 (Paper_Link, Citing_Paper) 组合去重：
+                            #   同一篇引用论文 + 同一目标论文 → 去重（处理曾用名重复）
+                            #   同一篇引用论文 + 不同目标论文 → 保留（引用了不同目标）
+                            link = str(inner.get("Paper_Link") or "").strip()
+                            citing = str(inner.get("Citing_Paper") or "").strip()
+                            title = str(inner.get("Paper_Title") or "").strip()
+                            dedup_key = (
+                                f"{link}::{citing}" if link
+                                else f"{title}::{citing}" if title
+                                else line[:80]
+                            )
+                            if dedup_key in seen_links:
+                                continue
+                            seen_links.add(dedup_key)
+                            out_f.write(_json.dumps(outer, ensure_ascii=False) + "\n")
+
+                # —— Phase 3：导出 ——
+                self.log_manager.info("▶ Phase 3: 导出结果")
+                exporter = ResultExporter(log_callback=self.log_manager.info)
+                excel_file = result_dir / f"{output_prefix}_results.xlsx"
+                json_file = result_dir / f"{output_prefix}_results.json"
+                exporter.export(
+                    input_file=merged_file,
+                    excel_output=excel_file,
+                    json_output=json_file,
+                )
+            else:
+                self.log_manager.info("⏭ 跳过合并和 Phase 3（skip_author_search=True）")
+                # Build a simple Excel from citing files for Phase 4
+                import pandas as pd
+                rows = []
+                for cf, canonical in citing_files:
+                    if not cf.exists():
                         continue
-                    for line in af.read_text(encoding="utf-8").splitlines():
+                    for line in cf.read_text(encoding="utf-8").splitlines():
                         line = line.strip()
                         if not line:
                             continue
                         try:
-                            outer = _json.loads(line)
-                            # 每行格式：{count_key: record_dict}
-                            inner = next(iter(outer.values())) if outer else {}
+                            data = _json.loads(line)
+                            for page_data in data.values():
+                                for paper in page_data.get("paper_dict", {}).values():
+                                    authors_dict = paper.get("authors", {})
+                                    rows.append({
+                                        "Paper_Title": paper.get("paper_title", ""),
+                                        "Paper_Link": paper.get("paper_link", ""),
+                                        "Paper_Year": paper.get("paper_year"),
+                                        "Citations": paper.get("citation", ""),
+                                        "Citing_Paper": canonical,
+                                        "Authors_with_Profile": _json.dumps(list(authors_dict.keys()), ensure_ascii=False),
+                                    })
                         except Exception:
-                            out_f.write(line + "\n")
                             continue
-                        # 用 (Paper_Link, Citing_Paper) 组合去重：
-                        #   同一篇引用论文 + 同一目标论文 → 去重（处理曾用名重复）
-                        #   同一篇引用论文 + 不同目标论文 → 保留（引用了不同目标）
-                        link = str(inner.get("Paper_Link") or "").strip()
-                        citing = str(inner.get("Citing_Paper") or "").strip()
-                        title = str(inner.get("Paper_Title") or "").strip()
-                        dedup_key = (
-                            f"{link}::{citing}" if link
-                            else f"{title}::{citing}" if title
-                            else line[:80]
-                        )
-                        if dedup_key in seen_links:
-                            continue
-                        seen_links.add(dedup_key)
-                        out_f.write(_json.dumps(outer, ensure_ascii=False) + "\n")
-
-            # —— Phase 3：导出 ——
-            self.log_manager.info("▶ Phase 3: 导出结果")
-            exporter = ResultExporter(log_callback=self.log_manager.info)
-            excel_file = result_dir / f"{output_prefix}_results.xlsx"
-            json_file = result_dir / f"{output_prefix}_results.json"
-            exporter.export(
-                input_file=merged_file,
-                excel_output=excel_file,
-                json_output=json_file,
-            )
+                excel_file = result_dir / f"{output_prefix}_results.xlsx"
+                json_file = result_dir / f"{output_prefix}_results.json"
+                if rows:
+                    df = pd.DataFrame(rows)
+                    excel_file.parent.mkdir(parents=True, exist_ok=True)
+                    df.to_excel(excel_file, index=False)
+                    df.to_json(json_file, orient="records", force_ascii=False, indent=2)
+                    self.log_manager.info(f"📊 从 Phase 1 构建了 {len(rows)} 条记录")
+                else:
+                    self.log_manager.warning("没有成功处理的论文，任务结束")
+                    return
 
             # —— Phase 4：搜索引用描述（可选）——
             citing_desc_excel = excel_file
