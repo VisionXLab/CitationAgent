@@ -112,6 +112,15 @@ class AppConfig(BaseModel):
     # 引用描述搜索配置
     enable_citing_description: bool = Field(default=True, description="是否搜索引用描述（Phase 4）")
     enable_dashboard: bool = Field(default=True, description="是否生成 HTML 画像报告（Phase 5）")
+
+    # 服务分层
+    service_tier: str = Field(default="full", description="服务层级预置: full/lite/minimal/specified/verify/custom")
+    citing_description_scope: str = Field(default="all",
+        description="Phase 4 引用描述搜索范围: all=全部, renowned_only=仅院士/Fellow, specified_only=仅指定学者")
+    skip_author_search: bool = Field(default=False, description="是否跳过 Phase 2+3（作者搜索和导出）")
+    specified_scholars: str = Field(default="", description="指定学者名单，逗号分隔")
+    dashboard_skip_citing_analysis: bool = Field(default=False, description="Dashboard 是否跳过引用描述分析部分")
+
     dashboard_model: str = Field(default="gemini-3-flash-preview-nothinking",
                                  description="画像报告 LLM 分析使用的模型")
 
@@ -149,3 +158,72 @@ class ConfigManager:
         updated_data.update(kwargs)
         new_config = AppConfig(**updated_data)
         self.save(new_config)
+
+
+SERVICE_TIER_PRESETS = {
+    "full": {
+        "label": "全面版 (Full)",
+        "description": "搜索知名学者 + 筛选院士/Fellow + 逐篇搜索引用描述",
+        "switches": {
+            "enable_renowned_scholar_filter": True,
+            "enable_citing_description": True,
+            "citing_description_scope": "all",
+            "skip_author_search": False,
+            "specified_scholars": "",
+            "enable_dashboard": True,
+            "dashboard_skip_citing_analysis": False,
+        }
+    },
+    "lite": {
+        "label": "省token版 (Lite)",
+        "description": "搜索知名学者 + 筛选院士/Fellow → 只搜院士/Fellow的引用描述",
+        "switches": {
+            "enable_renowned_scholar_filter": True,
+            "enable_citing_description": True,
+            "citing_description_scope": "renowned_only",
+            "skip_author_search": False,
+            "specified_scholars": "",
+            "enable_dashboard": True,
+            "dashboard_skip_citing_analysis": False,
+        }
+    },
+    "minimal": {
+        "label": "更省token版 (Minimal)",
+        "description": "搜索知名学者 + 筛选院士/Fellow（不搜引用描述）",
+        "switches": {
+            "enable_renowned_scholar_filter": True,
+            "enable_citing_description": False,
+            "citing_description_scope": "all",
+            "skip_author_search": False,
+            "specified_scholars": "",
+            "enable_dashboard": True,
+            "dashboard_skip_citing_analysis": True,
+        }
+    },
+    "specified": {
+        "label": "指定学者版 (Specified)",
+        "description": "跳过学者搜索 → 只搜指定学者的引用描述",
+        "switches": {
+            "enable_renowned_scholar_filter": False,
+            "enable_citing_description": True,
+            "citing_description_scope": "specified_only",
+            "skip_author_search": True,
+            "specified_scholars": "",
+            "enable_dashboard": True,
+            "dashboard_skip_citing_analysis": False,
+        }
+    },
+    "verify": {
+        "label": "学者查证版 (Verify)",
+        "description": "验证指定学者是否引用了论文，若引用则搜引用描述",
+        "switches": {
+            "enable_renowned_scholar_filter": False,
+            "enable_citing_description": True,
+            "citing_description_scope": "specified_only",
+            "skip_author_search": True,
+            "specified_scholars": "",
+            "enable_dashboard": True,
+            "dashboard_skip_citing_analysis": False,
+        }
+    },
+}

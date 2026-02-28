@@ -91,7 +91,18 @@ class ConfigUpdate(BaseModel):
     author_verify_prompt: str = "这是一份已经整理好的作者学术信息列表。请你对列表中的每一位作者信息进行真实性校验。"
     enable_citing_description: bool = True
     enable_dashboard: bool = True
+    service_tier: str = "full"
+    citing_description_scope: str = "all"
+    skip_author_search: bool = False
+    specified_scholars: str = ""
+    dashboard_skip_citing_analysis: bool = False
     dashboard_model: str = "gemini-3-flash-preview-nothinking"
+
+
+@app.get("/api/presets")
+async def get_presets():
+    from app.config_manager import SERVICE_TIER_PRESETS
+    return SERVICE_TIER_PRESETS
 
 
 @app.post("/api/config")
