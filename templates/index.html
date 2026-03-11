@@ -24,9 +24,9 @@
 <!-- Hero -->
 <div class="agent-hero">
   <div style="position:relative;z-index:1">
-    <div class="hero-eyebrow">CITATION INTELLIGENCE AGENT</div>
+    <div class="hero-eyebrow">CITATION AGENT</div>
     <h1 class="hero-title">论文被引<span>画像分析</span></h1>
-    <p class="hero-desc">
+    <p class="hero-desc" style="white-space:nowrap">
       输入论文题目，智能体将自动检索引用关系、搜索学者画像，并生成多维分析报告。支持多篇同时分析。
     </p>
   </div>
@@ -843,6 +843,7 @@ async function fetchScholarPapers() {
     const btn = document.getElementById('scholar-fetch-btn');
     btn.disabled = true; btn.textContent = '获取中…';
     document.getElementById('scholar-result-area').style.display = 'none';
+    if (window.saveIndexConfig) await window.saveIndexConfig();
     try {
         const res = await fetch('/api/scholar/papers', {
             method: 'POST',
