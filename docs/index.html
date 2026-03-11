@@ -1,0 +1,631 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CitationAgent — 论文被引画像分析智能体</title>
+  <meta name="description" content="输入论文题目，一键获得完整的被引画像分析报告。自动爬取施引文献、识别著名学者、生成可视化 HTML 报告。">
+  <link rel="icon" href="assets/icon.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --accent: #2563eb;
+      --accent-light: #eff6ff;
+      --text: #111827;
+      --muted: #6b7280;
+      --border: #e5e7eb;
+      --bg: #ffffff;
+      --bg-alt: #f9fafb;
+      --radius: 10px;
+      --max: 960px;
+    }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      color: var(--text);
+      background: var(--bg);
+      line-height: 1.6;
+      font-size: 15px;
+    }
+
+    /* ── Nav ── */
+    nav {
+      position: sticky; top: 0; z-index: 100;
+      background: rgba(255,255,255,0.92);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border);
+    }
+    .nav-inner {
+      max-width: var(--max);
+      margin: 0 auto;
+      padding: 0 24px;
+      height: 56px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .nav-brand {
+      display: flex; align-items: center; gap: 10px;
+      text-decoration: none; color: var(--text);
+    }
+    .nav-brand img { width: 28px; height: 28px; border-radius: 6px; }
+    .nav-brand-name { font-weight: 600; font-size: 15px; }
+    .nav-links { display: flex; gap: 24px; }
+    .nav-links a {
+      text-decoration: none; color: var(--muted);
+      font-size: 13.5px; font-weight: 500;
+      transition: color .15s;
+    }
+    .nav-links a:hover { color: var(--text); }
+
+    /* ── Layout ── */
+    .container { max-width: var(--max); margin: 0 auto; padding: 0 24px; }
+
+    /* ── Hero ── */
+    .hero {
+      padding: 72px 24px 56px;
+      text-align: center;
+      max-width: var(--max);
+      margin: 0 auto;
+    }
+    .hero-eyebrow {
+      display: inline-block;
+      font-size: 11.5px;
+      font-weight: 600;
+      letter-spacing: .12em;
+      text-transform: uppercase;
+      color: var(--accent);
+      background: var(--accent-light);
+      padding: 4px 12px;
+      border-radius: 20px;
+      margin-bottom: 20px;
+    }
+    .hero h1 {
+      font-size: clamp(28px, 5vw, 42px);
+      font-weight: 700;
+      line-height: 1.2;
+      letter-spacing: -.02em;
+      margin-bottom: 8px;
+    }
+    .hero-subtitle {
+      font-size: 16px;
+      color: var(--muted);
+      margin-bottom: 28px;
+      font-weight: 400;
+    }
+    .hero-desc {
+      font-size: 15.5px;
+      color: #374151;
+      max-width: 640px;
+      margin: 0 auto 32px;
+      line-height: 1.75;
+    }
+    .hero-buttons {
+      display: flex;
+      gap: 10px;
+      justify-content: center;
+      flex-wrap: wrap;
+      margin-bottom: 16px;
+    }
+    .btn {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 9px 18px;
+      border-radius: 8px;
+      font-size: 13.5px; font-weight: 500;
+      text-decoration: none;
+      transition: all .15s;
+      border: 1.5px solid transparent;
+    }
+    .btn-primary {
+      background: var(--accent); color: #fff;
+      border-color: var(--accent);
+    }
+    .btn-primary:hover { background: #1d4ed8; border-color: #1d4ed8; }
+    .btn-outline {
+      background: transparent; color: var(--text);
+      border-color: var(--border);
+    }
+    .btn-outline:hover { border-color: #9ca3af; background: var(--bg-alt); }
+    .btn svg { width: 15px; height: 15px; flex-shrink: 0; }
+    .hero-meta { font-size: 12.5px; color: var(--muted); }
+    .hero-meta a { color: var(--accent); text-decoration: none; }
+
+    /* ── Teaser ── */
+    .teaser-wrap {
+      max-width: var(--max);
+      margin: 0 auto 80px;
+      padding: 0 24px;
+    }
+    .browser-frame {
+      border: 1.5px solid var(--border);
+      border-radius: 12px;
+      overflow: hidden;
+      box-shadow: 0 4px 24px rgba(0,0,0,0.08);
+    }
+    .browser-bar {
+      background: #f3f4f6;
+      padding: 10px 16px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      border-bottom: 1px solid var(--border);
+    }
+    .browser-dots { display: flex; gap: 5px; }
+    .browser-dot {
+      width: 10px; height: 10px; border-radius: 50%;
+    }
+    .browser-dot:nth-child(1) { background: #ef4444; }
+    .browser-dot:nth-child(2) { background: #f59e0b; }
+    .browser-dot:nth-child(3) { background: #22c55e; }
+    .browser-url {
+      flex: 1;
+      background: #fff;
+      border: 1px solid var(--border);
+      border-radius: 5px;
+      padding: 3px 10px;
+      font-size: 11.5px;
+      color: var(--muted);
+      max-width: 340px;
+    }
+    .browser-frame img { width: 100%; display: block; }
+
+    /* ── Section ── */
+    section { padding: 72px 0; }
+    section + section { border-top: 1px solid var(--border); }
+    .section-label {
+      font-size: 11px; font-weight: 600; letter-spacing: .12em;
+      text-transform: uppercase; color: var(--accent);
+      margin-bottom: 10px;
+    }
+    .section-title {
+      font-size: clamp(22px, 3.5vw, 30px);
+      font-weight: 700; letter-spacing: -.02em;
+      margin-bottom: 14px; line-height: 1.25;
+    }
+    .section-desc {
+      color: var(--muted); font-size: 15px;
+      max-width: 600px; line-height: 1.7;
+    }
+    .section-header { margin-bottom: 40px; }
+
+    /* ── Abstract ── */
+    .abstract-box {
+      background: var(--bg-alt);
+      border: 1px solid var(--border);
+      border-left: 4px solid var(--accent);
+      border-radius: 0 var(--radius) var(--radius) 0;
+      padding: 24px 28px;
+      font-size: 15px;
+      line-height: 1.8;
+      color: #1f2937;
+    }
+
+    /* ── Features grid ── */
+    .features-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(270px, 1fr));
+      gap: 20px;
+    }
+    .feature-card {
+      background: var(--bg-alt);
+      border: 1.5px solid var(--border);
+      border-radius: var(--radius);
+      padding: 22px 24px;
+      transition: box-shadow .2s, border-color .2s;
+    }
+    .feature-card:hover {
+      box-shadow: 0 4px 16px rgba(0,0,0,0.07);
+      border-color: #d1d5db;
+    }
+    .feature-icon {
+      font-size: 24px;
+      margin-bottom: 12px;
+      display: block;
+    }
+    .feature-title {
+      font-size: 14.5px; font-weight: 600;
+      margin-bottom: 6px;
+    }
+    .feature-desc { font-size: 13.5px; color: var(--muted); line-height: 1.6; }
+
+    /* ── Pipeline ── */
+    .pipeline {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+      gap: 0;
+      position: relative;
+    }
+    .pipeline-step {
+      padding: 20px 20px 20px 0;
+      position: relative;
+    }
+    .pipeline-step:not(:last-child)::after {
+      content: '→';
+      position: absolute; right: -4px; top: 26px;
+      color: #d1d5db; font-size: 18px;
+    }
+    .step-num {
+      display: inline-flex;
+      align-items: center; justify-content: center;
+      width: 32px; height: 32px;
+      background: var(--accent); color: #fff;
+      border-radius: 50%;
+      font-size: 13px; font-weight: 700;
+      margin-bottom: 12px;
+      flex-shrink: 0;
+    }
+    .step-title { font-size: 14px; font-weight: 600; margin-bottom: 6px; }
+    .step-desc { font-size: 13px; color: var(--muted); line-height: 1.6; }
+
+    /* ── Demo ── */
+    .demo-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+      align-items: start;
+    }
+    @media (max-width: 640px) { .demo-grid { grid-template-columns: 1fr; } }
+    .demo-img {
+      border: 1.5px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.06);
+    }
+    .demo-img img { width: 100%; display: block; }
+
+    /* ── Install ── */
+    .code-block {
+      background: #111827;
+      border-radius: var(--radius);
+      padding: 20px 24px;
+      overflow-x: auto;
+      font-family: 'SFMono-Regular', Consolas, monospace;
+      font-size: 13.5px;
+      line-height: 1.8;
+    }
+    .code-block .comment { color: #6b7280; }
+    .code-block .cmd { color: #86efac; }
+    .code-block .arg { color: #fde68a; }
+
+    /* ── Community ── */
+    .community-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 24px;
+      align-items: start;
+    }
+    @media (max-width: 560px) { .community-grid { grid-template-columns: 1fr; } }
+    .community-card {
+      border: 1.5px solid var(--border);
+      border-radius: var(--radius);
+      padding: 28px;
+      text-align: center;
+    }
+    .community-card h3 { font-size: 16px; font-weight: 600; margin-bottom: 8px; }
+    .community-card p { font-size: 13.5px; color: var(--muted); margin-bottom: 16px; line-height: 1.6; }
+    .community-card img { width: 160px; height: 160px; object-fit: cover; border-radius: 8px; margin: 0 auto 12px; display: block; }
+    .coming-badge {
+      display: inline-block;
+      background: #fef3c7;
+      color: #92400e;
+      font-size: 11px; font-weight: 600;
+      padding: 3px 8px; border-radius: 4px;
+      text-transform: uppercase; letter-spacing: .06em;
+      margin-bottom: 12px;
+    }
+
+    /* ── Citation ── */
+    .bibtex {
+      background: #111827;
+      border-radius: var(--radius);
+      padding: 20px 24px;
+      font-family: 'SFMono-Regular', Consolas, monospace;
+      font-size: 13px;
+      line-height: 1.9;
+      color: #e5e7eb;
+      overflow-x: auto;
+      white-space: pre;
+    }
+    .bibtex .key { color: #93c5fd; }
+    .bibtex .val { color: #fde68a; }
+
+    /* ── Authors ── */
+    .authors {
+      display: flex; gap: 8px; flex-wrap: wrap;
+      font-size: 14px; color: #374151;
+      margin-bottom: 8px;
+    }
+    .author-sep { color: var(--border); }
+    .affil {
+      font-size: 13px; color: var(--muted);
+      display: flex; align-items: center; gap: 6px;
+    }
+
+    /* ── Footer ── */
+    footer {
+      padding: 32px 24px;
+      border-top: 1px solid var(--border);
+      text-align: center;
+      font-size: 13px;
+      color: var(--muted);
+    }
+    footer a { color: var(--muted); text-decoration: none; }
+    footer a:hover { color: var(--text); }
+
+    /* ── Responsive ── */
+    @media (max-width: 640px) {
+      .nav-links { display: none; }
+      .pipeline { grid-template-columns: 1fr; }
+      .pipeline-step::after { display: none; }
+      .features-grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ── Nav ── -->
+<nav>
+  <div class="nav-inner">
+    <a href="#" class="nav-brand">
+      <img src="assets/icon.png" alt="CitationAgent">
+      <span class="nav-brand-name">CitationAgent</span>
+    </a>
+    <div class="nav-links">
+      <a href="#abstract">概览</a>
+      <a href="#features">功能</a>
+      <a href="#demo">示例</a>
+      <a href="#install">安装</a>
+      <a href="#citation">引用</a>
+    </div>
+  </div>
+</nav>
+
+<!-- ── Hero ── -->
+<div class="hero">
+  <div class="hero-eyebrow">Citation Agent · 被引分析智能体</div>
+  <h1>论文被引<br>画像分析智能体</h1>
+  <p class="hero-subtitle">Paper Citation Portrait Analysis Agent</p>
+  <p class="hero-desc">
+    输入论文题目或从 Google Scholar 主页选择，一键自动爬取所有施引文献、识别著名学者背景，生成精美的可视化 HTML 画像报告。
+  </p>
+  <div class="hero-buttons">
+    <a href="https://github.com/VisionXLab/CitationAgent" target="_blank" class="btn btn-primary">
+      <svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
+      GitHub
+    </a>
+    <a href="https://www.reduct.cn/" target="_blank" class="btn btn-outline">
+      🚀 减论上线中
+    </a>
+    <a href="https://htmlpreview.github.io/?https://github.com/VisionXLab/CitationAgent/blob/main/data/result-template/paper_dashboard.html" target="_blank" class="btn btn-outline">
+      📊 查看报告示例
+    </a>
+  </div>
+  <div class="hero-meta">
+    开发团队：Qihao Yang · Ziqian Fan · Xue Yang&nbsp;&nbsp;|&nbsp;&nbsp;
+    <a href="https://github.com/VisionXLab" target="_blank">上海交通大学 VisionXLab</a>
+  </div>
+</div>
+
+<!-- ── Teaser ── -->
+<div class="teaser-wrap">
+  <div class="browser-frame">
+    <div class="browser-bar">
+      <div class="browser-dots">
+        <div class="browser-dot"></div>
+        <div class="browser-dot"></div>
+        <div class="browser-dot"></div>
+      </div>
+      <div class="browser-url">paper_dashboard.html · 被引画像报告</div>
+    </div>
+    <img src="assets/teaser.png" alt="CitationAgent 被引画像报告示例">
+  </div>
+</div>
+
+<!-- ── Abstract ── -->
+<section id="abstract">
+  <div class="container">
+    <div class="section-header">
+      <div class="section-label">Overview · 概览</div>
+      <h2 class="section-title">What is CitationAgent?</h2>
+    </div>
+    <div class="abstract-box">
+      CitationAgent 是一款面向科研人员的论文被引画像分析智能体。只需输入论文题目（或从 Google Scholar 学者主页批量导入），系统将自动完成：<strong>爬取所有施引文献</strong>、<strong>识别著名学者背景</strong>（院士、Fellow、杰青等）、<strong>搜索引用原句</strong>，最终生成一份包含关键词云、引用趋势、国家分布、学者画像等多维可视化内容的精美 HTML 报告，无需服务器，单文件即可分享。
+      <br><br>
+      CitationAgent is a paper citation portrait analysis agent for researchers. Given a paper title or Google Scholar profile, it automatically crawls all citing papers, identifies renowned scholars (academicians, Fellows, etc.), retrieves citation sentences, and produces a fully self-contained HTML portrait report.
+    </div>
+  </div>
+</section>
+
+<!-- ── Features ── -->
+<section id="features">
+  <div class="container">
+    <div class="section-header">
+      <div class="section-label">Features · 核心功能</div>
+      <h2 class="section-title">Key Capabilities</h2>
+      <p class="section-desc">从爬取到报告，全流程自动化</p>
+    </div>
+    <div class="features-grid">
+      <div class="feature-card">
+        <span class="feature-icon">🎓</span>
+        <div class="feature-title">著名学者自动识别</div>
+        <div class="feature-desc">自动识别中国科学院/工程院院士、IEEE/ACM/ACL Fellow、国家杰青、长江学者等重量级学者，颜色标注，一目了然。</div>
+      </div>
+      <div class="feature-card">
+        <span class="feature-icon">📊</span>
+        <div class="feature-title">多维可视化报告</div>
+        <div class="feature-desc">关键词云、引用趋势预测、国家/机构分布、学者画像、引用位置与情感分析，单 HTML 文件，无需服务器。</div>
+      </div>
+      <div class="feature-card">
+        <span class="feature-icon">🔍</span>
+        <div class="feature-title">引用原句精准检索</div>
+        <div class="feature-desc">对施引文献逐篇搜索引用原句，定位所在章节（引言/方法/实验），支持 Markdown 渲染展示。</div>
+      </div>
+      <div class="feature-card">
+        <span class="feature-icon">🔁</span>
+        <div class="feature-title">断点续爬 · 缓存复用</div>
+        <div class="feature-desc">任务中断后可从断点继续；已搜索过的学者信息自动缓存，多次分析无需重复调用 LLM，大幅降低费用。</div>
+      </div>
+      <div class="feature-card">
+        <span class="feature-icon">📈</span>
+        <div class="feature-title">突破千篇限制</div>
+        <div class="feature-desc">开启年份遍历模式后，按年份分段爬取并合并去重，高被引论文（如 Transformer、BERT）同样可获取完整数据。</div>
+      </div>
+      <div class="feature-card">
+        <span class="feature-icon">🤖</span>
+        <div class="feature-title">LLM 综合 Insight</div>
+        <div class="feature-desc">自动生成四维结构化总结——引用规模与分布、主要用途、代表性原文摘录、综合说明，支持任意 OpenAI 兼容 API。</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ── Pipeline ── -->
+<section id="pipeline">
+  <div class="container">
+    <div class="section-header">
+      <div class="section-label">Pipeline · 使用流程</div>
+      <h2 class="section-title">How It Works</h2>
+      <p class="section-desc">四步完成完整的被引画像分析</p>
+    </div>
+    <div class="pipeline">
+      <div class="pipeline-step">
+        <div class="step-num">1</div>
+        <div class="step-title">配置 API</div>
+        <div class="step-desc">填入 ScraperAPI Key 与 OpenAI 兼容 API Key，支持 V-API、OpenAI 等任意服务。</div>
+      </div>
+      <div class="pipeline-step">
+        <div class="step-num">2</div>
+        <div class="step-title">输入论文</div>
+        <div class="step-desc">直接粘贴论文题目，或粘贴 Google Scholar 主页 URL 批量导入。</div>
+      </div>
+      <div class="pipeline-step">
+        <div class="step-num">3</div>
+        <div class="step-title">选择层级</div>
+        <div class="step-desc">从全面版到标准版，按需平衡分析深度与 token 消耗，点击开始分析。</div>
+      </div>
+      <div class="pipeline-step">
+        <div class="step-num">4</div>
+        <div class="step-title">获取报告</div>
+        <div class="step-desc">下载 paper_dashboard.html，浏览器直接打开即可查看完整多维画像报告，可直接分享。</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ── Demo ── -->
+<section id="demo">
+  <div class="container">
+    <div class="section-header">
+      <div class="section-label">Demo · 报告示例</div>
+      <h2 class="section-title">Report Preview</h2>
+      <p class="section-desc">真实论文的完整被引画像报告截图</p>
+    </div>
+    <div class="demo-grid">
+      <div>
+        <div class="demo-img">
+          <img src="assets/teaser.png" alt="报告顶部 — 统计概览">
+        </div>
+        <p style="font-size:12.5px;color:var(--muted);margin-top:8px;text-align:center">统计概览 · Statistical Overview</p>
+      </div>
+      <div>
+        <div class="demo-img">
+          <img src="assets/teaser-charts.png" alt="报告图表 — 地区分布与关键词云">
+        </div>
+        <p style="font-size:12.5px;color:var(--muted);margin-top:8px;text-align:center">地区分布 · 关键词云 · Country Distribution & Keyword Cloud</p>
+      </div>
+    </div>
+    <div style="text-align:center;margin-top:28px">
+      <a href="https://htmlpreview.github.io/?https://github.com/VisionXLab/CitationAgent/blob/main/data/result-template/paper_dashboard.html" target="_blank" class="btn btn-outline">
+        📄 查看完整报告示例 →
+      </a>
+    </div>
+  </div>
+</section>
+
+<!-- ── Install ── -->
+<section id="install">
+  <div class="container">
+    <div class="section-header">
+      <div class="section-label">Installation · 安装</div>
+      <h2 class="section-title">Quick Start</h2>
+      <p class="section-desc">需要 Python 3.10+（推荐 3.12）</p>
+    </div>
+    <div class="code-block">
+      <span class="comment"># 1. 克隆仓库 Clone the repo</span>
+<span class="cmd">git</span> <span class="arg">clone https://github.com/VisionXLab/CitationAgent.git</span>
+<span class="cmd">cd</span> <span class="arg">CitationAgent</span>
+
+<span class="comment"># 2. 安装依赖 Install dependencies</span>
+<span class="cmd">pip</span> <span class="arg">install -r requirements.txt</span>
+
+<span class="comment"># 3. 启动 Start the web app</span>
+<span class="cmd">python</span> <span class="arg">start.py</span>
+
+<span class="comment"># 4. 浏览器访问 Open in browser</span>
+<span class="comment">#    http://127.0.0.1:8000</span></div>
+  </div>
+</section>
+
+<!-- ── Community ── -->
+<section id="community">
+  <div class="container">
+    <div class="section-header">
+      <div class="section-label">Community · 社区</div>
+      <h2 class="section-title">Stay Connected</h2>
+    </div>
+    <div class="community-grid">
+      <div class="community-card">
+        <h3>用户交流群</h3>
+        <p>扫码加入用户交流群，获取最新动态、交流使用心得，支持人工代查咨询。</p>
+        <img src="assets/group.jpg" alt="用户交流群二维码">
+        <p style="font-size:12px;color:var(--muted)">扫码加入 · Scan to Join</p>
+      </div>
+      <div class="community-card">
+        <div class="coming-badge">Coming Soon</div>
+        <h3>减论平台上线</h3>
+        <p>CitationAgent 的更完善版本即将在<strong>减论</strong>上线，提供更强大的功能与更流畅的使用体验，敬请期待！</p>
+        <a href="https://www.reduct.cn/" target="_blank" class="btn btn-outline" style="margin:0 auto">
+          🌐 访问减论 reduct.cn
+        </a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ── Citation ── -->
+<section id="citation">
+  <div class="container">
+    <div class="section-header">
+      <div class="section-label">Citation · 引用</div>
+      <h2 class="section-title">Cite This Work</h2>
+      <p class="section-desc">如果本工具对您的研究有所帮助，欢迎引用</p>
+    </div>
+    <div class="bibtex"><span class="key">@software</span>{citationagent2026,
+  <span class="key">title</span>     = {<span class="val">CitationAgent: Paper Citation Portrait Analysis Agent</span>},
+  <span class="key">author</span>    = {<span class="val">Yang, Qihao and Fan, Ziqian and Yang, Xue</span>},
+  <span class="key">year</span>      = {<span class="val">2026</span>},
+  <span class="key">url</span>       = {<span class="val">https://github.com/VisionXLab/CitationAgent</span>},
+  <span class="key">institution</span>= {<span class="val">Shanghai Jiao Tong University, VisionXLab</span>}
+}</div>
+  </div>
+</section>
+
+<!-- ── Footer ── -->
+<footer>
+  <p style="margin-bottom:6px">
+    CitationAgent &nbsp;·&nbsp;
+    <a href="https://github.com/VisionXLab/CitationAgent" target="_blank">GitHub</a> &nbsp;·&nbsp;
+    <a href="https://www.reduct.cn/" target="_blank">减论</a> &nbsp;·&nbsp;
+    上海交通大学 VisionXLab@RethinkLab
+  </p>
+  <p>Qihao Yang · Ziqian Fan · Xue Yang</p>
+</footer>
+
+</body>
+</html>

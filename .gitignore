@@ -20,3 +20,8 @@ env/
 # Runtime outputs (keep result-template as example)
 data/result-*/
 !data/result-template/
+.superpowers/
+homepage-preview.png
+teaser-full.png
+teaser-charts.png
+.playwright-mcp/
