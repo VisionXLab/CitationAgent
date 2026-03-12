@@ -8,7 +8,7 @@
 
   [![🌐 项目主页](https://img.shields.io/badge/🌐-项目主页-blue?style=flat-square)](https://visionxlab.github.io/CitationClaw/)
   [![PyPI](https://img.shields.io/pypi/v/citationclaw?style=flat-square&logo=pypi&logoColor=white&color=0073b7)](https://pypi.org/project/citationclaw/)
-  [![Downloads](https://static.pepy.tech/badge/citationclaw)](https://pepy.tech/project/citationclaw)
+  [![Downloads](https://img.shields.io/pepy/dt/citationclaw?style=flat-square&label=下载量&color=brightgreen)](https://pepy.tech/project/citationclaw)
   ![Python](https://img.shields.io/badge/Python-3.10%2B-3776AB?style=flat-square&logo=python&logoColor=white)
   ![Version](https://img.shields.io/badge/版本-1.0-brightgreen?style=flat-square)
   ![Platform](https://img.shields.io/badge/平台-macOS%20%7C%20Linux%20%7C%20Windows-lightgrey?style=flat-square)
