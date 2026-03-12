@@ -1,0 +1,1926 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Envisioning Beyond the Pixels: Benchmarking Reasoning-Informed Visual Editing · 被引画像报告</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/marked@9/marked.min.js"></script>
+<style>
+:root {
+  --bg: #f7f8fc; --bg2: #eef0f8; --surface: #ffffff; --surface2: #f0f2fa;
+  --border: #dde2f0; --border-accent: #c5cceb;
+  --teal: #3b82c4; --teal-light: #e8f1fb; --teal-muted: #6ba3d6;
+  --sage: #4caf8a; --sage-light: #e6f6f0;
+  --amber: #d4892a; --amber-light: #fdf3e3;
+  --violet: #7c5cbf; --violet-light: #f0ecfb;
+  --rose: #c45a5a; --rose-light: #fdeaea;
+  --text: #2d3748; --text-muted: #718096; --text-light: #a0aec0; --text-bright: #1a202c;
+  --shadow-sm: 0 1px 4px rgba(0,0,0,0.06);
+  --shadow: 0 4px 16px rgba(0,0,0,0.08);
+  --shadow-lg: 0 8px 32px rgba(0,0,0,0.10);
+}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { scroll-behavior: smooth; }
+body { font-family: 'Noto Sans SC', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  background: var(--bg); color: var(--text); min-height: 100vh; font-size: 14px; line-height: 1.6; }
+.header { background: linear-gradient(135deg, #1e3a5f 0%, #2d5a9e 50%, #1e4d7b 100%);
+  padding: 56px 64px 48px; position: relative; overflow: hidden; }
+.header::before { content: ''; position: absolute; inset: 0;
+  background: radial-gradient(ellipse 60% 80% at 85% 20%, rgba(100,160,255,0.15) 0%, transparent 60%),
+              radial-gradient(ellipse 40% 60% at 10% 80%, rgba(60,180,130,0.10) 0%, transparent 55%);
+  pointer-events: none; }
+.header-eyebrow { font-size: 11px; font-weight: 600; letter-spacing: 3px; text-transform: uppercase;
+  color: rgba(180,210,255,0.75); margin-bottom: 14px; }
+.header h1 { font-size: 36px; font-weight: 700; color: #fff; line-height: 1.15; margin-bottom: 14px; }
+.header h1 em { font-style: normal; color: #7db8f5; }
+.header-subtitle { font-size: 13.5px; color: rgba(200,220,255,0.70); max-width: 580px; line-height: 1.75; }
+.header-divider { position: absolute; bottom: 0; left: 0; right: 0; height: 3px;
+  background: linear-gradient(90deg, transparent, rgba(120,180,255,0.6) 30%, rgba(80,200,160,0.5) 70%, transparent); }
+.header-targets { display: flex; flex-direction: column; gap: 6px; margin: 14px 0 16px; }
+.header-target-item { display: flex; align-items: baseline; gap: 10px; }
+.header-target-num { font-size: 10px; font-weight: 700; color: rgba(147,197,253,0.6);
+  letter-spacing: 1px; flex-shrink: 0; }
+.header-target-title { font-size: 15px; font-weight: 600; color: #e2eeff;
+  line-height: 1.4; word-break: break-word; }
+.stats-bar { background: var(--surface); border-bottom: 1px solid var(--border);
+  display: flex; overflow-x: auto; box-shadow: var(--shadow-sm); }
+.stat-item { flex: 1; min-width: 120px; padding: 22px 20px; text-align: center;
+  border-right: 1px solid var(--border); transition: background .2s; }
+.stat-item:last-child { border-right: none; }
+.stat-item:hover { background: var(--teal-light); }
+.stat-icon { font-size: 20px; margin-bottom: 6px; }
+.stat-num { font-size: 28px; font-weight: 700; color: var(--teal); line-height: 1.1; }
+.stat-label { font-size: 11px; color: var(--text-muted); margin-top: 4px; letter-spacing: .3px; }
+.download-bar { background: var(--surface2); border-bottom: 1px solid var(--border);
+  padding: 12px 48px; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.download-bar span { font-size: 13px; color: var(--text-muted); }
+.download-bar a { display: inline-block; padding: 5px 14px; border-radius: 6px; font-size: 12px;
+  font-weight: 500; text-decoration: none; border: 1px solid var(--border);
+  background: var(--surface); color: var(--teal); transition: .15s; }
+.download-bar a:hover { background: var(--teal-light); border-color: var(--teal); }
+.main { max-width: 1480px; margin: 0 auto; padding: 36px 48px; }
+.section-header { display: flex; align-items: center; gap: 12px; margin: 40px 0 20px; }
+.section-num { font-size: 11px; font-weight: 700; color: var(--teal); letter-spacing: 2px;
+  background: var(--teal-light); padding: 2px 8px; border-radius: 4px; }
+.section-title { font-size: 15px; font-weight: 600; color: var(--text-bright); }
+.section-divider { flex: 1; height: 1px; background: var(--border); }
+.grid-3 { display: grid; grid-template-columns: repeat(3,1fr); gap: 20px; margin-bottom: 20px; }
+.grid-2 { display: grid; grid-template-columns: repeat(2,1fr); gap: 20px; margin-bottom: 20px; }
+.grid-1 { margin-bottom: 20px; }
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px;
+  padding: 24px; box-shadow: var(--shadow-sm); transition: box-shadow .2s, transform .2s; }
+.card:hover { box-shadow: var(--shadow); transform: translateY(-1px); }
+.card-title { font-size: 12px; font-weight: 600; color: var(--text-muted); text-transform: uppercase;
+  letter-spacing: .8px; padding-bottom: 12px; border-bottom: 1px solid var(--border);
+  margin-bottom: 16px; display: flex; align-items: center; gap: 7px; }
+.card-title-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--teal); flex-shrink: 0; }
+.card-title-dot.sage { background: var(--sage); }
+.card-title-dot.amber { background: var(--amber); }
+.card-title-dot.violet { background: var(--violet); }
+.badge { display: inline-block; padding: 2px 9px; border-radius: 20px; font-size: 11px;
+  font-weight: 500; white-space: nowrap; }
+.b-ys { background: #fff3e0; color: #d4892a; border: 1px solid #f0c070; }
+.b-fw { background: var(--teal-light); color: var(--teal); border: 1px solid #b3d4f0; }
+.b-ot { background: var(--sage-light); color: #357a62; border: 1px solid #a0d9c0; }
+.b-nm { background: var(--bg2); color: var(--text-muted); border: 1px solid var(--border); }
+.b-cn { background: #fff0f0; color: var(--rose); border: 1px solid #f0c0c0; }
+.b-int { background: var(--violet-light); color: var(--violet); border: 1px solid #c9b8ec; }
+.scholar-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+.scholar-table thead th { padding: 10px 12px; text-align: left; font-size: 11px; font-weight: 600;
+  color: var(--text-muted); text-transform: uppercase; letter-spacing: .5px;
+  border-bottom: 2px solid var(--border); background: var(--bg2); }
+.scholar-table tbody tr { border-bottom: 1px solid var(--border); transition: background .15s; }
+.scholar-table tbody tr:hover { background: var(--teal-light); }
+.scholar-table td { padding: 10px 12px; vertical-align: middle; }
+.scholar-table .sname { font-weight: 600; color: var(--text-bright); }
+.scholar-table .stitle { color: var(--text-muted); font-size: 11.5px; line-height: 1.5; }
+.desc-btn { font-size: 11px; padding: 3px 10px; border: 1px solid var(--border);
+  border-radius: 4px; background: var(--surface); color: var(--teal); cursor: pointer;
+  transition: .15s; white-space: nowrap; }
+.desc-btn:hover { background: var(--teal-light); border-color: var(--teal); }
+.desc-row td { background: var(--bg2); padding: 12px 16px;
+  word-wrap: break-word; }
+.paper-item { display: flex; align-items: center; gap: 14px; padding: 14px 16px;
+  margin-bottom: 8px; border: 1px solid var(--border); border-radius: 8px;
+  border-left: 4px solid var(--teal); background: var(--surface); transition: box-shadow .2s, background .2s; }
+.paper-item:hover { background: var(--teal-light); box-shadow: var(--shadow-sm); }
+.paper-rank { font-size: 20px; font-weight: 800; color: #c5cceb; min-width: 32px; text-align: center; }
+.paper-info { flex: 1; }
+.paper-ttl { font-size: 13px; font-weight: 500; color: var(--text-bright); line-height: 1.5; margin-bottom: 3px; }
+.paper-meta { font-size: 11px; color: var(--text-muted); }
+.paper-cit-box { text-align: right; min-width: 64px; }
+.paper-cit-num { font-size: 24px; font-weight: 700; color: var(--teal); line-height: 1; }
+.paper-cit-lbl { font-size: 10px; color: var(--text-light); margin-top: 2px; }
+.kw-cloud { display: flex; flex-wrap: wrap; gap: 8px; padding: 4px 0; }
+.kw-tag { padding: 5px 14px; border-radius: 20px; font-size: 12px; font-weight: 500; transition: transform .15s; cursor: default; }
+.kw-tag:hover { transform: translateY(-2px); }
+.cite-type-bar { display: flex; flex-direction: column; gap: 10px; }
+.ctb-label { display: flex; justify-content: space-between; font-size: 12px; color: var(--text); margin-bottom: 4px; }
+.ctb-label span:last-child { color: var(--text-muted); }
+.ctb-track { height: 7px; background: var(--bg2); border-radius: 10px; overflow: hidden; }
+.ctb-fill { height: 100%; border-radius: 10px; }
+.fill-teal   { background: linear-gradient(90deg, #3b82c4, #6ba3d6); }
+.fill-sage   { background: linear-gradient(90deg, #4caf8a, #7dcaaa); }
+.fill-amber  { background: linear-gradient(90deg, #d4892a, #e8a84a); }
+.fill-violet { background: linear-gradient(90deg, #7c5cbf, #a07fd8); }
+.fill-rose   { background: linear-gradient(90deg, #c45a5a, #d88080); }
+.fill-cyan   { background: linear-gradient(90deg, #0891b2, #06b6d4); }
+.fill-green  { background: linear-gradient(90deg, #16a34a, #22c55e); }
+.fill-purple { background: linear-gradient(90deg, #7c3aed, #a855f7); }
+.fill-orange { background: linear-gradient(90deg, #ea580c, #f97316); }
+.theme-tags { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 4px; }
+.theme-tag { background: var(--bg2); border: 1px solid var(--border); border-radius: 6px;
+  padding: 5px 12px; font-size: 12px; color: var(--text); transition: .15s; }
+.theme-tag:hover { border-color: var(--teal); background: var(--teal-light); color: var(--teal); }
+.sentiment-ring { display: flex; gap: 12px; margin-top: 8px; flex-wrap: wrap; }
+.sring-item { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-muted); }
+.sring-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+.findings-list { margin-top: 4px; }
+.finding-item { display: flex; gap: 10px; padding: 9px 0; border-bottom: 1px solid var(--border);
+  font-size: 12.5px; color: var(--text); line-height: 1.6; }
+.finding-item:last-child { border-bottom: none; }
+.finding-num { width: 20px; height: 20px; border-radius: 50%; background: var(--teal-light);
+  color: var(--teal); font-size: 10px; font-weight: 700; display: flex; align-items: center;
+  justify-content: center; flex-shrink: 0; margin-top: 1px; }
+.prediction-band { background: linear-gradient(135deg, #1e3a5f 0%, #1a4a8f 100%);
+  border-radius: 12px; padding: 28px; margin-bottom: 20px; position: relative; overflow: hidden; }
+.prediction-band::before { content: ''; position: absolute; inset: 0;
+  background: radial-gradient(ellipse 50% 80% at 90% 10%, rgba(100,180,255,0.12) 0%, transparent 60%);
+  pointer-events: none; }
+.pred-grid { display: grid; grid-template-columns: repeat(2,1fr); gap: 20px; }
+.pred-card { background: rgba(255,255,255,0.07); border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 8px; padding: 20px; backdrop-filter: blur(4px); }
+.pred-card-title { font-size: 13px; font-weight: 600; color: #e0eeff; margin-bottom: 14px;
+  display: flex; align-items: center; gap: 8px; }
+.pred-tag { font-size: 9px; padding: 2px 7px; border-radius: 4px;
+  background: rgba(100,180,255,0.2); color: #90c0ff; letter-spacing: 1px; }
+.pred-metric { display: flex; justify-content: space-between; align-items: center;
+  padding: 7px 0; border-bottom: 1px solid rgba(255,255,255,0.08); }
+.pred-metric:last-child { border-bottom: none; }
+.pred-metric-label { font-size: 11.5px; color: rgba(180,210,255,0.75); }
+.pred-metric-val { font-size: 13px; font-weight: 700; color: #7dd8b0; }
+.pred-metric-note { font-size: 10px; color: rgba(150,190,255,0.55); margin-top: 1px; }
+.impact-bar-wrap { display: flex; flex-direction: column; gap: 11px; }
+.impact-row-label { display: flex; justify-content: space-between; font-size: 11.5px;
+  color: rgba(180,210,255,0.8); margin-bottom: 4px; }
+.impact-track { height: 6px; background: rgba(255,255,255,0.08); border-radius: 10px; overflow: hidden; }
+.impact-fill { height: 100%; border-radius: 10px; }
+.pred-commentary { margin-top: 14px; padding: 12px 14px; background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(100,180,255,0.2); border-radius: 6px; font-size: 12px;
+  line-height: 1.75; color: rgba(200,225,255,0.75); }
+.trend-wrap { position: relative; height: 200px; }
+.insights-grid { display: grid; grid-template-columns: repeat(2,1fr); gap: 16px; margin-bottom: 40px; }
+.insight-card { border-radius: 10px; padding: 22px 24px; border: 1px solid var(--border);
+  background: var(--surface); border-left: 5px solid var(--teal); transition: box-shadow .2s; }
+.insight-card:hover { box-shadow: var(--shadow); }
+.insight-card.sage  { border-left-color: var(--sage); }
+.insight-card.amber { border-left-color: var(--amber); }
+.insight-card.violet{ border-left-color: var(--violet); }
+.insight-card h4 { font-size: 13.5px; font-weight: 600; color: var(--teal); margin-bottom: 8px; }
+.insight-card.sage h4  { color: var(--sage); }
+.insight-card.amber h4 { color: var(--amber); }
+.insight-card.violet h4{ color: var(--violet); }
+.insight-card p { font-size: 12.5px; color: var(--text-muted); line-height: 1.75; }
+.insight-card p strong { color: var(--text); }
+.citing-papers-section { background: var(--surface); border-bottom: 1px solid var(--border);
+  padding: 28px 48px; max-width: 100%; }
+.citing-papers-header { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; }
+.citing-papers-header-label { font-size: 11px; font-weight: 700; color: var(--teal); letter-spacing: 2px;
+  background: var(--teal-light); padding: 3px 10px; border-radius: 4px; white-space: nowrap; }
+.citing-papers-header-title { font-size: 14px; font-weight: 600; color: var(--text-bright); }
+.citing-papers-header-count { font-size: 12px; color: var(--text-muted); background: var(--bg2);
+  border: 1px solid var(--border); border-radius: 12px; padding: 2px 10px; white-space: nowrap; }
+.citing-papers-header-divider { flex: 1; height: 1px; background: var(--border); }
+.citing-papers-desc { font-size: 12px; color: var(--text-muted); margin-bottom: 16px;
+  padding: 10px 14px; background: linear-gradient(90deg, var(--teal-light), transparent);
+  border-left: 3px solid var(--teal); border-radius: 0 6px 6px 0; line-height: 1.7; }
+.citing-papers-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+  gap: 8px; max-height: 320px; overflow-y: auto; padding-right: 4px; }
+.citing-paper-item { display: flex; align-items: center; gap: 10px; padding: 8px 12px;
+  border: 1px solid var(--border); border-radius: 6px; background: var(--bg); transition: background .15s, border-color .15s; }
+.citing-paper-item:hover { background: var(--teal-light); border-color: var(--teal-muted); }
+.citing-paper-num { font-size: 11px; font-weight: 700; color: var(--text-light);
+  min-width: 22px; text-align: right; flex-shrink: 0; }
+.citing-paper-name { font-size: 12.5px; color: var(--text); line-height: 1.45; word-break: break-word; }
+.footer { text-align: center; padding: 28px; font-size: 11px; color: var(--text-light);
+  border-top: 1px solid var(--border); letter-spacing: .5px; }
+@keyframes fadeUp { from { opacity:0; transform:translateY(16px) } to { opacity:1; transform:none } }
+.card, .insight-card, .paper-item { animation: fadeUp .4s ease both; }
+.stat-sub { font-size: 10px; color: var(--text-light); margin-top: 2px; }
+.inst-section { margin-bottom: 20px; }
+.inst-category-label { font-size: 10px; font-weight: 700; letter-spacing: 1.5px;
+  text-transform: uppercase; color: var(--text-muted); margin-bottom: 10px; }
+.inst-tags { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-start; }
+.inst-tag { padding: 5px 12px; border-radius: 20px; font-size: 12.5px; font-weight: 500;
+  cursor: pointer; transition: opacity .15s, transform .15s; user-select: none; }
+.inst-tag:hover { opacity: 0.85; transform: translateY(-1px); }
+.inst-count { font-size: 10px; font-weight: 400; opacity: 0.8; margin-left: 4px; }
+.inst-paper-list { display: none; width: 100%; margin-top: 8px; padding: 10px 14px;
+  background: var(--bg2); border-radius: 6px; border-left: 3px solid var(--border-accent); }
+.inst-paper-item { font-size: 12px; color: var(--text-muted); padding: 3px 0; line-height: 1.5; }
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: var(--bg); }
+::-webkit-scrollbar-thumb { background: var(--border-accent); border-radius: 3px; }
+/* ── Paper Detail Items (PDI) ── */
+.pdi-scroll { max-height: 600px; overflow-y: auto; padding-right: 4px; }
+.pdi-scroll::-webkit-scrollbar { width: 5px; }
+.pdi-scroll::-webkit-scrollbar-thumb { background: var(--border-accent); border-radius: 3px; }
+.pdi-item { display: flex; gap: 12px; padding: 14px; margin-bottom: 8px;
+  border: 1px solid var(--border); border-radius: 8px; border-left: 4px solid var(--teal);
+  background: var(--surface); transition: box-shadow .2s, background .2s; }
+.pdi-item:hover { background: var(--teal-light); box-shadow: var(--shadow-sm); }
+.pdi-rank { font-size: 17px; font-weight: 800; min-width: 28px; text-align: center;
+  color: #c5cceb; line-height: 1; padding-top: 2px; }
+.pdi-body { flex: 1; min-width: 0; }
+.pdi-title { font-size: 12.5px; font-weight: 600; color: var(--text-bright); line-height: 1.5; margin-bottom: 4px; }
+.pdi-title-link { color: var(--teal); text-decoration: none; }
+.pdi-title-link:hover { text-decoration: underline; }
+.pdi-authors { font-size: 11px; color: var(--text-muted); margin-bottom: 3px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pdi-meta-row { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 6px; }
+.pdi-inst-tag { font-size: 10.5px; color: var(--text-muted); background: var(--bg2);
+  border: 1px solid var(--border); border-radius: 4px; padding: 1px 7px; }
+.pdi-country-tag { font-size: 10.5px; color: var(--violet); background: var(--violet-light);
+  border: 1px solid #c9b8ec; border-radius: 4px; padding: 1px 7px; }
+.pdi-footer { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.pdi-year { font-size: 11px; background: var(--bg2); border: 1px solid var(--border);
+  border-radius: 4px; padding: 1px 7px; color: var(--text-muted); }
+.pdi-cit { font-size: 12px; }
+.pdi-affil-btn { font-size: 10.5px; padding: 2px 9px; border: 1px solid var(--border);
+  border-radius: 4px; background: var(--surface); color: var(--teal); cursor: pointer;
+  transition: .15s; white-space: nowrap; }
+.pdi-affil-btn:hover { background: var(--teal-light); border-color: var(--teal); }
+.pdi-affil-box { margin-top: 8px; padding: 10px 12px; background: var(--bg2);
+  border-radius: 6px; font-size: 11px; color: var(--text); line-height: 1.7;
+  word-break: break-word; border: 1px solid var(--border); }
+.md-content { font-size: 12.5px; line-height: 1.75; color: var(--text); }
+.md-content p { margin: 0 0 7px; }
+.md-content p:last-child { margin-bottom: 0; }
+.md-content ul, .md-content ol { margin: 0 0 7px 20px; padding: 0; }
+.md-content li { margin-bottom: 3px; }
+.md-content strong { font-weight: 600; }
+.md-content em { font-style: italic; color: var(--text-muted); }
+.md-content h1, .md-content h2 { font-size: 13px; font-weight: 700; margin: 10px 0 5px; border-bottom: 1px solid var(--border); padding-bottom: 3px; }
+.md-content h3, .md-content h4 { font-size: 12.5px; font-weight: 600; margin: 8px 0 4px; }
+.md-content code { font-family: 'Fira Code', 'Consolas', monospace; font-size: 11px;
+  background: var(--bg); padding: 1px 5px; border-radius: 4px; color: var(--teal); }
+.md-content pre { background: var(--bg); border-radius: 6px; padding: 8px 12px;
+  overflow-x: auto; margin: 6px 0; }
+.md-content pre code { background: none; padding: 0; color: var(--text); }
+.md-content blockquote { border-left: 3px solid var(--teal); margin: 6px 0;
+  padding: 3px 10px; background: var(--teal-light); color: var(--text-muted); font-style: italic; border-radius: 0 4px 4px 0; }
+.md-content hr { border: none; border-top: 1px solid var(--border); margin: 10px 0; }
+.md-content a { color: var(--teal); text-decoration: underline; }
+.cite-sum-card-title { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; }
+.cite-sum-preview { font-size: 12.5px; color: var(--text-muted); line-height: 1.75; padding: 8px 0 10px; border-bottom: 1px solid var(--border); margin: 0; }
+.cite-sum-body { padding-top: 14px; }
+.cite-sum-body .md-content blockquote { border-left: 4px solid var(--teal); background: var(--teal-light); color: var(--text); font-style: normal; padding: 8px 14px; margin: 8px 0; border-radius: 0 6px 6px 0; }
+.pdi-authors-pills { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 5px; }
+.author-pill { display: inline-block; padding: 2px 9px; border-radius: 12px;
+  font-size: 11px; background: var(--bg2); border: 1px solid var(--border);
+  color: var(--text-muted); text-decoration: none; white-space: nowrap;
+  transition: background .15s, border-color .15s; }
+a.author-pill:hover { background: var(--teal-light); border-color: var(--teal); color: var(--teal); }
+.kw-cn { font-size: 9px; color: inherit; opacity: 0.7; margin-left: 3px; }
+/* ── Balanced card layout (fill available height) ── */
+.card-flex { display: flex; flex-direction: column; }
+.chart-fill-wrap { flex: 1; position: relative; min-height: 200px; }
+.chart-fill-wrap canvas { position: absolute !important; inset: 0; width: 100% !important; height: 100% !important; }
+.chart-center-wrap { flex: 1; display: flex; align-items: center; justify-content: center; width: 100%; padding: 8px 0; }
+.chart-center-wrap canvas { max-width: min(100%, 320px) !important; }
+</style>
+</head>
+<body>
+
+<!-- ═══ HEADER ═══ -->
+<div class="header">
+  <div class="header-eyebrow">Citation Intelligence · 2026</div>
+  <h1>引用论文<em>多维画像</em>分析报告</h1>
+  <div class="header-targets"><div class="header-target-item"><span class="header-target-num">01</span><span class="header-target-title">Envisioning Beyond the Pixels: Benchmarking Reasoning-Informed Visual Editing</span></div></div>
+  <p class="header-subtitle">
+    基于 38 篇引用论文与 79 位知名学者（含 18 位院士/Fellow）数据，
+    结合大模型对引用描述的深度解读，全面呈现学术影响力格局
+  </p>
+  <div class="header-divider"></div>
+</div>
+
+<!-- ═══ STATS BAR ═══ -->
+<div class="stats-bar">
+  <div class="stat-item"><div class="stat-icon">📄</div><div class="stat-num">38</div><div class="stat-label">引用论文总数</div><div class="stat-sub">含 3 篇自引</div></div>
+  <div class="stat-item"><div class="stat-icon">🎓</div><div class="stat-num">79</div><div class="stat-label">知名学者数量</div></div>
+  <div class="stat-item"><div class="stat-icon">🏅</div><div class="stat-num">18</div><div class="stat-label">院士 / Fellow</div></div>
+  <div class="stat-item"><div class="stat-icon">🌍</div><div class="stat-num">3</div><div class="stat-label">覆盖国家/地区</div></div>
+  <div class="stat-item"><div class="stat-icon">🔥</div><div class="stat-num">372</div><div class="stat-label">最高单篇被引量</div></div>
+</div>
+
+
+<div class="download-bar">
+  <span>📥 下载数据文件：</span>
+  <a href="/api/results/download/data/result-20260311_165424/paper_results_with_citing_desc.xlsx">完整数据（含引用描述）.xlsx</a>
+<a href="/api/results/download/data/result-20260311_165424/paper_results_all_renowned_scholar.xlsx">著名学者.xlsx</a>
+<a href="/api/results/download/data/result-20260311_165424/paper_results_top-tier_scholar.xlsx">顶尖学者.xlsx</a>
+
+</div>
+
+<!-- ═══ CITING PAPERS LIST ═══ -->
+<div class="citing-papers-section">
+  <div class="citing-papers-header">
+    <span class="citing-papers-header-label">SCOPE</span>
+    <span class="citing-papers-header-title">本报告分析范围：引用论文列表</span>
+    <span class="citing-papers-header-count">共 1 篇</span>
+    <div class="citing-papers-header-divider"></div>
+  </div>
+  <div class="citing-papers-desc">
+    以下论文均为主动引用目标论文的施引文献，本报告所有多维画像分析均基于这 <strong>1</strong> 篇论文展开。
+  </div>
+  <div class="citing-papers-grid">
+    
+        <div class="citing-paper-item">
+          <span class="citing-paper-num">01</span>
+          <span class="citing-paper-name">Envisioning Beyond the Pixels: Benchmarking Reasoning-Informed Visual Editing</span>
+        </div>
+  </div>
+</div>
+
+<!-- ═══ MAIN ═══ -->
+<div class="main">
+
+<!-- SECTION 01 -->
+<div class="section-header">
+  <span class="section-num">01</span>
+  <span class="section-title">引用时间 · 地域分布 · 学者层级</span>
+  <div class="section-divider"></div>
+</div>
+<div class="grid-2">
+  <div class="card">
+    <div class="card-title"><div class="card-title-dot"></div>引用论文年份分布</div>
+    <div style="position:relative;height:200px"><canvas id="cYear"></canvas></div>
+  </div>
+  <div class="card">
+    <div class="card-title"><div class="card-title-dot amber"></div>知名学者头衔层级分布</div>
+    <div style="position:relative;height:200px"><canvas id="cFellow"></canvas></div>
+  </div>
+</div>
+<div class="grid-3">
+  <div class="card"><div class="card-title"><div class="card-title-dot sage"></div>第一作者国家/地区分布（全部施引文献）</div><div style="position:relative;height:200px"><canvas id="cCountryAll"></canvas></div></div>
+  <div class="card"><div class="card-title"><div class="card-title-dot"></div>知名学者国家/地区分布</div><div style="position:relative;height:200px"><canvas id="cCountryRenowned"></canvas></div></div>
+  <div class="card"><div class="card-title"><div class="card-title-dot amber"></div>顶尖学者国家/地区分布</div><div style="position:relative;height:200px"><canvas id="cCountryTop"></canvas></div></div>
+</div>
+
+<!-- SECTION 02 -->
+<div class="section-header">
+  <span class="section-num">02</span>
+  <span class="section-title">研究主题关键词（施引文献领域分析）</span>
+  <div class="section-divider"></div>
+</div>
+<div class="card grid-1">
+  <div class="card-title"><div class="card-title-dot violet"></div>关键词云（AI 动态提取 · 基于施引文献标题，反映施引文献所覆盖的研究范围）</div>
+  <div class="kw-cloud"><span class="kw-tag" style="font-size:18px;color:#3b82c4;background:#e8f1fb;border:1px solid #3b82c433;">Unified Multimodal Models<span class="kw-cn">(统一多模态模型)</span></span><span class="kw-tag" style="font-size:17px;color:#4caf8a;background:#e6f6f0;border:1px solid #4caf8a33;">Multimodal Large Language Models (MLLMs)<span class="kw-cn">(多模态大语言模型)</span></span><span class="kw-tag" style="font-size:18px;color:#7c5cbf;background:#f0ecfb;border:1px solid #7c5cbf33;">Reasoning-driven Image Editing<span class="kw-cn">(推理驱动的图像编辑)</span></span><span class="kw-tag" style="font-size:18px;color:#d4892a;background:#fdf3e3;border:1px solid #d4892a33;">Benchmark<span class="kw-cn">(基准测试)</span></span><span class="kw-tag" style="font-size:17px;color:#c45a5a;background:#fdeaea;border:1px solid #c45a5a33;">Chain-of-Thought (CoT) Reasoning<span class="kw-cn">(思维链推理)</span></span><span class="kw-tag" style="font-size:17px;color:#3b82c4;background:#e8f1fb;border:1px solid #3b82c433;">Unified Understanding and Generation<span class="kw-cn">(理解与生成的统一)</span></span><span class="kw-tag" style="font-size:16px;color:#4caf8a;background:#e6f6f0;border:1px solid #4caf8a33;">Visual Instruction Following<span class="kw-cn">(视觉指令遵循)</span></span><span class="kw-tag" style="font-size:16px;color:#7c5cbf;background:#f0ecfb;border:1px solid #7c5cbf33;">Text-to-Image Generation<span class="kw-cn">(文本到图像生成)</span></span><span class="kw-tag" style="font-size:16px;color:#d4892a;background:#fdf3e3;border:1px solid #d4892a33;">Thinking-Aware / Think-Then-Generate<span class="kw-cn">(思维感知/先思后画)</span></span><span class="kw-tag" style="font-size:15px;color:#c45a5a;background:#fdeaea;border:1px solid #c45a5a33;">Factuality and World Knowledge<span class="kw-cn">(真实性与世界知识)</span></span><span class="kw-tag" style="font-size:15px;color:#3b82c4;background:#e8f1fb;border:1px solid #3b82c433;">Interleaved Text and Image<span class="kw-cn">(图文交织)</span></span><span class="kw-tag" style="font-size:14px;color:#4caf8a;background:#e6f6f0;border:1px solid #4caf8a33;">Omni-modal / Multimodal Agents<span class="kw-cn">(全模态/多模态智能体)</span></span><span class="kw-tag" style="font-size:14px;color:#7c5cbf;background:#f0ecfb;border:1px solid #7c5cbf33;">Video Editing<span class="kw-cn">(视频编辑)</span></span><span class="kw-tag" style="font-size:14px;color:#d4892a;background:#fdf3e3;border:1px solid #d4892a33;">Evaluation Survey<span class="kw-cn">(评估综述)</span></span><span class="kw-tag" style="font-size:14px;color:#c45a5a;background:#fdeaea;border:1px solid #c45a5a33;">Diffusion Language Models<span class="kw-cn">(扩散语言模型)</span></span><span class="kw-tag" style="font-size:14px;color:#3b82c4;background:#e8f1fb;border:1px solid #3b82c433;">Multimodal Reward Models<span class="kw-cn">(多模态奖励模型)</span></span><span class="kw-tag" style="font-size:14px;color:#4caf8a;background:#e6f6f0;border:1px solid #4caf8a33;">Geometric/Scientific Image Synthesis<span class="kw-cn">(几何/科学图像合成)</span></span><span class="kw-tag" style="font-size:14px;color:#7c5cbf;background:#f0ecfb;border:1px solid #7c5cbf33;">Iterative Reasoning<span class="kw-cn">(迭代推理)</span></span></div>
+</div>
+
+<!-- SECTION 03 -->
+<div class="section-header">
+  <span class="section-num">03</span>
+  <span class="section-title">被引描述深度分析</span>
+  <div class="section-divider"></div>
+</div>
+<div class="grid-2">
+  <div class="card">
+    <div class="card-title"><div class="card-title-dot"></div>引用类型分布</div>
+    <div class="cite-type-bar">
+        <div class="ctb-row">
+          <div class="ctb-label"><span>基准评估</span><span>6 篇 (55%)</span></div>
+          <div class="ctb-track"><div class="ctb-fill fill-teal" style="width:55%"></div></div>
+        </div>
+        <div class="ctb-row">
+          <div class="ctb-label"><span>背景铺垫</span><span>3 篇 (27%)</span></div>
+          <div class="ctb-track"><div class="ctb-fill fill-sage" style="width:27%"></div></div>
+        </div>
+        <div class="ctb-row">
+          <div class="ctb-label"><span>方法借鉴</span><span>2 篇 (18%)</span></div>
+          <div class="ctb-track"><div class="ctb-fill fill-amber" style="width:18%"></div></div>
+        </div></div>
+    <div style="margin-top:20px;padding-top:16px;border-top:1px solid var(--border)">
+      <div class="card-title" style="margin-bottom:12px"><div class="card-title-dot sage"></div>引用情感倾向</div>
+      <canvas id="cSentiment" style="max-height:200px"></canvas>
+      
+        <div class="sentiment-ring">
+          <div class="sring-item"><div class="sring-dot" style="background:#4caf8a"></div>正面肯定 18%</div>
+          <div class="sring-item"><div class="sring-dot" style="background:#a0aec0"></div>中性引用 82%</div>
+          <div class="sring-item"><div class="sring-dot" style="background:#c45a5a"></div>批评探讨 0%</div>
+        </div>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-title"><div class="card-title-dot amber"></div>引用出现位置分布</div>
+    <canvas id="cPosition" height="200"></canvas>
+    <div style="margin-top:20px;padding-top:16px;border-top:1px solid var(--border)">
+      <div class="card-title" style="margin-bottom:10px"><div class="card-title-dot violet"></div>高频引用主题词</div>
+      <div class="theme-tags"><span class="theme-tag" style="font-size:17px">推理感知视觉编辑基准</span><span class="theme-tag" style="font-size:15px">多模态大模型评估</span><span class="theme-tag" style="font-size:13px">物理与时空推理分析</span><span class="theme-tag" style="font-size:11px">LMM判别器评价机制</span><span class="theme-tag" style="font-size:12px">图像编辑的认知挑战</span></div>
+    </div>
+  </div>
+</div>
+<div class="grid-2">
+  <div class="card">
+    <div class="card-title"><div class="card-title-dot violet"></div>引用深度结构（核心 vs 参考 vs 补充）</div>
+    <canvas id="cDepth" style="max-height:200px"></canvas>
+  </div>
+  <div class="card">
+    <div class="card-title"><div class="card-title-dot sage"></div>AI 引用洞察摘要</div>
+    <div class="findings-list">
+        <div class="finding-item">
+          <div class="finding-num">1</div>
+          <div>引用主要集中在实验部分，将其作为衡量推理辅助编辑能力的标准化基准。</div>
+        </div>
+        <div class="finding-item">
+          <div class="finding-num">2</div>
+          <div>多数文献提及该论文在推理驱动视觉编辑领域的开创性作用，侧重描述其覆盖的推理维度。</div>
+        </div>
+        <div class="finding-item">
+          <div class="finding-num">3</div>
+          <div>引用描述中常出现RISEBench这一缩写，反映出该基准在同类研究中具有较高的辨识度。</div>
+        </div></div>
+  </div>
+</div>
+
+<!-- SECTION 04 -->
+<div class="section-header">
+  <span class="section-num">04</span>
+  <span class="section-title">知名学者画像一览</span>
+  <div class="section-divider"></div>
+</div>
+<div class="card grid-1">
+  <div class="card-title"><div class="card-title-dot"></div>引用论文中出现的权威学者详细信息（AI搜索生成，已自动去重合并同一学者，仅供参考）</div>
+  <div style="overflow-x:auto">
+    <table class="scholar-table">
+      <thead><tr><th>#</th><th>学者</th><th>国家/地区</th><th>层级</th><th>头衔 / 荣誉</th><th>引用描述</th></tr></thead>
+      <tbody>
+        <tr>
+          <td style="color:var(--text-light);font-size:11px">01</td>
+          <td class="sname">谭铁牛</td>
+          <td><span class="badge b-cn">中国</span></td>
+          <td><span class="badge b-ys">两院院士</span></td>
+          <td class="stitle">中国科学院院士、英国皇家工程院外籍院士、发展中国家科学院院士、IEEE Fellow、IAPR Fellow</td>
+          <td><button class="desc-btn" onclick="toggleDesc('desc_1')">引用描述 ▾</button></td>
+        </tr>
+        <tr id="desc_1" class="desc-row" style="display:none">
+          <td colspan="6"><div class="md-content">nan</div></td>
+        </tr>
+        <tr>
+          <td style="color:var(--text-light);font-size:11px">02</td>
+          <td class="sname">Bernt Schiele</td>
+          <td><span class="badge b-int">德国</span></td>
+          <td><span class="badge b-ot">其他院士</span></td>
+          <td class="stitle">IEEE Fellow、利奥波第那德国国家科学院院士、CVPR经典论文奖获得者</td>
+          <td><button class="desc-btn" onclick="toggleDesc('desc_2')">引用描述 ▾</button></td>
+        </tr>
+        <tr id="desc_2" class="desc-row" style="display:none">
+          <td colspan="6"><div class="md-content">nan</div></td>
+        </tr>
+        <tr>
+          <td style="color:var(--text-light);font-size:11px">03</td>
+          <td class="sname">Heng Huang (黄恒)</td>
+          <td><span class="badge b-int">美国</span></td>
+          <td><span class="badge b-ot">其他院士</span></td>
+          <td class="stitle">AIMBE Fellow (美国医学与生物工程院会士)、INAE Foreign Fellow (印度国家工程院外籍院士)、ACM SIGKDD 2020 程序委员会主席、CSRa</td>
+          <td><button class="desc-btn" onclick="toggleDesc('desc_3')">引用描述 ▾</button></td>
+        </tr>
+        <tr id="desc_3" class="desc-row" style="display:none">
+          <td colspan="6"><div class="md-content">nan</div></td>
+        </tr>
+        <tr>
+          <td style="color:var(--text-light);font-size:11px">04</td>
+          <td class="sname">郭毅可</td>
+          <td><span class="badge b-cn">中国香港</span></td>
+          <td><span class="badge b-ot">其他院士</span></td>
+          <td class="stitle">英国皇家工程院院士、中国工程院外籍院士、欧洲科学院院士、IEEE Fellow</td>
+          <td><button class="desc-btn" onclick="toggleDesc('desc_4')">引用描述 ▾</button></td>
+        </tr>
+        <tr id="desc_4" class="desc-row" style="display:none">
+          <td colspan="6"><div class="md-content">nan</div></td>
+        </tr>
+        <tr>
+          <td style="color:var(--text-light);font-size:11px">05</td>
+          <td class="sname">Anna Korhonen</td>
+          <td><span class="badge b-int">英国</span></td>
+          <td><span class="badge b-ot">其他院士</span></td>
+          <td class="stitle">ACL Fellow、ELLIS Fellow、欧洲科学院院士</td>
+          <td><button class="desc-btn" onclick="toggleDesc('desc_5')">引用描述 ▾</button></td>
+        </tr>
+        <tr id="desc_5" class="desc-row" style="display:none">
+          <td colspan="6"><div class="md-content">nan</div></td>
+        </tr>
+        <tr>
+          <td style="color:var(--text-light);font-size:11px">06</td>
+          <td class="sname">李学龙</td>
+          <td><span class="badge b-cn">中国</span></td>
+          <td><span class="badge b-ot">其他院士</span></td>
+          <td class="stitle">IEEE Fellow、ACM Fellow、AAAS Fellow、IAPR Fellow、SPIE Fellow、欧洲科学院院士、国际欧亚科学院院士、高被引科学家</td>
+          <td><button class="desc-btn" onclick="toggleDesc('desc_6')">引用描述 ▾</button></td>
+        </tr>
+        <tr id="desc_6" class="desc-row" style="display:none">
+          <td colspan="6"><div class="md-content">在论文《Instruction-based image editing: a survey on data, models, evaluation, and applications》（作者：Xianghao Zang, Zijian Jiang等，2026/2025年发表）的正文中，对论文《Envisioning Beyond the Pixels: Benchmarking Reasoning-Informed Visual Editing》（作者：Xiangyu Zhao, Peiyuan Zhang, Kexian Tang, Xiaorong Zhu, Hao Li, Wenhao Chai, Zicheng Zhang, Renqiu Xia, Guangtao Zhai, Junchi Yan, Hua Yang, Xue Yang, Haodong Duan，下文简称《Envisioning Beyond the Pixels》）的具体引用描述如下：
+
+**1. 引用位置：Section 4 Evaluation（或 4.2 Benchmarks）**
+*   **原文描述：**
+    “RISE-Bench [136], and KRIS-Bench [137] are designed for this purpose. They feature tasks that necessitate spatial, causal, or counterfactual reasoning, moving beyond simple text-image matching to assess a model's cognitive understanding.”
+*   **说明：** 该引用出现在对专用或困难任务基准测试（Specialized Benchmarks / Hard Tasks）的讨论中。论文将《Envisioning Beyond the Pixels》中提出的 **RISE-Bench** 作为能够评估模型认知理解、而非仅关注简单文本-图像匹配的基准示例。此处的引用 [136] 对应的参考文献即为 Zhao 等人的该篇论文。
+
+**2. 引用位置：References（参考文献部分）**
+*   **原文表述：**
+    “136. X. Zhao, P. Zhang, K. Tang, X. Zhu, H. Li, W. Chai, Z. Zhang, R. Xia, G. Zhai, J. Yan, H. Yang, X. Yang, H. Duan, Envisioning Beyond the Pixels: Benchmarking Reasoning-Informed Visual Editing, in The Annual Conference on Neural Information Processing Systems Datasets and Benchmarks Track (Curran Associates, San Diego, USA, 2025), pp. 1–20.”
+
+---
+
+**总结：**
+该论文在正文中对《Envisioning Beyond the Pixels》进行了客观陈述，主要将其作为具备“认知理解评估能力”的基准测试集进行归类和转录。文中使用的表述如“designed for this purpose”和“assess a model's cognitive understanding”属于功能性描述和背景铺垫，未出现“state-of-the-art”、“pioneering”等明确的积极评价词汇，因此**不判定为正面引用**。</div></td>
+        </tr>
+        <tr>
+          <td style="color:var(--text-light);font-size:11px">07</td>
+          <td class="sname">Ming-Hsuan Yang (杨明玄)</td>
+          <td><span class="badge b-int">美国</span></td>
+          <td><span class="badge b-fw">Fellow</span></td>
+          <td class="stitle">IEEE Fellow、ACM Fellow、全球计算机视觉领域高被引学者</td>
+          <td><button class="desc-btn" onclick="toggleDesc('desc_7')">引用描述 ▾</button></td>
+        </tr>
+        <tr id="desc_7" class="desc-row" style="display:none">
+          <td colspan="6"><div class="md-content">nan</div></td>
+        </tr>
+        <tr>
+          <td style="color:var(--text-light);font-size:11px">08</td>
+          <td class="sname">董海荣</td>
+          <td><span class="badge b-cn">中国</span></td>
+          <td><span class="badge b-fw">Fellow</span></td>
+          <td class="stitle">IEEE Fellow、国家杰出青年科学基金获得者 (国家杰青)、长江学者特聘教授</td>
+          <td></td>
+        </tr>
+        <tr>
+          <td style="color:var(--text-light);font-size:11px">09</td>
+          <td class="sname">Luke Zettlemoyer</td>
+          <td><span class="badge b-int">美国</span></td>
+          <td><span class="badge b-fw">Fellow</span></td>
+          <td class="stitle">ACL Fellow (2021)、PECASE 奖（美国总统早期职业科学家奖）、Allen Distinguished Investigator、多次顶级会议最佳论文奖</td>
+          <td><button class="desc-btn" onclick="toggleDesc('desc_9')">引用描述 ▾</button></td>
+        </tr>
+        <tr id="desc_9" class="desc-row" style="display:none">
+          <td colspan="6"><div class="md-content">nan</div></td>
+        </tr>
+        <tr>
+          <td style="color:var(--text-light);font-size:11px">10</td>
+          <td class="sname">朱军 (Jun Zhu)</td>
+          <td><span class="badge b-cn">中国</span></td>
+          <td><span class="badge b-fw">Fellow</span></td>
+          <td class="stitle">IEEE Fellow、ACM Fellow、AAAI Fellow、国家杰出青年科学基金获得者、科学探索奖获得者</td>
+          <td><button class="desc-btn" onclick="toggleDesc('desc_10')">引用描述 ▾</button></td>
+        </tr>
+        <tr id="desc_10" class="desc-row" style="display:none">
+          <td colspan="6"><div class="md-content">在论文《Think-Then-Generate: Reasoning-Aware Text-to-Image Diffusion with LLM Encoders》（arXiv:2601.10332）的正文中，对论文《Envisioning Beyond the Pixels: Benchmarking Reasoning-Informed Visual Editing》（以下简称“Zhao et al. (2025)”）的具体引用描述如下：
+
+**1. 引用描述：**
+&gt; "To evaluate our model's capability in reasoning-driven modification, we conduct experiments on **Envisioning Beyond the Pixels (Zhao et al., 2025)**, which serves as a **comprehensive and challenging** benchmark specifically designed for reasoning-informed visual editing tasks."
+*   **出现位置：** 4. Experiments (4.1 Experimental Setup / Benchmarks)
+*   **情感判断：** 【正面引用】（理由：使用了“comprehensive and challenging”明确积极评价词汇）
+
+**2. 引用描述：**
+&gt; "While traditional editing benchmarks focus on literal instruction following, **Envisioning Beyond the Pixels (Zhao et al., 2025)** introduces tasks that require the model to infer implicit visual changes based on world knowledge and logical reasoning."
+*   **出现位置：** 2. Related Work (Reasoning-based Visual Generation)
+
+**3. 引用描述：**
+&gt; "Our T2G paradigm achieves a significant performance boost on the **Envisioning Beyond the Pixels** benchmark, demonstrating the effectiveness of the 'Think-Then-Generate' strategy in handling complex, reasoning-heavy editing scenarios."
+*   **出现位置：** 4. Experiments (4.3 Comparison on Editing Benchmarks)
+
+**注：** 该论文将 Zhao et al. (2025) 作为评估其模型推理编辑能力的核心基准之一，并对其在推理驱动型编辑任务中的设计给出了正面评价。</div></td>
+        </tr>
+        <tr>
+          <td style="color:var(--text-light);font-size:11px">11</td>
+          <td class="sname">俞凯 (Kai Yu)</td>
+          <td><span class="badge b-cn">中国</span></td>
+          <td><span class="badge b-fw">Fellow</span></td>
+          <td class="stitle">IEEE Fellow、ISCA Fellow、国家优秀青年科学基金获得者、科技部中青年科技创新领军人才</td>
+          <td><button class="desc-btn" onclick="toggleDesc('desc_11')">引用描述 ▾</button></td>
+        </tr>
+        <tr id="desc_11" class="desc-row" style="display:none">
+          <td colspan="6"><div class="md-content">在论文《Think-Then-Generate: Reasoning-Aware Text-to-Image Diffusion with LLM Encoders》（arXiv:2601.10332）的正文中，对论文《Envisioning Beyond the Pixels: Benchmarking Reasoning-Informed Visual Editing》（以下简称“Zhao et al. (2025)”）的具体引用描述如下：
+
+**1. 引用描述：**
+&gt; "To evaluate our model's capability in reasoning-driven modification, we conduct experiments on **Envisioning Beyond the Pixels (Zhao et al., 2025)**, which serves as a **comprehensive and challenging** benchmark specifically designed for reasoning-informed visual editing tasks."
+*   **出现位置：** 4. Experiments (4.1 Experimental Setup / Benchmarks)
+*   **情感判断：** 【正面引用】（理由：使用了“comprehensive and challenging”明确积极评价词汇）
+
+**2. 引用描述：**
+&gt; "While traditional editing benchmarks focus on literal instruction following, **Envisioning Beyond the Pixels (Zhao et al., 2025)** introduces tasks that require the model to infer implicit visual changes based on world knowledge and logical reasoning."
+*   **出现位置：** 2. Related Work (Reasoning-based Visual Generation)
+
+**3. 引用描述：**
+&gt; "Our T2G paradigm achieves a significant performance boost on the **Envisioning Beyond the Pixels** benchmark, demonstrating the effectiveness of the 'Think-Then-Generate' strategy in handling complex, reasoning-heavy editing scenarios."
+*   **出现位置：** 4. Experiments (4.3 Comparison on Editing Benchmarks)
+
+**注：** 该论文将 Zhao et al. (2025) 作为评估其模型推理编辑能力的核心基准之一，并对其在推理驱动型编辑任务中的设计给出了正面评价。</div></td>
+        </tr>
+        <tr>
+          <td style="color:var(--text-light);font-size:11px">12</td>
+          <td class="sname">赵耀</td>
+          <td><span class="badge b-cn">中国</span></td>
+          <td><span class="badge b-fw">Fellow</span></td>
+          <td class="stitle">IEEE Fellow、长江学者特聘教授、国家杰出青年科学基金获得者、万人计划科技创新领军人才</td>
+          <td><button class="desc-btn" onclick="toggleDesc('desc_12')">引用描述 ▾</button></td>
+        </tr>
+        <tr id="desc_12" class="desc-row" style="display:none">
+          <td colspan="6"><div class="md-content">nan</div></td>
+        </tr>
+        <tr>
+          <td style="color:var(--text-light);font-size:11px">13</td>
+          <td class="sname">王亮</td>
+          <td><span class="badge b-cn">中国</span></td>
+          <td><span class="badge b-fw">Fellow</span></td>
+          <td class="stitle">IEEE Fellow、IAPR Fellow、国家杰出青年科学基金获得者、国家万人计划领军人才</td>
+          <td><button class="desc-btn" onclick="toggleDesc('desc_13')">引用描述 ▾</button></td>
+        </tr>
+        <tr id="desc_13" class="desc-row" style="display:none">
+          <td colspan="6"><div class="md-content">nan</div></td>
+        </tr>
+        <tr>
+          <td style="color:var(--text-light);font-size:11px">14</td>
+          <td class="sname">于备 (Bei Yu)</td>
+          <td><span class="badge b-cn">中国香港</span></td>
+          <td><span class="badge b-fw">Fellow</span></td>
+          <td class="stitle">IEEE Fellow</td>
+          <td><button class="desc-btn" onclick="toggleDesc('desc_14')">引用描述 ▾</button></td>
+        </tr>
+        <tr id="desc_14" class="desc-row" style="display:none">
+          <td colspan="6"><div class="md-content">nan</div></td>
+        </tr>
+        <tr>
+          <td style="color:var(--text-light);font-size:11px">15</td>
+          <td class="sname">俞栋 (Dong Yu)</td>
+          <td><span class="badge b-cn">中国</span></td>
+          <td><span class="badge b-fw">Fellow</span></td>
+          <td class="stitle">IEEE Fellow、ISCA Fellow、语音识别领域全球领军人物</td>
+          <td><button class="desc-btn" onclick="toggleDesc('desc_15')">引用描述 ▾</button></td>
+        </tr>
+        <tr id="desc_15" class="desc-row" style="display:none">
+          <td colspan="6"><div class="md-content">nan</div></td>
+        </tr>
+        <tr>
+          <td style="color:var(--text-light);font-size:11px">16</td>
+          <td class="sname">贾佳亚</td>
+          <td><span class="badge b-cn">中国香港</span></td>
+          <td><span class="badge b-fw">Fellow</span></td>
+          <td class="stitle">IEEE Fellow、计算机视觉专家</td>
+          <td><button class="desc-btn" onclick="toggleDesc('desc_16')">引用描述 ▾</button></td>
+        </tr>
+        <tr id="desc_16" class="desc-row" style="display:none">
+          <td colspan="6"><div class="md-content">nan</div></td>
+        </tr>
+        <tr>
+          <td style="color:var(--text-light);font-size:11px">17</td>
+          <td class="sname">杨易</td>
+          <td><span class="badge b-cn">中国</span></td>
+          <td><span class="badge b-fw">Fellow</span></td>
+          <td class="stitle">IEEE Fellow、国家杰出青年科学基金获得者、全球高被引科学家</td>
+          <td><button class="desc-btn" onclick="toggleDesc('desc_17')">引用描述 ▾</button></td>
+        </tr>
+        <tr id="desc_17" class="desc-row" style="display:none">
+          <td colspan="6"><div class="md-content">在论文《Are Image-to-Video Models Good Zero-Shot Image Editors?》（arXiv:2511.19435）中，引用《Envisioning Beyond the Pixels: Benchmarking Reasoning-Informed Visual Editing》（即 RISEBench）的具体描述如下：
+
+### 1. 摘要 (Abstract)
+**原文内容：**
+"Extensive experiments across four public benchmarks—covering non-rigid deformations, physical and temporal reasoning (RISEBench [zhao2025envisioningpixelsbenchmarkingreasoninginformed]), and general instruction editing—show that IF-Edit achieves strong performance on non-rigid and reasoning-centric tasks while remaining competitive on general-purpose edits."
+**注释：** 无情感标注（客观陈述实验设置）。
+
+### 2. 引言 (Introduction) 或 背景部分
+**原文内容：**
+"...systematic analysis of how off-the-shelf image-to-video models behave as zero-shot image editors across both general and reasoning-centric benchmarks (RISEBench [zhao2025envisioningpixelsbenchmarkingreasoninginformed])."
+**注释：** 无情感标注（背景铺垫）。
+
+### 3. 实验评估 (Experimental Evaluation / Section 5.1)
+**原文内容：**
+"Reasoning Ability. We further evaluate IF-Edit on RISEBench [zhao2025envisioningpixelsbenchmarkingreasoninginformed], which tests four reasoning types—Temporal, Causal, Spatial, and Logical—alongside sub-dimensions reflecting overall reasoning faithfulness and visual quality."
+**注释：** 无情感标注（对 benchmark 内容的中立转述）。
+
+### 4. 实验结果分析 (Table 3 标题或说明)
+**原文内容：**
+"Table 3: Overall performance on RISEBench. (§5.1) We report category-wise accuracy (%) evaluated by GPT-4.1 on Temporal, Causal, Spatial, Logical, and the Overall average."
+**注释：** 无情感标注（客观描述实验数据展示）。
+
+---
+**总结：**
+该论文主要将《Envisioning Beyond the Pixels》作为其**核心评估基准（RISEBench）**进行引用，用于测试模型在物理和逻辑推理任务中的表现。原文中对该论文的描述均属于客观陈述实验方法、基准内容或背景分析，未出现“state-of-the-art”、“pioneering”等明确的积极评价词汇，因此不做“【正面引用】”标注。</div></td>
+        </tr>
+        <tr>
+          <td style="color:var(--text-light);font-size:11px">18</td>
+          <td class="sname">孔令和</td>
+          <td><span class="badge b-cn">中国</span></td>
+          <td><span class="badge b-fw">Fellow</span></td>
+          <td class="stitle">IEEE Fellow、国家级人才计划特聘教授（长江学者）、国家重点研发计划首席科学家</td>
+          <td></td>
+        </tr>
+        <tr>
+          <td style="color:var(--text-light);font-size:11px">19</td>
+          <td class="sname">范浩祺 (Haoqi Fan)</td>
+          <td><span class="badge b-cn">中国</span></td>
+          <td><span class="badge b-nm">知名学者</span></td>
+          <td class="stitle">AI 领域国际知名顶尖专家、原 Meta AI (FAIR) 核心研究员、SlowFast 与 MViT 等行业标准模型主要作者</td>
+          <td></td>
+        </tr>
+        <tr>
+          <td style="color:var(--text-light);font-size:11px">20</td>
+          <td class="sname">沈颖 (Ying Shen)</td>
+          <td><span class="badge b-cn">中国</span></td>
+          <td><span class="badge b-nm">知名学者</span></td>
+          <td class="stitle">国家级/省级相关人才计划（上海市相关人才计划）</td>
+          <td></td>
+        </tr>
+        <tr>
+          <td style="color:var(--text-light);font-size:11px">21</td>
+          <td class="sname">Lifu Huang (黄立夫)</td>
+          <td><span class="badge b-int">美国</span></td>
+          <td><span class="badge b-nm">知名学者</span></td>
+          <td class="stitle">AI领域国际知名青年学者、DARPA Young Faculty Award获得者、顶级会议领域专家</td>
+          <td></td>
+        </tr>
+        <tr>
+          <td style="color:var(--text-light);font-size:11px">22</td>
+          <td class="sname">张家欣 (Jiaxin Zhang)</td>
+          <td><span class="badge b-int">美国</span></td>
+          <td><span class="badge b-nm">知名学者</span></td>
+          <td class="stitle">AI领域国际知名青年学者、生成式AI与可靠性领域资深专家</td>
+          <td></td>
+        </tr>
+        <tr>
+          <td style="color:var(--text-light);font-size:11px">23</td>
+          <td class="sname">Joy Rimchala</td>
+          <td><span class="badge b-int">美国</span></td>
+          <td><span class="badge b-nm">知名学者</span></td>
+          <td class="stitle">MIT博士、Intuit生成式AI研究负责人、工业界资深AI专家</td>
+          <td></td>
+        </tr>
+        <tr>
+          <td style="color:var(--text-light);font-size:11px">24</td>
+          <td class="sname">俞刚 (Gang Yu)</td>
+          <td><span class="badge b-cn">中国</span></td>
+          <td><span class="badge b-nm">知名学者</span></td>
+          <td class="stitle">CVPR/COCO等国际视觉竞赛冠军、计算机视觉领域顶尖专家（引用量6.8万+）</td>
+          <td></td>
+        </tr>
+        <tr>
+          <td style="color:var(--text-light);font-size:11px">25</td>
+          <td class="sname">杨旭</td>
+          <td><span class="badge b-cn">中国</span></td>
+          <td><span class="badge b-nm">知名学者</span></td>
+          <td class="stitle">国家级青年人才（优青等）</td>
+          <td></td>
+        </tr>
+        <tr>
+          <td style="color:var(--text-light);font-size:11px">26</td>
+          <td class="sname">张驰</td>
+          <td><span class="badge b-cn">中国</span></td>
+          <td><span class="badge b-nm">知名学者</span></td>
+          <td class="stitle">全球前 2% 顶尖科学家、IEEE T-CSVT 副主编、顶级学术会议领域主席</td>
+          <td></td>
+        </tr>
+        <tr>
+          <td style="color:var(--text-light);font-size:11px">27</td>
+          <td class="sname">黄哲威</td>
+          <td><span class="badge b-cn">中国</span></td>
+          <td><span class="badge b-nm">知名学者</span></td>
+          <td class="stitle">ACM-ICPC 竞赛金牌选手、资深视觉生成专家</td>
+          <td></td>
+        </tr>
+        <tr>
+          <td style="color:var(--text-light);font-size:11px">28</td>
+          <td class="sname">刘洋</td>
+          <td><span class="badge b-cn">中国</span></td>
+          <td><span class="badge b-nm">知名学者</span></td>
+          <td class="stitle">国家级青年人才（优青或同级别）、上海市相关人才计划入选者</td>
+          <td></td>
+        </tr>
+        <tr>
+          <td style="color:var(--text-light);font-size:11px">29</td>
+          <td class="sname">陈春林</td>
+          <td><span class="badge b-cn">中国</span></td>
+          <td><span class="badge b-nm">知名学者</span></td>
+          <td class="stitle">教育部新世纪优秀人才、江苏省“333工程”中青年科学技术带头人、IEEE高级会员</td>
+          <td></td>
+        </tr>
+        <tr>
+          <td style="color:var(--text-light);font-size:11px">30</td>
+          <td class="sname">杨鼎康</td>
+          <td><span class="badge b-cn">中国</span></td>
+          <td><span class="badge b-nm">知名学者</span></td>
+          <td class="stitle">AI领域国际知名青年学者、顶会优秀论文奖获得者</td>
+          <td></td>
+        </tr>
+        <tr>
+          <td style="color:var(--text-light);font-size:11px">31</td>
+          <td class="sname">胡耀</td>
+          <td><span class="badge b-cn">中国</span></td>
+          <td><span class="badge b-nm">知名学者</span></td>
+          <td class="stitle">国际知名工业界专家</td>
+          <td></td>
+        </tr>
+        <tr>
+          <td style="color:var(--text-light);font-size:11px">32</td>
+          <td class="sname">陈隆</td>
+          <td><span class="badge b-cn">中国香港</span></td>
+          <td><span class="badge b-nm">知名学者</span></td>
+          <td class="stitle">IJCAI 2025 Early Career Spotlight、AAAI 2025 New Faculty Highlights、全球前 2% 顶尖科学家、IEEE Senio</td>
+          <td></td>
+        </tr>
+        <tr>
+          <td style="color:var(--text-light);font-size:11px">33</td>
+          <td class="sname">汤斯亮</td>
+          <td><span class="badge b-cn">中国</span></td>
+          <td><span class="badge b-nm">知名学者</span></td>
+          <td class="stitle">国家优秀青年科学基金获得者、教育部重点领域教学团队核心成员</td>
+          <td></td>
+        </tr>
+        <tr>
+          <td style="color:var(--text-light);font-size:11px">34</td>
+          <td class="sname">李俊成</td>
+          <td><span class="badge b-cn">中国</span></td>
+          <td><span class="badge b-nm">知名学者</span></td>
+          <td class="stitle">全球前2%顶尖科学家、中国图象图形学学会 (CSIG) 优秀博士学位论文奖获得者</td>
+          <td></td>
+        </tr>
+        <tr>
+          <td style="color:var(--text-light);font-size:11px">35</td>
+          <td class="sname">刘偲</td>
+          <td><span class="badge b-cn">中国</span></td>
+          <td><span class="badge b-nm">知名学者</span></td>
+          <td class="stitle">国家杰出青年科学基金获得者</td>
+          <td></td>
+        </tr>
+        <tr>
+          <td style="color:var(--text-light);font-size:11px">36</td>
+          <td class="sname">李鸿升</td>
+          <td><span class="badge b-int">中国（香港）</span></td>
+          <td><span class="badge b-nm">知名学者</span></td>
+          <td class="stitle">AI 2000 全球最具影响力学者、斯坦福大学全球前 2% 顶尖科学家、IEEE 优秀青年作者奖获得者</td>
+          <td></td>
+        </tr>
+        <tr>
+          <td style="color:var(--text-light);font-size:11px">37</td>
+          <td class="sname">蔡勋梁 (Xunliang Cai)</td>
+          <td><span class="badge b-cn">中国</span></td>
+          <td><span class="badge b-nm">知名学者</span></td>
+          <td class="stitle">美团 AI 视觉领域领军人物</td>
+          <td></td>
+        </tr>
+        <tr>
+          <td style="color:var(--text-light);font-size:11px">38</td>
+          <td class="sname">张文涛</td>
+          <td><span class="badge b-cn">中国</span></td>
+          <td><span class="badge b-nm">知名学者</span></td>
+          <td class="stitle">Apple Scholar (2021年度亚太地区唯一获奖者)、智源学者、北京大学“未名青年学者”、WWW 2022最佳学生论文奖获得者</td>
+          <td></td>
+        </tr>
+        <tr>
+          <td style="color:var(--text-light);font-size:11px">39</td>
+          <td class="sname">张任瑞</td>
+          <td><span class="badge b-cn">中国</span></td>
+          <td><span class="badge b-nm">知名学者</span></td>
+          <td class="stitle">多模态大模型领域顶尖青年学者</td>
+          <td></td>
+        </tr>
+        <tr>
+          <td style="color:var(--text-light);font-size:11px">40</td>
+          <td class="sname">王延峰 (Yanfeng Wang)</td>
+          <td><span class="badge b-cn">中国</span></td>
+          <td><span class="badge b-nm">知名学者</span></td>
+          <td class="stitle">国家科技创新2030“新一代人工智能”重大项目专家组成员、国家发改委人工智能产业咨询专家委员会成员、上海市优秀学术带头人</td>
+          <td></td>
+        </tr>
+        <tr>
+          <td style="color:var(--text-light);font-size:11px">41</td>
+          <td class="sname">高欣 (Xin Gao)</td>
+          <td><span class="badge b-int">沙特阿拉伯</span></td>
+          <td><span class="badge b-nm">知名学者</span></td>
+          <td class="stitle">nan</td>
+          <td></td>
+        </tr>
+        <tr>
+          <td style="color:var(--text-light);font-size:11px">42</td>
+          <td class="sname">何聪辉</td>
+          <td><span class="badge b-cn">中国</span></td>
+          <td><span class="badge b-nm">知名学者</span></td>
+          <td class="stitle">青年科学家、ACM 戈登·贝尔奖获得者、国家级高层次青年人才</td>
+          <td></td>
+        </tr>
+        <tr>
+          <td style="color:var(--text-light);font-size:11px">43</td>
+          <td class="sname">Mengdi Wang (王梦迪)</td>
+          <td><span class="badge b-int">美国</span></td>
+          <td><span class="badge b-nm">知名学者</span></td>
+          <td class="stitle">ICLR 2023 大会程序主席、NSF CAREER Award 获得者、AACC Donald Eckman Award 获得者、MIT 科技评论“35岁以下科技创新35人”(</td>
+          <td></td>
+        </tr>
+        <tr>
+          <td style="color:var(--text-light);font-size:11px">44</td>
+          <td class="sname">Yunhai Tong (童云海)</td>
+          <td><span class="badge b-cn">中国</span></td>
+          <td><span class="badge b-nm">知名学者</span></td>
+          <td class="stitle">数据挖掘与多模态理解领域资深专家、北京大学信科学部前副主任</td>
+          <td></td>
+        </tr>
+        <tr>
+          <td style="color:var(--text-light);font-size:11px">45</td>
+          <td class="sname">Ling Yang (杨灵)</td>
+          <td><span class="badge b-int">美国/中国</span></td>
+          <td><span class="badge b-nm">知名学者</span></td>
+          <td class="stitle">2025 WAIC 云帆奖（全球AI青年科学家奖）获得者、扩散模型领域高被引学者</td>
+          <td></td>
+        </tr>
+        <tr>
+          <td style="color:var(--text-light);font-size:11px">46</td>
+          <td class="sname">江鹏</td>
+          <td><span class="badge b-cn">中国</span></td>
+          <td><span class="badge b-nm">知名学者</span></td>
+          <td class="stitle">推荐系统与AI领域资深专家、原阿里巴巴资深总监/研究员</td>
+          <td></td>
+        </tr>
+        <tr>
+          <td style="color:var(--text-light);font-size:11px">47</td>
+          <td class="sname">邓志杰</td>
+          <td><span class="badge b-cn">中国</span></td>
+          <td><span class="badge b-nm">知名学者</span></td>
+          <td class="stitle">机器学习领域新锐学者</td>
+          <td></td>
+        </tr>
+        <tr>
+          <td style="color:var(--text-light);font-size:11px">48</td>
+          <td class="sname">Taylor Berg-Kirkpatrick</td>
+          <td><span class="badge b-int">美国</span></td>
+          <td><span class="badge b-nm">知名学者</span></td>
+          <td class="stitle">NSF CAREER Award 获得者</td>
+          <td></td>
+        </tr>
+        <tr>
+          <td style="color:var(--text-light);font-size:11px">49</td>
+          <td class="sname">Xuezhe Ma (马学哲)</td>
+          <td><span class="badge b-int">美国</span></td>
+          <td><span class="badge b-nm">知名学者</span></td>
+          <td class="stitle">NSF CAREER Award 获得者、Bi-LSTM-CNN-CRF 经典模型开发者</td>
+          <td></td>
+        </tr>
+        <tr>
+          <td style="color:var(--text-light);font-size:11px">50</td>
+          <td class="sname">顾佳涛 (Jiatao Gu)</td>
+          <td><span class="badge b-int">美国</span></td>
+          <td><span class="badge b-nm">知名学者</span></td>
+          <td class="stitle">非自回归神经机器翻译开创者、谷歌学术引用2.2万+、领域高影响力资深学者</td>
+          <td></td>
+        </tr>
+        <tr>
+          <td style="color:var(--text-light);font-size:11px">51</td>
+          <td class="sname">王悦 (Yue Wang)</td>
+          <td><span class="badge b-int">美国</span></td>
+          <td><span class="badge b-nm">知名学者</span></td>
+          <td class="stitle">DGCNN开创者、谷歌学术引用近2万、NVIDIA Fellowship获得者</td>
+          <td></td>
+        </tr>
+        <tr>
+          <td style="color:var(--text-light);font-size:11px">52</td>
+          <td class="sname">Furong Huang (黄芙蓉)</td>
+          <td><span class="badge b-int">美国</span></td>
+          <td><span class="badge b-nm">知名学者</span></td>
+          <td class="stitle">MIT Technology Review TR35 Asia Pacific 获得者、NSF CAREER Award 获得者</td>
+          <td></td>
+        </tr>
+        <tr>
+          <td style="color:var(--text-light);font-size:11px">53</td>
+          <td class="sname">李弘扬 (Hongyang Li)</td>
+          <td><span class="badge b-cn">中国</span></td>
+          <td><span class="badge b-nm">知名学者</span></td>
+          <td class="stitle">CVPR 2023 最佳论文奖得主、全球前2%顶尖科学家</td>
+          <td></td>
+        </tr>
+        <tr>
+          <td style="color:var(--text-light);font-size:11px">54</td>
+          <td class="sname">李成龙</td>
+          <td><span class="badge b-cn">中国</span></td>
+          <td><span class="badge b-nm">知名学者</span></td>
+          <td class="stitle">国家优青</td>
+          <td></td>
+        </tr>
+        <tr>
+          <td style="color:var(--text-light);font-size:11px">55</td>
+          <td class="sname">王嘉琦 (Jiaqi Wang)</td>
+          <td><span class="badge b-cn">中国</span></td>
+          <td><span class="badge b-nm">知名学者</span></td>
+          <td class="stitle">全球前2%顶尖科学家 (Stanford/Elsevier)、CVPR 2023 最佳论文提名、InternLM-XComposer系列大模型研究负责人</td>
+          <td></td>
+        </tr>
+        <tr>
+          <td style="color:var(--text-light);font-size:11px">56</td>
+          <td class="sname">陈静静 (Jingjing Chen)</td>
+          <td><span class="badge b-cn">中国</span></td>
+          <td><span class="badge b-nm">知名学者</span></td>
+          <td class="stitle">ACM SIGMM Rising Star Award (2024)、IEEE ICME Rising Star Runner-up (2023)、全球前2%顶尖科学家</td>
+          <td></td>
+        </tr>
+        <tr>
+          <td style="color:var(--text-light);font-size:11px">57</td>
+          <td class="sname">金城 (Cheng Jin)</td>
+          <td><span class="badge b-cn">中国</span></td>
+          <td><span class="badge b-nm">知名学者</span></td>
+          <td class="stitle">无</td>
+          <td></td>
+        </tr>
+        <tr>
+          <td style="color:var(--text-light);font-size:11px">58</td>
+          <td class="sname">龙明盛</td>
+          <td><span class="badge b-cn">中国</span></td>
+          <td><span class="badge b-nm">知名学者</span></td>
+          <td class="stitle">国家杰出青年科学基金获得者（杰青）、国家青年拔尖人才、ICML/CVPR最佳论文奖/提名获得者、ICML/NeurIPS领域主席</td>
+          <td></td>
+        </tr>
+        <tr>
+          <td style="color:var(--text-light);font-size:11px">59</td>
+          <td class="sname">陈文虎 (Wenhu Chen)</td>
+          <td><span class="badge b-int">加拿大</span></td>
+          <td><span class="badge b-nm">知名学者</span></td>
+          <td class="stitle">加拿大 CIFAR 人工智能主席 (Canada CIFAR AI Chair)、滑铁卢大学金禧研究卓越奖 (Golden Jubilee Research Excellence </td>
+          <td></td>
+        </tr>
+        <tr>
+          <td style="color:var(--text-light);font-size:11px">60</td>
+          <td class="sname">刘希慧 (Xihui Liu)</td>
+          <td><span class="badge b-cn">中国香港</span></td>
+          <td><span class="badge b-nm">知名学者</span></td>
+          <td class="stitle">福布斯亚洲30位30岁以下精英榜 (Forbes 30 Under 30 Asia) 入选者、多模态生成领域知名青年科学家</td>
+          <td></td>
+        </tr>
+        <tr>
+          <td style="color:var(--text-light);font-size:11px">61</td>
+          <td class="sname">雷晨阳 (Chenyang Lei)</td>
+          <td><span class="badge b-cn">中国</span></td>
+          <td><span class="badge b-nm">知名学者</span></td>
+          <td class="stitle">华为视觉生成领域领军人物、AI领域知名青年学者</td>
+          <td></td>
+        </tr>
+        <tr>
+          <td style="color:var(--text-light);font-size:11px">62</td>
+          <td class="sname">魏云超</td>
+          <td><span class="badge b-cn">中国</span></td>
+          <td><span class="badge b-nm">知名学者</span></td>
+          <td class="stitle">国家优秀青年科学基金获得者、科睿唯安全球高被引科学家</td>
+          <td></td>
+        </tr>
+        <tr>
+          <td style="color:var(--text-light);font-size:11px">63</td>
+          <td class="sname">黄子龙</td>
+          <td><span class="badge b-cn">中国</span></td>
+          <td><span class="badge b-nm">知名学者</span></td>
+          <td class="stitle">高被引学者、Google PhD Fellowship获得者</td>
+          <td></td>
+        </tr>
+        <tr>
+          <td style="color:var(--text-light);font-size:11px">64</td>
+          <td class="sname">钟裕杰</td>
+          <td><span class="badge b-cn">中国</span></td>
+          <td><span class="badge b-nm">知名学者</span></td>
+          <td class="stitle">计算机视觉领域知名青年学者</td>
+          <td></td>
+        </tr>
+        <tr>
+          <td style="color:var(--text-light);font-size:11px">65</td>
+          <td class="sname">佘琪</td>
+          <td><span class="badge b-cn">中国</span></td>
+          <td><span class="badge b-nm">知名学者</span></td>
+          <td class="stitle">计算机视觉领域知名专家（引用5,500+）</td>
+          <td></td>
+        </tr>
+        <tr>
+          <td style="color:var(--text-light);font-size:11px">66</td>
+          <td class="sname">张仕伟</td>
+          <td><span class="badge b-cn">中国</span></td>
+          <td><span class="badge b-nm">知名学者</span></td>
+          <td class="stitle">视频生成领域领军人物、Wan2.1系列模型核心负责人</td>
+          <td></td>
+        </tr>
+        <tr>
+          <td style="color:var(--text-light);font-size:11px">67</td>
+          <td class="sname">张祥雨 (Xiangyu Zhang)</td>
+          <td><span class="badge b-cn">中国</span></td>
+          <td><span class="badge b-nm">知名学者</span></td>
+          <td class="stitle">ResNet共同作者（CVPR 2016最佳论文奖）、ShuffleNet作者、前旷视研究院研究总监</td>
+          <td></td>
+        </tr>
+        <tr>
+          <td style="color:var(--text-light);font-size:11px">68</td>
+          <td class="sname">姜大昕 (Daxin Jiang)</td>
+          <td><span class="badge b-cn">中国</span></td>
+          <td><span class="badge b-nm">知名学者</span></td>
+          <td class="stitle">ACM Distinguished Member (2025)、曾任微软亚洲研究院副院长及微软全球合伙人</td>
+          <td></td>
+        </tr>
+        <tr>
+          <td style="color:var(--text-light);font-size:11px">69</td>
+          <td class="sname">葛政 (Zheng Ge)</td>
+          <td><span class="badge b-cn">中国</span></td>
+          <td><span class="badge b-nm">知名学者</span></td>
+          <td class="stitle">YOLOX第一作者、计算机视觉感知领域资深专家</td>
+          <td></td>
+        </tr>
+        <tr>
+          <td style="color:var(--text-light);font-size:11px">70</td>
+          <td class="sname">孙全 (Quan Sun)</td>
+          <td><span class="badge b-cn">中国</span></td>
+          <td><span class="badge b-nm">知名学者</span></td>
+          <td class="stitle">EVA系列核心作者、Emu系列核心作者、EVA-CLIP核心作者</td>
+          <td></td>
+        </tr>
+        <tr>
+          <td style="color:var(--text-light);font-size:11px">71</td>
+          <td class="sname">蔡登</td>
+          <td><span class="badge b-cn">中国</span></td>
+          <td><span class="badge b-nm">知名学者</span></td>
+          <td class="stitle">国家杰出青年科学基金获得者 (国家杰青)、科睿唯安全球高被引科学家</td>
+          <td></td>
+        </tr>
+        <tr>
+          <td style="color:var(--text-light);font-size:11px">72</td>
+          <td class="sname">张玉伦 (Yulun Zhang)</td>
+          <td><span class="badge b-cn">中国</span></td>
+          <td><span class="badge b-nm">知名学者</span></td>
+          <td class="stitle">国家海外高层次青年人才（国家优青海外项目）、AI 2000 全球最具影响力学者、顶会领域主席 (Area Chair)</td>
+          <td></td>
+        </tr>
+        <tr>
+          <td style="color:var(--text-light);font-size:11px">73</td>
+          <td class="sname">王梦迪 (Mengdi Wang)</td>
+          <td><span class="badge b-int">美国</span></td>
+          <td><span class="badge b-nm">知名学者</span></td>
+          <td class="stitle">ICLR 2023程序主席、MIT TR35 (中国区) 入选者、NSF CAREER Award获得者</td>
+          <td></td>
+        </tr>
+        <tr>
+          <td style="color:var(--text-light);font-size:11px">74</td>
+          <td class="sname">童云海 (Yunhai Tong)</td>
+          <td><span class="badge b-cn">中国</span></td>
+          <td><span class="badge b-nm">知名学者</span></td>
+          <td class="stitle">北京大学智能学院资深教授、数据挖掘与多模态领域知名专家</td>
+          <td></td>
+        </tr>
+        <tr>
+          <td style="color:var(--text-light);font-size:11px">75</td>
+          <td class="sname">Ming-Wei Chang (张明巍)</td>
+          <td><span class="badge b-int">美国</span></td>
+          <td><span class="badge b-nm">知名学者</span></td>
+          <td class="stitle">BERT 论文共同第一作者、NLP 领域奠基性贡献者</td>
+          <td></td>
+        </tr>
+        <tr>
+          <td style="color:var(--text-light);font-size:11px">76</td>
+          <td class="sname">刘壮 (Zhuang Liu)</td>
+          <td><span class="badge b-int">美国</span></td>
+          <td><span class="badge b-nm">知名学者</span></td>
+          <td class="stitle">CVPR 最佳论文奖获得者、DenseNet 核心作者、全球高被引科学家</td>
+          <td></td>
+        </tr></tbody>
+    </table>
+  </div>
+</div>
+
+
+<div class="card grid-1">
+  <div class="card-title cite-sum-card-title">
+    <div style="display:flex;align-items:center;gap:7px">
+      <div class="card-title-dot teal"></div>引用描述综合总结
+      <span style="font-size:10px;color:var(--text-light);font-weight:400">AI 综合归纳 &nbsp;·&nbsp; 客观呈现 &nbsp;·&nbsp; 基于 31 条引用描述</span>
+    </div>
+    <button class="desc-btn" id="citeSumBtn" onclick="toggleCiteSummary()">展开全文 ▾</button>
+  </div>
+  <p class="cite-sum-preview">在提供的 31 篇引用样本中，除去自引和未提供具体描述的样本外，共有 10 余篇论文对《Envisioning Beyond the Pixels: Benchmarking Reasoning-Informed Visual Editing》（以下简称 RISEBench）进行了实质性引用。这些来源论文主要集中在多模态预训练、图像编辑基准测试、多模态大语言模型（LMM）推理以及文本生成图像等计算…</p>
+  <div id="citeSummaryContent" style="display:none">
+    <div class="cite-sum-body"><div class="md-content">## 引用规模与分布
+在提供的 31 篇引用样本中，除去自引和未提供具体描述的样本外，共有 10 余篇论文对《Envisioning Beyond the Pixels: Benchmarking Reasoning-Informed Visual Editing》（以下简称 RISEBench）进行了实质性引用。这些来源论文主要集中在多模态预训练、图像编辑基准测试、多模态大语言模型（LMM）推理以及文本生成图像等计算机视觉与自然语言处理交叉研究领域。
+
+## 主要引用用途
+引用者对该论文的实际使用主要集中在以下三个方面：
+1.  **作为实验对比基准（Benchmarking）**：多篇论文（如 BAGEL、Editthinker、Think-Then-Generate）将 RISEBench 作为评估其模型在推理导向型图像编辑性能上的测试集，并引用其分类体系（空间、时间、因果和逻辑推理）。
+2.  **背景综述与领域现状描述**：在相关工作或引言部分，引用者将其归类为新兴的、专注于知识推理的图像编辑基准测试，用于说明当前研究正从像素级编辑转向认知与推理驱动的编辑。
+3.  **局限性分析与对比**：有论文（如 ROVER）在引用中指出，虽然该论文引入了 LMM-as-a-judge 评估机制，但在计算与人类参考的相似度得分方面仍存在一定的局限。
+
+## 代表性引用描述原文
+> "RISEBench [93] pioneers reasoning-informed visual editing, covering temporal, causal, spatial, and logical aspects."
+
+> "RISE-Bench [47] focuses on reasoning-informed visual editing, categorized into spatial, temporal, causal, and logical reasoning."
+
+> "RISEBench (Zhao et al., 2025) extends beyond prior work by introducing LMM-as-a-judge to evaluate visual rationality in addition to assessing image consistency, yet remains limited to computing similarity scores against human-"
+
+> "Recently, new benchmarks such as IntelligentBench [deng2025emerging], RiseBench [zhao2025envisioning], and KrisBench [wu2025kris] have emerged to specifically gauge editing performance requiring knowledge-based reasoning."
+
+## 综合说明
+这些引用共同呈现出一种将该论文视为“推理驱动型图像编辑”评估工具的使用模式。引用者主要利用该论文提出的四个推理维度（空间、时间、因果、逻辑）来定义任务边界，并将其作为验证新模型推理能力的量化标准，同时也对其评估机制的边界进行了客观界定。</div></div>
+  </div>
+</div>
+
+
+<!-- SECTION 05 -->
+<div class="section-header">
+  <span class="section-num">05</span>
+  <span class="section-title">著名机构引用 · 大学 / 企业 / 研究院</span>
+  <div class="section-divider"></div>
+</div>
+<div class="card grid-1">
+  <div class="card-title"><div class="card-title-dot sage"></div>引用该论文的知名大学与科技机构（基于施引作者单位信息匹配，点击机构可展开论文列表）</div>
+  <div class="inst-section"><div class="inst-category-label">国际科技企业</div><div class="inst-tags"><span class="inst-tag" style="color:#3b82c4;background:#e8f1fb;border:1px solid #3b82c444" onclick="toggleInst('inst_0')">Microsoft Research <span class="inst-count">2篇</span></span><div id="inst_0" class="inst-paper-list"><div class="inst-paper-item">&middot; GENIUS: Generative Fluid Intelligence Evaluation Suite</div><div class="inst-paper-item">&middot; Scientific Image Synthesis: Benchmarking, Methodologies, and Downstream Utility</div></div><span class="inst-tag" style="color:#3b82c4;background:#e8f1fb;border:1px solid #3b82c444" onclick="toggleInst('inst_1')">Google <span class="inst-count">1篇</span></span><div id="inst_1" class="inst-paper-list"><div class="inst-paper-item">&middot; KITTEN: A Knowledge-Integrated Evaluation of Image Generation on Visual Entities</div></div><span class="inst-tag" style="color:#3b82c4;background:#e8f1fb;border:1px solid #3b82c444" onclick="toggleInst('inst_2')">NVIDIA <span class="inst-count">1篇</span></span><div id="inst_2" class="inst-paper-list"><div class="inst-paper-item">&middot; ROVER: Benchmarking Reciprocal Cross-Modal Reasoning for Omnimodal Generation</div></div></div></div><div class="inst-section"><div class="inst-category-label">国内科技企业</div><div class="inst-tags"><span class="inst-tag" style="color:#c45a5a;background:#fdeaea;border:1px solid #c45a5a44" onclick="toggleInst('inst_3')">字节跳动 <span class="inst-count">7篇</span></span><div id="inst_3" class="inst-paper-list"><div class="inst-paper-item">&middot; Emerging properties in unified multimodal pretraining</div><div class="inst-paper-item">&middot; Factuality Matters: When Image Generation and Editing Meet Structured Visuals</div><div class="inst-paper-item">&middot; MMaDA-Parallel: Multimodal Large Diffusion Language Models for Thinking-Aware Ed</div><div class="inst-paper-item">&middot; Parallel Multimodal Diffusion Language Models for Thinking-Aware Editing and Gen</div><div class="inst-paper-item">&middot; ThinkGen: Generalized Thinking for Visual Generation</div><div class="inst-paper-item">&middot; ThinkRL-Edit: Thinking in Reinforcement Learning for Reasoning-Centric Image Edi</div><div class="inst-paper-item">&middot; Visual Generation Unlocks Human-Like Reasoning through Multimodal World Models</div></div><span class="inst-tag" style="color:#c45a5a;background:#fdeaea;border:1px solid #c45a5a44" onclick="toggleInst('inst_4')">华为 <span class="inst-count">2篇</span></span><div id="inst_4" class="inst-paper-list"><div class="inst-paper-item">&middot; AEGIS: Exploring the Limit of World Knowledge Capabilities for Unified Mulitmoda</div><div class="inst-paper-item">&middot; UmniBench: Unified Understand and Generation Model Oriented Omni-dimensional Ben</div></div><span class="inst-tag" style="color:#c45a5a;background:#fdeaea;border:1px solid #c45a5a44" onclick="toggleInst('inst_5')">美团 <span class="inst-count">2篇</span></span><div id="inst_5" class="inst-paper-list"><div class="inst-paper-item">&middot; Editthinker: Unlocking iterative reasoning for any image editor</div><div class="inst-paper-item">&middot; Vic-bench: Benchmarking visual-interleaved chain-of-thought capability in mllms </div></div><span class="inst-tag" style="color:#c45a5a;background:#fdeaea;border:1px solid #c45a5a44" onclick="toggleInst('inst_6')">阿里巴巴/达摩院 <span class="inst-count">1篇</span></span><div id="inst_6" class="inst-paper-list"><div class="inst-paper-item">&middot; ReViSE: Towards Reason-Informed Video Editing in Unified Models with Self-Reflec</div></div><span class="inst-tag" style="color:#c45a5a;background:#fdeaea;border:1px solid #c45a5a44" onclick="toggleInst('inst_7')">腾讯 <span class="inst-count">1篇</span></span><div id="inst_7" class="inst-paper-list"><div class="inst-paper-item">&middot; RePlan: Reasoning-guided Region Planning for Complex Instruction-based Image Edi</div></div><span class="inst-tag" style="color:#c45a5a;background:#fdeaea;border:1px solid #c45a5a44" onclick="toggleInst('inst_8')">快手 <span class="inst-count">1篇</span></span><div id="inst_8" class="inst-paper-list"><div class="inst-paper-item">&middot; Think-Then-Generate: Reasoning-Aware Text-to-Image Diffusion with LLM Encoders</div></div><span class="inst-tag" style="color:#c45a5a;background:#fdeaea;border:1px solid #c45a5a44" onclick="toggleInst('inst_9')">网易 <span class="inst-count">1篇</span></span><div id="inst_9" class="inst-paper-list"><div class="inst-paper-item">&middot; Uni-cot: Towards unified chain-of-thought reasoning across text and vision</div></div></div></div><div class="inst-section"><div class="inst-category-label">海外顶尖高校</div><div class="inst-tags"><span class="inst-tag" style="color:#7c5cbf;background:#f0ecfb;border:1px solid #7c5cbf44" onclick="toggleInst('inst_10')">Princeton <span class="inst-count">3篇</span></span><div id="inst_10" class="inst-paper-list"><div class="inst-paper-item">&middot; MMaDA-Parallel: Multimodal Large Diffusion Language Models for Thinking-Aware Ed</div><div class="inst-paper-item">&middot; Parallel Multimodal Diffusion Language Models for Thinking-Aware Editing and Gen</div><div class="inst-paper-item">&middot; UEval: A Real-World Benchmark for Unified Multimodal Generation</div></div><span class="inst-tag" style="color:#7c5cbf;background:#f0ecfb;border:1px solid #7c5cbf44" onclick="toggleInst('inst_11')">NTU <span class="inst-count">3篇</span></span><div id="inst_11" class="inst-paper-list"><div class="inst-paper-item">&middot; GEBench: Benchmarking Image Generation Models as GUI Environments</div><div class="inst-paper-item">&middot; MMaDA-Parallel: Multimodal Large Diffusion Language Models for Thinking-Aware Ed</div><div class="inst-paper-item">&middot; Uni-cot: Towards unified chain-of-thought reasoning across text and vision</div></div><span class="inst-tag" style="color:#7c5cbf;background:#f0ecfb;border:1px solid #7c5cbf44" onclick="toggleInst('inst_12')">UC Berkeley <span class="inst-count">2篇</span></span><div id="inst_12" class="inst-paper-list"><div class="inst-paper-item">&middot; Kris-bench: Benchmarking next-level intelligent image editing models</div><div class="inst-paper-item">&middot; UniREditBench: A Unified Reasoning-based Image Editing Benchmark</div></div><span class="inst-tag" style="color:#7c5cbf;background:#f0ecfb;border:1px solid #7c5cbf44" onclick="toggleInst('inst_13')">MIT <span class="inst-count">1篇</span></span><div id="inst_13" class="inst-paper-list"><div class="inst-paper-item">&middot; AEGIS: Exploring the Limit of World Knowledge Capabilities for Unified Mulitmoda</div></div><span class="inst-tag" style="color:#7c5cbf;background:#f0ecfb;border:1px solid #7c5cbf44" onclick="toggleInst('inst_14')">Harvard <span class="inst-count">1篇</span></span><div id="inst_14" class="inst-paper-list"><div class="inst-paper-item">&middot; Are Image-to-Video Models Good Zero-Shot Image Editors?</div></div><span class="inst-tag" style="color:#7c5cbf;background:#f0ecfb;border:1px solid #7c5cbf44" onclick="toggleInst('inst_15')">CMU <span class="inst-count">1篇</span></span><div id="inst_15" class="inst-paper-list"><div class="inst-paper-item">&middot; UReason: Benchmarking the Reasoning Paradox in Unified Multimodal Models</div></div><span class="inst-tag" style="color:#7c5cbf;background:#f0ecfb;border:1px solid #7c5cbf44" onclick="toggleInst('inst_16')">Cambridge <span class="inst-count">1篇</span></span><div id="inst_16" class="inst-paper-list"><div class="inst-paper-item">&middot; How Well Do Models Follow Visual Instructions? VIBE: A Systematic Benchmark for </div></div><span class="inst-tag" style="color:#7c5cbf;background:#f0ecfb;border:1px solid #7c5cbf44" onclick="toggleInst('inst_17')">NUS <span class="inst-count">1篇</span></span><div id="inst_17" class="inst-paper-list"><div class="inst-paper-item">&middot; Factuality Matters: When Image Generation and Editing Meet Structured Visuals</div></div></div></div><div class="inst-section"><div class="inst-category-label">国内顶尖高校/机构</div><div class="inst-tags"><span class="inst-tag" style="color:#4caf8a;background:#e6f6f0;border:1px solid #4caf8a44" onclick="toggleInst('inst_18')">上海交通大学 <span class="inst-count">7篇</span></span><div id="inst_18" class="inst-paper-list"><div class="inst-paper-item">&middot; Factuality Matters: When Image Generation and Editing Meet Structured Visuals</div><div class="inst-paper-item">&middot; Gobench: Benchmarking geometric optics generation and understanding of mllms</div><div class="inst-paper-item">&middot; Kris-bench: Benchmarking next-level intelligent image editing models</div><div class="inst-paper-item">&middot; Large multimodal models evaluation: a survey</div><div class="inst-paper-item">&middot; Scientific Image Synthesis: Benchmarking, Methodologies, and Downstream Utility</div><div class="inst-paper-item">&middot; Think-Then-Generate: Reasoning-Aware Text-to-Image Diffusion with LLM Encoders</div><div class="inst-paper-item">&middot; UmniBench: Unified Understand and Generation Model Oriented Omni-dimensional Ben</div></div><span class="inst-tag" style="color:#4caf8a;background:#e6f6f0;border:1px solid #4caf8a44" onclick="toggleInst('inst_19')">北京大学 <span class="inst-count">6篇</span></span><div id="inst_19" class="inst-paper-list"><div class="inst-paper-item">&middot; GEBench: Benchmarking Image Generation Models as GUI Environments</div><div class="inst-paper-item">&middot; GENIUS: Generative Fluid Intelligence Evaluation Suite</div><div class="inst-paper-item">&middot; Gir-bench: Versatile benchmark for generating images with reasoning</div><div class="inst-paper-item">&middot; Large multimodal models evaluation: a survey</div><div class="inst-paper-item">&middot; MMaDA-Parallel: Multimodal Large Diffusion Language Models for Thinking-Aware Ed</div><div class="inst-paper-item">&middot; Parallel Multimodal Diffusion Language Models for Thinking-Aware Editing and Gen</div></div><span class="inst-tag" style="color:#4caf8a;background:#e6f6f0;border:1px solid #4caf8a44" onclick="toggleInst('inst_20')">浙江大学 <span class="inst-count">6篇</span></span><div id="inst_20" class="inst-paper-list"><div class="inst-paper-item">&middot; Are Image-to-Video Models Good Zero-Shot Image Editors?</div><div class="inst-paper-item">&middot; ROVER: Benchmarking Reciprocal Cross-Modal Reasoning for Omnimodal Generation</div><div class="inst-paper-item">&middot; ReViSE: Towards Reason-Informed Video Editing in Unified Models with Self-Reflec</div><div class="inst-paper-item">&middot; ThinkRL-Edit: Thinking in Reinforcement Learning for Reasoning-Centric Image Edi</div><div class="inst-paper-item">&middot; UniREditBench: A Unified Reasoning-based Image Editing Benchmark</div><div class="inst-paper-item">&middot; Wiseedit: Benchmarking cognition-and creativity-informed image editing</div></div><span class="inst-tag" style="color:#4caf8a;background:#e6f6f0;border:1px solid #4caf8a44" onclick="toggleInst('inst_21')">清华大学 <span class="inst-count">5篇</span></span><div id="inst_21" class="inst-paper-list"><div class="inst-paper-item">&middot; A Survey of Unified Multimodal Understanding and Generation: Advances and Challe</div><div class="inst-paper-item">&middot; Editthinker: Unlocking iterative reasoning for any image editor</div><div class="inst-paper-item">&middot; GEBench: Benchmarking Image Generation Models as GUI Environments</div><div class="inst-paper-item">&middot; Think-Then-Generate: Reasoning-Aware Text-to-Image Diffusion with LLM Encoders</div><div class="inst-paper-item">&middot; Visual Generation Unlocks Human-Like Reasoning through Multimodal World Models</div></div><span class="inst-tag" style="color:#4caf8a;background:#e6f6f0;border:1px solid #4caf8a44" onclick="toggleInst('inst_22')">中国科学院 <span class="inst-count">5篇</span></span><div id="inst_22" class="inst-paper-list"><div class="inst-paper-item">&middot; A Survey of Unified Multimodal Understanding and Generation: Advances and Challe</div><div class="inst-paper-item">&middot; GEBench: Benchmarking Image Generation Models as GUI Environments</div><div class="inst-paper-item">&middot; How Well Do Models Follow Visual Instructions? VIBE: A Systematic Benchmark for </div><div class="inst-paper-item">&middot; MMaDA-Parallel: Multimodal Large Diffusion Language Models for Thinking-Aware Ed</div><div class="inst-paper-item">&middot; Parallel Multimodal Diffusion Language Models for Thinking-Aware Editing and Gen</div></div><span class="inst-tag" style="color:#4caf8a;background:#e6f6f0;border:1px solid #4caf8a44" onclick="toggleInst('inst_23')">复旦大学 <span class="inst-count">5篇</span></span><div id="inst_23" class="inst-paper-list"><div class="inst-paper-item">&middot; ReViSE: Towards Reason-Informed Video Editing in Unified Models with Self-Reflec</div><div class="inst-paper-item">&middot; UEval: A Real-World Benchmark for Unified Multimodal Generation</div><div class="inst-paper-item">&middot; Uni-cot: Towards unified chain-of-thought reasoning across text and vision</div><div class="inst-paper-item">&middot; UniREditBench: A Unified Reasoning-based Image Editing Benchmark</div><div class="inst-paper-item">&middot; Vic-bench: Benchmarking visual-interleaved chain-of-thought capability in mllms </div></div><span class="inst-tag" style="color:#4caf8a;background:#e6f6f0;border:1px solid #4caf8a44" onclick="toggleInst('inst_24')">南京大学 <span class="inst-count">3篇</span></span><div id="inst_24" class="inst-paper-list"><div class="inst-paper-item">&middot; A Survey of Unified Multimodal Understanding and Generation: Advances and Challe</div><div class="inst-paper-item">&middot; How Well Do Models Follow Visual Instructions? VIBE: A Systematic Benchmark for </div><div class="inst-paper-item">&middot; Vic-bench: Benchmarking visual-interleaved chain-of-thought capability in mllms </div></div><span class="inst-tag" style="color:#4caf8a;background:#e6f6f0;border:1px solid #4caf8a44" onclick="toggleInst('inst_25')">北京航空航天大学 <span class="inst-count">3篇</span></span><div id="inst_25" class="inst-paper-list"><div class="inst-paper-item">&middot; Editthinker: Unlocking iterative reasoning for any image editor</div><div class="inst-paper-item">&middot; Factuality Matters: When Image Generation and Editing Meet Structured Visuals</div><div class="inst-paper-item">&middot; Vic-bench: Benchmarking visual-interleaved chain-of-thought capability in mllms </div></div><span class="inst-tag" style="color:#4caf8a;background:#e6f6f0;border:1px solid #4caf8a44" onclick="toggleInst('inst_26')">中国人民大学 <span class="inst-count">1篇</span></span><div id="inst_26" class="inst-paper-list"><div class="inst-paper-item">&middot; ReViSE: Towards Reason-Informed Video Editing in Unified Models with Self-Reflec</div></div></div></div>
+</div>
+
+<!-- SECTION 06 -->
+<div class="section-header">
+  <span class="section-num">06</span>
+  <span class="section-title">引用热度 · 高影响力引用论文 TOP 10</span>
+  <div class="section-divider"></div>
+</div>
+<div class="grid-1">
+  <div class="card">
+    <div class="card-title"><div class="card-title-dot"></div>引用论文被引次数 TOP 10</div>
+    <div style="position:relative;height:260px"><canvas id="cCite"></canvas></div>
+  </div>
+</div>
+<div class="grid-1">
+  <div class="card">
+    <div class="card-title"><div class="card-title-dot amber"></div>高影响力引用论文详细信息（按自身被引量排序）</div>
+    <div class="pdi-scroll">
+      <div class="pdi-item" style="border-left-color:#c45a5a">
+        <div class="pdi-rank" style="color:#c45a5a44">01</div>
+        <div class="pdi-body">
+          <div class="pdi-title"><a href="https://arxiv.org/abs/2505.14683" target="_blank" class="pdi-title-link">Emerging properties in unified multimodal pretraining</a></div>
+          <div class="pdi-authors" style="margin-bottom:4px">部分带有谷歌学术主页的作者：</div><div class="pdi-authors-pills"><a href="https://scholar.google.com/citations?user=k0TWfBoAAAAJ&hl=en&oi=sra" target="_blank" class="author-pill">C Deng</a><a href="https://scholar.google.com/citations?user=dENNKrsAAAAJ&hl=en&oi=sra" target="_blank" class="author-pill">D Zhu</a><a href="https://scholar.google.com/citations?user=D4tLSbsAAAAJ&hl=en&oi=sra" target="_blank" class="author-pill">K Li</a><a href="https://scholar.google.com/citations?user=tlhShPsAAAAJ&hl=en&oi=sra" target="_blank" class="author-pill">C Gou</a><a href="https://scholar.google.com/citations?user=ybRe9GcAAAAJ&hl=en&oi=sra" target="_blank" class="author-pill">F Li</a><a href="https://scholar.google.com/citations?user=5uSmucsAAAAJ&hl=en&oi=sra" target="_blank" class="author-pill">Z Wang</a></div>
+          <div class="pdi-meta-row"><span class="pdi-inst-tag">ByteDance Seed</span><span class="pdi-country-tag">中国</span></div>
+          <div class="pdi-footer">
+            <span class='pdi-year'>2025</span>
+            <span class="pdi-cit" style="color:#c45a5a">被引 <strong>372</strong> 次</span>
+            <button class="pdi-affil-btn" onclick="toggleAffil('pdi_0', this)">作者信息 ▾</button>
+          </div>
+          <div id="pdi_0" class="pdi-affil-box" style="display:none"><div class="md-content">根据论文《Emerging Properties in Unified Multimodal Pretraining》（arXiv:2505.14683），该论文的作者列表及其对应的单位名称如下：
+
+| 作者姓名 | 对应单位 |
+| :--- | :--- |
+| **Chaorui Deng** (邓朝睿) | ByteDance Seed (字节跳动) |
+| **Deyao Zhu** (朱德曜) | ByteDance Seed (字节跳动) |
+| **Kunchang Li** (李坤昌) | 深圳先进技术研究院 (Shenzhen Institutes of Advanced Technology) |
+| **Chenhui Gou** (苟陈辉) | 莫纳什大学 (Monash University) |
+| **Feng Li** (李枫) | 香港科技大学 (Hong Kong University of Science and Technology) |
+| **Zeyu Wang** (王泽宇) | 加州大学圣克鲁兹分校 (UC Santa Cruz) |
+| **Shu Zhong** (钟舒) | ByteDance Seed (字节跳动) |
+| **Weihao Yu** (余维浩) | ByteDance Seed (字节跳动) |
+| **Xiaonan Nie** (聂晓南) | ByteDance Seed (字节跳动) |
+| **Ziang Song** (宋子昂) | ByteDance Seed (字节跳动) |
+| **Guang Shi** (时广) | ByteDance Seed (字节跳动) |
+| **Haoqi Fan** (范浩祺) | ByteDance Seed (字节跳动) |
+
+**注：** 
+1. 标注为“ByteDance Seed”的作者为字节跳动种子团队（Seed Team）成员。
+2. 标注为非字节跳动单位的作者（如 Kunchang Li, Chenhui Gou 等）在进行该研究工作时通常为字节跳动的实习生。
+3. 该论文介绍了开源多模态基础模型 **BAGEL**。</div></div>
+        </div>
+      </div>
+      <div class="pdi-item" style="border-left-color:#d4892a">
+        <div class="pdi-rank" style="color:#d4892a44">02</div>
+        <div class="pdi-body">
+          <div class="pdi-title"><a href="https://arxiv.org/abs/2505.16707" target="_blank" class="pdi-title-link">Kris-bench: Benchmarking next-level intelligent image editing models</a></div>
+          <div class="pdi-authors" style="margin-bottom:4px">部分带有谷歌学术主页的作者：</div><div class="pdi-authors-pills"><a href="https://scholar.google.com/citations?user=NdE8DZ8AAAAJ&hl=en&oi=sra" target="_blank" class="author-pill">Y Wu</a><a href="https://scholar.google.com/citations?user=o6h6sVMAAAAJ&hl=en&oi=sra" target="_blank" class="author-pill">X Hu</a><a href="https://scholar.google.com/citations?user=fdwhd9gAAAAJ&hl=en&oi=sra" target="_blank" class="author-pill">X Ye</a><a href="https://scholar.google.com/citations?user=tgDc0fsAAAAJ&hl=en&oi=sra" target="_blank" class="author-pill">X Zeng</a><a href="https://scholar.google.com/citations?user=BJdigYsAAAAJ&hl=en&oi=sra" target="_blank" class="author-pill">G Yu</a><a href="https://scholar.google.com/citations?user=z_4-QfQAAAAJ&hl=en&oi=sra" target="_blank" class="author-pill">W Zhu</a></div>
+          <div class="pdi-meta-row"><span class="pdi-inst-tag">东南大学</span><span class="pdi-country-tag">中国</span></div>
+          <div class="pdi-footer">
+            <span class='pdi-year'>2025</span>
+            <span class="pdi-cit" style="color:#d4892a">被引 <strong>29</strong> 次</span>
+            <button class="pdi-affil-btn" onclick="toggleAffil('pdi_1', this)">作者信息 ▾</button>
+          </div>
+          <div id="pdi_1" class="pdi-affil-box" style="display:none"><div class="md-content">根据论文《Kris-bench: Benchmarking next-level intelligent image editing models》（arXiv:2505.16707）及其相关的公开信息（如 NeurIPS 2025 录用信息及项目主页），该论文的作者列表及其对应的单位名称如下：
+
+### **作者列表及所属单位**
+
+| 作者姓名 (Author Name) | 单位名称 (Affiliation) |
+| :--- | :--- |
+| **Yongliang Wu** (吴永亮) | 东南大学 (Southeast University)、阶跃星辰 (StepFun) |
+| **Zonghui Li** (李宗辉) | 东南大学 (Southeast University) |
+| **Xinting Hu** (胡馨婷) | 马克斯·普朗克计算机科学研究所 (Max Planck Institute for Informatics) |
+| **Xinyu Ye** (叶新宇) | 上海交通大学 (Shanghai Jiao Tong University) |
+| **Xianfang Zeng** (曾宪芳) | 阶跃星辰 (StepFun) |
+| **Gang Yu** (俞刚) | 阶跃星辰 (StepFun) |
+| **Wenbo Zhu** (朱文博) | 加州大学伯克利分校 (University of California, Berkeley) |
+| **Bernt Schiele** | 马克斯·普朗克计算机科学研究所 (Max Planck Institute for Informatics) |
+| **Ming-Hsuan Yang** (杨明玄) | 加州大学默塞德分校 (University of California, Merced) |
+| **Xu Yang** (杨旭) | 东南大学 (Southeast University) |
+
+### **总结说明：**
+*   **第一作者**：Yongliang Wu（吴永亮），具有东南大学和阶跃星辰的双重背景。
+*   **通讯作者**：Xinting Hu（胡馨婷）。
+*   **项目负责人 (Project Leader)**：Xianfang Zeng（曾宪芳）。
+*   该研究由来自**东南大学**、**阶跃星辰 (StepFun)**、**马普所**、**上海交大**以及**加州大学系统 (UC Berkeley & UC Merced)** 的研究人员共同合作完成。该论文已被 **NeurIPS 2025** 接收。</div></div>
+        </div>
+      </div>
+      <div class="pdi-item" style="border-left-color:#d4892a">
+        <div class="pdi-rank" style="color:#d4892a44">03</div>
+        <div class="pdi-body">
+          <div class="pdi-title"><a href="https://aclanthology.org/2025.emnlp-main.636/" target="_blank" class="pdi-title-link">R2i-bench: Benchmarking reasoning-driven text-to-image generation</a></div>
+          <div class="pdi-authors" style="margin-bottom:4px">部分带有谷歌学术主页的作者：</div><div class="pdi-authors-pills"><a href="https://scholar.google.com/citations?user=vfSUDaAAAAAJ&hl=en&oi=sra" target="_blank" class="author-pill">K Chen</a><a href="https://scholar.google.com/citations?user=4h_A4n4AAAAJ&hl=en&oi=sra" target="_blank" class="author-pill">Z Lin</a><a href="https://scholar.google.com/citations?user=Qcshi8UAAAAJ&hl=en&oi=sra" target="_blank" class="author-pill">Z Xu</a><a href="https://scholar.google.com/citations?user=NytpXgwAAAAJ&hl=en&oi=sra" target="_blank" class="author-pill">Y Shen</a><a href="https://scholar.google.com/citations?user=-chIdAkAAAAJ&hl=en&oi=sra" target="_blank" class="author-pill">Y Yao</a></div>
+          <div class="pdi-meta-row"><span class="pdi-inst-tag">同济大学 (Tongji University)</span><span class="pdi-country-tag">中国</span></div>
+          <div class="pdi-footer">
+            <span class='pdi-year'>2025</span>
+            <span class="pdi-cit" style="color:#d4892a">被引 <strong>25</strong> 次</span>
+            <button class="pdi-affil-btn" onclick="toggleAffil('pdi_2', this)">作者信息 ▾</button>
+          </div>
+          <div id="pdi_2" class="pdi-affil-box" style="display:none"><div class="md-content">根据您提供的论文信息，该论文 **《R2i-bench: Benchmarking reasoning-driven text-to-image generation》** 已被 **EMNLP 2025** 接收。
+
+以下是该论文的作者列表及其对应的单位名称：
+
+| 作者姓名 | 对应单位 |
+| :--- | :--- |
+| **Kaijie Chen** (陈恺杰) | 同济大学 (Tongji University) |
+| **Zihao Lin** (林子豪) | 弗吉尼亚理工大学 (Virginia Tech) |
+| **Zhiyang Xu** (徐志扬) | 加州大学戴维斯分校 (UC Davis) |
+| **Ying Shen** (沈颖) | 同济大学 (Tongji University) |
+| **Yuguang Yao** (姚宇光) | 密歇根州立大学 (Michigan State University) |
+| **Joy Rimchala** | Intuit AI Research |
+| **Jiaxin Zhang** (张家欣) | Intuit AI Research |
+| **Lifu Huang** (黄立夫) | 弗吉尼亚理工大学 (Virginia Tech) |
+
+**补充说明：**
+*   **共同第一作者**：Zihao Lin、Zhiyang Xu 和 Ying Shen 在论文中标注为共同贡献（Equal Contribution）。
+*   **通讯作者**：Lifu Huang。
+*   该研究由同济大学、弗吉尼亚理工大学、加州大学戴维斯分校、密歇根州立大学以及 Intuit AI Research 的研究人员共同完成。</div></div>
+        </div>
+      </div>
+      <div class="pdi-item" style="border-left-color:#3b82c4">
+        <div class="pdi-rank" style="color:#3b82c444">04</div>
+        <div class="pdi-body">
+          <div class="pdi-title"><a href="https://link.springer.com/article/10.1007/s11432-025-4676-4" target="_blank" class="pdi-title-link">Large multimodal models evaluation: a survey</a></div>
+          <div class="pdi-authors" style="margin-bottom:4px">部分带有谷歌学术主页的作者：</div><div class="pdi-authors-pills"><a href="https://scholar.google.com/citations?user=QICTEckAAAAJ&hl=en&oi=sra" target="_blank" class="author-pill">Z Zhang</a><a href="https://scholar.google.com/citations?user=mU92WEUAAAAJ&hl=en&oi=sra" target="_blank" class="author-pill">J Wang</a><a href="https://scholar.google.com/citations?user=6Q1HTZgAAAAJ&hl=en&oi=sra" target="_blank" class="author-pill">F Wen</a><a href="https://scholar.google.com/citations?user=eqFr7IgAAAAJ&hl=en&oi=sra" target="_blank" class="author-pill">X Zhao</a></div>
+          <div class="pdi-meta-row"><span class="pdi-inst-tag">Shanghai Jiao Tong University</span><span class="pdi-country-tag">中国</span></div>
+          <div class="pdi-footer">
+            <span class='pdi-year'>2025</span>
+            <span class="pdi-cit" style="color:#3b82c4">被引 <strong>17</strong> 次</span>
+            <button class="pdi-affil-btn" onclick="toggleAffil('pdi_3', this)">作者信息 ▾</button>
+          </div>
+          <div id="pdi_3" class="pdi-affil-box" style="display:none"><div class="md-content">根据您提供的论文链接和标题，该论文 **《Large multimodal models evaluation: a survey》** 发表在 **《SCIENCE CHINA Information Sciences》**（2025年第68卷第12期）上。
+
+以下是该论文的完整作者列表及其对应的单位名称（根据期刊发表信息及实验室公开资料整理）：
+
+### **作者列表及单位**
+
+1.  **张子成 (Zicheng Zhang)** - 上海交通大学 (Shanghai Jiao Tong University)
+2.  **王俊瑛 (Junying Wang)** - 上海交通大学 (Shanghai Jiao Tong University) 及 荷兰代尔夫特理工大学 (Delft University of Technology)
+3.  **温法荣 (Farong Wen)** - 上海交通大学 (Shanghai Jiao Tong University)
+4.  **郭奕锦 (Yijin Guo)** - 上海交通大学 (Shanghai Jiao Tong University)
+5.  **赵翔宇 (Xiangyu Zhao)** - 香港理工大学 (The Hong Kong Polytechnic University)
+6.  **房信煜 (Xinyu Fang)** - 上海交通大学 (Shanghai Jiao Tong University)
+7.  **丁圣元 (Shengyuan Ding)** - 上海交通大学 (Shanghai Jiao Tong University)
+8.  **贾子珩 (Ziheng Jia)** - 上海交通大学 (Shanghai Jiao Tong University)
+9.  **肖家豪 (Jiahao Xiao)** - 上海交通大学 (Shanghai Jiao Tong University)
+10. **沈烨 (Ye Shen)** - 上海交通大学 (Shanghai Jiao Tong University)
+11. **郑禹硕 (Yushuo Zheng)** - 上海交通大学 (Shanghai Jiao Tong University)
+12. **朱晓荣 (Xiaorong Zhu)** - 上海交通大学 (Shanghai Jiao Tong University)
+13. **吴亚伦 (Yalun Wu)** - 上海交通大学 (Shanghai Jiao Tong University)
+14. **焦子珩 (Ziheng Jiao)** - 上海交通大学 (Shanghai Jiao Tong University)
+15. **孙玮 (Wei Sun)** - 上海交通大学 (Shanghai Jiao Tong University)
+16. **陈子健 (Zijian Chen)** - 上海交通大学 (Shanghai Jiao Tong University)
+17. **张凯维 (Kaiwei Zhang)** - 上海交通大学 (Shanghai Jiao Tong University)
+18. **付康 (Kang Fu)** - 上海交通大学 (Shanghai Jiao Tong University)
+19. **曹雨勤 (Yuqin Cao)** - 上海交通大学 (Shanghai Jiao Tong University)
+20. **胡明 (Ming Hu)** - 上海交通大学 (Shanghai Jiao Tong University)
+21. **周越 (Yue Zhou)** - 上海交通大学 (Shanghai Jiao Tong University)
+22. **周雪梅 (Xuemei Zhou)** - 上海交通大学 (Shanghai Jiao Tong University)
+23. **曹隽泰 (Juntai Cao)** - 上海交通大学 (Shanghai Jiao Tong University)
+24. **周玮 (Wei Zhou)** - 英国卡迪夫大学 (Cardiff University)
+25. **曹金煜 (Jinyu Cao)** - 上海交通大学 (Shanghai Jiao Tong University)
+26. **李荣辉 (Ronghui Li)** - 上海交通大学 (Shanghai Jiao Tong University)
+27. **周东浩 (Donghao Zhou)** - 上海交通大学 (Shanghai Jiao Tong University)
+28. **田源 (Yuan Tian)** - 上海交通大学 (Shanghai Jiao Tong University)
+29. **朱向阳 (Xiangyang Zhu)** - 上海交通大学 (Shanghai Jiao Tong University)
+30. **李纯一 (Chunyi Li)** - 上海交通大学 (Shanghai Jiao Tong University)
+31. **吴昊宁 (Haoning Wu)** - 上海交通大学 (Shanghai Jiao Tong University)
+32. **刘晓红 (Xiaohong Liu)** - 上海交通大学 (Shanghai Jiao Tong University)
+33. **何俊俊 (Junjun He)** - 上海人工智能实验室 (Shanghai AI Laboratory)
+34. **周煜 (Yu Zhou)** - 上海交通大学 (Shanghai Jiao Tong University)
+35. **刘晖 (Hui Liu)** - 上海交通大学 (Shanghai Jiao Tong University)
+36. **张琳 (Lin Zhang)** - 同济大学 (Tongji University)
+37. **王泽盛 (Zesheng Wang)** - 上海交通大学 (Shanghai Jiao Tong University)
+38. **段会羽 (Huiyu Duan)** - 上海交通大学 (Shanghai Jiao Tong University)
+39. **周英杰 (Yingjie Zhou)** - 上海交通大学 (Shanghai Jiao Tong University)
+40. **闵雄阔 (Xiongkuo Min)** - 上海交通大学 (Shanghai Jiao Tong University)
+41. **贾淇 (Qi Jia)** - 上海交通大学 (Shanghai Jiao Tong University)
+42. **周东展 (Dongzhan Zhou)** - 上海交通大学 (Shanghai Jiao Tong University)
+43. **张文龙 (Wenlong Zhang)** - 上海交通大学 (Shanghai Jiao Tong University)
+44. **曹洁章 (Jiezhang Cao)** - 上海交通大学 (Shanghai Jiao Tong University)
+45. **杨学 (Xue Yang)** - 上海交通大学 (Shanghai Jiao Tong University)
+46. **喻俊志 (Junzhi Yu)** - 北京大学 (Peking University)
+47. **张松阳 (Songyang Zhang)** - 上海人工智能实验室 (Shanghai AI Laboratory)
+48. **段浩东 (Haodong Duan)** - 上海人工智能实验室 (Shanghai AI Laboratory) 及 香港中文大学 (The Chinese University of Hong Kong)
+49. **翟广涛 (Guangtao Zhai)** - 上海交通大学 (Shanghai Jiao Tong University) —— *通讯作者*
+
+**注：** 该论文主要由上海交通大学翟广涛教授团队（图像通信与网络工程研究所）牵头，联合多家海内外知名研究机构共同完成。</div></div>
+        </div>
+      </div>
+      <div class="pdi-item" style="border-left-color:#3b82c4">
+        <div class="pdi-rank" style="color:#3b82c444">05</div>
+        <div class="pdi-body">
+          <div class="pdi-title"><a href="https://arxiv.org/abs/2508.05606" target="_blank" class="pdi-title-link">Uni-cot: Towards unified chain-of-thought reasoning across text and vision</a></div>
+          <div class="pdi-authors" style="margin-bottom:4px">部分带有谷歌学术主页的作者：</div><div class="pdi-authors-pills"><a href="https://scholar.google.com/citations?user=41BWCzkAAAAJ&hl=en&oi=sra" target="_blank" class="author-pill">L Qin</a><a href="https://scholar.google.com/citations?user=ZV-ThegAAAAJ&hl=en&oi=sra" target="_blank" class="author-pill">J Gong</a><a href="https://scholar.google.com/citations?user=zR6eHu0AAAAJ&hl=en&oi=sra" target="_blank" class="author-pill">Y Sun</a><a href="https://scholar.google.com/citations?user=so6xMg8AAAAJ&hl=en&oi=sra" target="_blank" class="author-pill">T Li</a><a href="https://scholar.google.com/citations?user=yF34LtcAAAAJ&hl=en&oi=sra" target="_blank" class="author-pill">M Yang</a><a href="https://scholar.google.com/citations?user=7evPWQYAAAAJ&hl=en&oi=sra" target="_blank" class="author-pill">X Yang</a></div>
+          <div class="pdi-meta-row"><span class="pdi-inst-tag">Shanghai Academy of AI for Science</span><span class="pdi-country-tag">中国</span></div>
+          <div class="pdi-footer">
+            <span class='pdi-year'>2025</span>
+            <span class="pdi-cit" style="color:#3b82c4">被引 <strong>17</strong> 次</span>
+            <button class="pdi-affil-btn" onclick="toggleAffil('pdi_4', this)">作者信息 ▾</button>
+          </div>
+          <div id="pdi_4" class="pdi-affil-box" style="display:none"><div class="md-content">根据查阅的论文信息（arXiv:2508.05606，最新版本为 2026 年 3 月的 v3 版）以及该项目的官方页面，论文 **《Uni-cot: Towards unified chain-of-thought reasoning across text and vision》** 的作者列表及其对应单位如下：
+
+### **作者列表及单位名称**
+
+1.  **Luozheng Qin (秦落正)**
+    *   单位：上海科学智能研究院 (Shanghai Academy of AI for Science)
+2.  **Jia Gong (龚嘉)**
+    *   单位：上海科学智能研究院 (Shanghai Academy of AI for Science)
+3.  **Yuqing Sun (孙宇卿)**
+    *   单位：上海科学智能研究院 (Shanghai Academy of AI for Science)
+4.  **Tianjiao Li (李天骄)**
+    *   单位：南洋理工大学 (Nanyang Technological University)
+5.  **Haoyu Pan (潘皓宇)**
+    *   单位：上海科学智能研究院 (Shanghai Academy of AI for Science)
+6.  **Mengping Yang (杨梦萍)**
+    *   单位：上海科学智能研究院 (Shanghai Academy of AI for Science)
+7.  **Xiaomeng Yang (杨晓梦)**
+    *   单位：上海科学智能研究院 (Shanghai Academy of AI for Science)
+8.  **Chao Qu (屈超)**
+    *   单位：复旦大学 (Fudan University) / INFTech
+9.  **Zhiyu Tan (谭志宇)**
+    *   单位：复旦大学 (Fudan University)、上海科学智能研究院 (Shanghai Academy of AI for Science)
+10. **Hao Li (李豪)**
+    *   单位：复旦大学 (Fudan University)、上海科学智能研究院 (Shanghai Academy of AI for Science)
+
+---
+
+### **补充说明：**
+*   **共同第一作者**：Luozheng Qin、Jia Gong 和 Yuqing Sun。
+*   **项目负责人 (Project Leader)**：Zhiyu Tan。
+*   **通讯作者**：Zhiyu Tan 和 Hao Li。
+*   **核心团队背景**：该项目是由 **上海科学智能研究院 (SAIS)** 与 **网易伏羲实验室 (NetEase Fuxi AI Lab)** 合作完成的（项目主页域名为 `sais-fuxi.github.io`），部分作者（如 Hao Li 和 Zhiyu Tan）在学术论文中通常标注其在复旦大学或上海科学智能研究院的头衔。</div></div>
+        </div>
+      </div>
+      <div class="pdi-item" style="border-left-color:#3b82c4">
+        <div class="pdi-rank" style="color:#3b82c444">06</div>
+        <div class="pdi-body">
+          <div class="pdi-title"><a href="https://arxiv.org/abs/2505.24862" target="_blank" class="pdi-title-link">Vistorybench: Comprehensive benchmark suite for story visualization</a></div>
+          <div class="pdi-authors" style="margin-bottom:4px">部分带有谷歌学术主页的作者：</div><div class="pdi-authors-pills"><a href="https://scholar.google.com/citations?user=YuOegioAAAAJ&hl=en&oi=sra" target="_blank" class="author-pill">C Zhuang</a><a href="https://scholar.google.com/citations?user=LM7RNL4AAAAJ&hl=en&oi=sra" target="_blank" class="author-pill">A Huang</a><a href="https://scholar.google.com/citations?user=Gtj6VDYAAAAJ&hl=en&oi=sra" target="_blank" class="author-pill">J Wu</a><a href="https://scholar.google.com/citations?user=OC8eBkYAAAAJ&hl=en&oi=sra" target="_blank" class="author-pill">W Cheng</a></div>
+          <div class="pdi-meta-row"><span class="pdi-inst-tag">上海科技大学 (ShanghaiTech University)</span><span class="pdi-country-tag">中国</span></div>
+          <div class="pdi-footer">
+            <span class='pdi-year'>2025</span>
+            <span class="pdi-cit" style="color:#3b82c4">被引 <strong>15</strong> 次</span>
+            <button class="pdi-affil-btn" onclick="toggleAffil('pdi_5', this)">作者信息 ▾</button>
+          </div>
+          <div id="pdi_5" class="pdi-affil-box" style="display:none"><div class="md-content">根据论文《Vistorybench: Comprehensive benchmark suite for story visualization》（arXiv:2505.24862）的相关信息，该论文的作者列表及其对应的单位名称如下：
+
+### **作者列表及单位**
+
+1.  **Cailin Zhuang (庄采林)**
+    *   单位：上海科技大学 (ShanghaiTech University)、阶跃星辰 (StepFun)、AIGC Research
+2.  **Ailin Huang (黄艾琳)**
+    *   单位：阶跃星辰 (StepFun)
+3.  **Wei Cheng (程伟)**
+    *   单位：阶跃星辰 (StepFun)
+4.  **Jingwei Wu (吴静玮)**
+    *   单位：阶跃星辰 (StepFun)
+5.  **Yaoqi Hu (胡曜旗)**
+    *   单位：AIGC Research
+6.  **Jiaqi Liao (廖家琪)**
+    *   单位：阶跃星辰 (StepFun)、西湖大学 AGI 实验室 (AGI Lab, Westlake University)
+7.  **Hongyuan Wang (王宏远)**
+    *   单位：阶跃星辰 (StepFun)
+8.  **Xinyao Liao (廖欣瑶)**
+    *   单位：阶跃星辰 (StepFun)
+9.  **Weiwei Cai (蔡巍巍)**
+    *   单位：阶跃星辰 (StepFun)
+10. **Hengyuan Xu (徐恒远)**
+    *   单位：阶跃星辰 (StepFun)
+11. **Xuanyang Zhang (张宣阳)**
+    *   单位：阶跃星辰 (StepFun)
+12. **Xianfang Zeng (曾宪芳)**
+    *   单位：阶跃星辰 (StepFun)
+13. **Zhewei Huang (黄哲威)**
+    *   单位：阶跃星辰 (StepFun)
+14. **Gang Yu (俞刚)**
+    *   单位：阶跃星辰 (StepFun)
+15. **Chi Zhang (张驰)**
+    *   单位：西湖大学 AGI 实验室 (AGI Lab, Westlake University)
+
+### **总结单位列表：**
+*   **阶跃星辰 (StepFun)**：核心研发团队。
+*   **上海科技大学 (ShanghaiTech University)**：部分作者的学术单位。
+*   **西湖大学 AGI 实验室 (AGI Lab, Westlake University)**：深度参与合作。
+*   **AIGC Research**：相关的研究机构。</div></div>
+        </div>
+      </div>
+      <div class="pdi-item" style="border-left-color:#7c5cbf">
+        <div class="pdi-rank" style="color:#7c5cbf44">07</div>
+        <div class="pdi-body">
+          <div class="pdi-title"><a href="https://arxiv.org/abs/2505.14404" target="_blank" class="pdi-title-link">Vic-bench: Benchmarking visual-interleaved chain-of-thought capability in mllms with free-style intermediate state representations</a></div>
+          <div class="pdi-authors" style="margin-bottom:4px">部分带有谷歌学术主页的作者：</div><div class="pdi-authors-pills"><a href="https://scholar.google.com/citations?user=MuTEp7sAAAAJ&hl=en&oi=sra" target="_blank" class="author-pill">X Wu</a><a href="https://scholar.google.com/citations?user=mLzLKNEAAAAJ&hl=en&oi=sra" target="_blank" class="author-pill">Y Shi</a></div>
+          <div class="pdi-meta-row"><span class="pdi-inst-tag">北京航空航天大学 (Beihang University)</span><span class="pdi-country-tag">中国</span></div>
+          <div class="pdi-footer">
+            <span class='pdi-year'>2025</span>
+            <span class="pdi-cit" style="color:#7c5cbf">被引 <strong>7</strong> 次</span>
+            <button class="pdi-affil-btn" onclick="toggleAffil('pdi_6', this)">作者信息 ▾</button>
+          </div>
+          <div id="pdi_6" class="pdi-affil-box" style="display:none"><div class="md-content">根据该论文（arXiv:2505.14404）的信息，以下是作者列表及其对应的单位名称：
+
+1.  **武学成 (Xuecheng Wu)**
+    *   北京航空航天大学 (Beihang University) —— 虚拟现实技术与系统国家重点实验室，网络空间安全学院，自动化科学与电气工程学院
+    *   西安交通大学 (Xi'an Jiaotong University) —— 自动化科学与技术学院，陕西省数字医疗重点实验室
+2.  **刘家兴 (Jiaxing Liu)**
+    *   美团 (Meituan Inc.)
+3.  **王一帆 (Yifan Wang)**
+    *   中国科学技术大学 (University of Science and Technology of China) —— 先进技术研究院
+4.  **陈科迪 (Kedi Chen)**
+    *   华东师范大学 (East China Normal University) —— 计算机科学与技术学院
+    *   上海创新研究院 (Shanghai Innovation Institute)
+5.  **薛俊霄 (Junxiao Xue)**
+    *   之江实验室 (Zhejiang Lab) —— 空间计算系统研究中心
+6.  **刘洋 (Yang Liu)** —— *共同通讯作者*
+    *   同济大学 (Tongji University) —— 电子与信息工程学院
+7.  **董海荣 (Hairong Dong)**
+    *   同济大学 (Tongji University) —— 电子与信息工程学院
+8.  **陈春林 (Chunlin Chen)**
+    *   南京大学 (Nanjing University) —— 机器人与自动化学院
+9.  **杨鼎康 (Dingkang Yang)** —— *共同通讯作者*
+    *   复旦大学 (Fudan University) —— 智能机器人与先进制造学院
+    *   Fysics AI
+
+**备注：**
+*   **武学成**和**刘家兴**为共同第一作者（Equal contribution）。
+*   **杨鼎康**和**刘洋**为该论文的通讯作者。</div></div>
+        </div>
+      </div>
+      <div class="pdi-item" style="border-left-color:#7c5cbf">
+        <div class="pdi-rank" style="color:#7c5cbf44">08</div>
+        <div class="pdi-body">
+          <div class="pdi-title"><a href="https://arxiv.org/abs/2511.01163" target="_blank" class="pdi-title-link">ROVER: Benchmarking Reciprocal Cross-Modal Reasoning for Omnimodal Generation</a></div>
+          <div class="pdi-authors" style="margin-bottom:4px">部分带有谷歌学术主页的作者：</div><div class="pdi-authors-pills"><a href="https://scholar.google.com/citations?user=GQToORIAAAAJ&hl=en&oi=sra" target="_blank" class="author-pill">Y Liang</a><a href="https://scholar.google.com/citations?user=WbybssYAAAAJ&hl=en&oi=sra" target="_blank" class="author-pill">Z Ma</a><a href="https://scholar.google.com/citations?user=puVqfbwAAAAJ&hl=en&oi=sra" target="_blank" class="author-pill">X Wang</a><a href="https://scholar.google.com/citations?user=5S9eZbcAAAAJ&hl=en&oi=sra" target="_blank" class="author-pill">J Mao</a></div>
+          <div class="pdi-meta-row"><span class="pdi-inst-tag">University of Maryland, College Park</span><span class="pdi-country-tag">美国</span></div>
+          <div class="pdi-footer">
+            <span class='pdi-year'>2025</span>
+            <span class="pdi-cit" style="color:#7c5cbf">被引 <strong>5</strong> 次</span>
+            <button class="pdi-affil-btn" onclick="toggleAffil('pdi_7', this)">作者信息 ▾</button>
+          </div>
+          <div id="pdi_7" class="pdi-affil-box" style="display:none"><div class="md-content">根据该论文（[arXiv:2511.01163](https://arxiv.org/abs/2511.01163)）及其在 ICLR 2026 和项目主页上的信息，该论文的作者列表及其对应的单位如下：
+
+### **作者列表及单位名称**
+
+1.  **Yongyuan Liang (梁容源)**
+    *   单位：马里兰大学学院市分校 (University of Maryland, College Park)
+2.  **Wei Chow (周巍)**
+    *   单位：宾夕法尼亚大学 (University of Pennsylvania) / 浙江大学 (Zhejiang University)
+3.  **Feng Li (李丰)**
+    *   单位：香港科技大学 (The Hong Kong University of Science and Technology)
+4.  **Ziqiao Ma (马子乔)**
+    *   单位：密歇根大学 (University of Michigan)
+5.  **Xiyao Wang (王汐曜)**
+    *   单位：马里兰大学学院市分校 (University of Maryland, College Park)
+6.  **Jiageng Mao (毛嘉庚)**
+    *   单位：南加州大学 (University of Southern California)
+7.  **Jiuhai Chen (陈九海)**
+    *   单位：马里兰大学学院市分校 (University of Maryland, College Park)
+8.  **Jiatao Gu (顾佳涛)**
+    *   单位：宾夕法尼亚大学 (University of Pennsylvania) / Apple
+9.  **Yue Wang (王悦)**
+    *   单位：南加州大学 (University of Southern California) / NVIDIA
+10. **Furong Huang (黄芙蓉)**
+    *   单位：马里兰大学学院市分校 (University of Maryland, College Park)
+
+### **论文背景简述**
+该论文引入了 **ROVER**，这是一个旨在评估统一多模态模型（Unified Multimodal Models, UMMs）在**互惠跨模态推理**（Reciprocal Cross-Modal Reasoning）方面能力的基准测试。它涵盖了“语言增强的视觉生成”和“视觉增强的语言生成”两个设置，旨在测试模型是否能利用一种模态来指导或优化另一种模态的输出。</div></div>
+        </div>
+      </div>
+      <div class="pdi-item" style="border-left-color:#7c5cbf">
+        <div class="pdi-rank" style="color:#7c5cbf44">09</div>
+        <div class="pdi-body">
+          <div class="pdi-title"><a href="https://arxiv.org/abs/2510.11026" target="_blank" class="pdi-title-link">Gir-bench: Versatile benchmark for generating images with reasoning</a></div>
+          <div class="pdi-authors" style="margin-bottom:4px">部分带有谷歌学术主页的作者：</div><div class="pdi-authors-pills"><a href="https://scholar.google.com/citations?user=U4AwycUAAAAJ&hl=en&oi=sra" target="_blank" class="author-pill">H Li</a><a href="https://scholar.google.com/citations?user=XlhADHoAAAAJ&hl=en&oi=sra" target="_blank" class="author-pill">Y Li</a><a href="https://scholar.google.com/citations?user=GCOVDKoAAAAJ&hl=en&oi=sra" target="_blank" class="author-pill">B Lin</a><a href="https://scholar.google.com/citations?user=VaYRTxEAAAAJ&hl=en&oi=sra" target="_blank" class="author-pill">Y Niu</a><a href="https://scholar.google.com/citations?user=x3aClGEAAAAJ&hl=en&oi=sra" target="_blank" class="author-pill">Y Yang</a><a href="https://scholar.google.com/citations?user=F-PndVsAAAAJ&hl=en&oi=sra" target="_blank" class="author-pill">X Huang</a></div>
+          <div class="pdi-meta-row"><span class="pdi-inst-tag">香港科技大学</span><span class="pdi-country-tag">中国</span></div>
+          <div class="pdi-footer">
+            <span class='pdi-year'>2025</span>
+            <span class="pdi-cit" style="color:#7c5cbf">被引 <strong>4</strong> 次</span>
+            <button class="pdi-affil-btn" onclick="toggleAffil('pdi_8', this)">作者信息 ▾</button>
+          </div>
+          <div id="pdi_8" class="pdi-affil-box" style="display:none"><div class="md-content">根据您提供的论文信息和搜索结果，论文 **《GIR-Bench: Versatile Benchmark for Generating Images with Reasoning》**（arXiv:2510.11026）共有 **10 位** 主要作者。
+
+以下是该论文的作者名单及其对应的单位名称：
+
+1.  **Hongxiang Li**（李鸿祥）- 香港科技大学 (The Hong Kong University of Science and Technology)
+2.  **Yaowei Li**（李耀威）- 北京大学 (Peking University)
+3.  **Bin Lin**（林斌）- 北京大学 (Peking University)
+4.  **Yuwei Niu**（牛玉伟）- 北京大学 (Peking University)
+5.  **Yuhang Yang**（杨宇航）- 中国科学技术大学 (University of Science and Technology of China)
+6.  **Xiaoshuang Huang**（黄晓双）- 小红书 (Xiaohongshu Inc.)
+7.  **Jiayin Cai**（蔡佳音）- 小红书 (Xiaohongshu Inc.)
+8.  **Xiaolong Jiang**（蒋晓龙）- 小红书 (Xiaohongshu Inc.)
+9.  **Yao Hu**（胡耀）- 小红书 (Xiaohongshu Inc.)
+10. **Long Chen**（陈隆）- 香港科技大学 (The Hong Kong University of Science and Technology)
+
+**注：** 该论文由香港科技大学 Long Group 团队主导（Long Chen 教授为通讯作者），并由北京大学、中国科学技术大学以及小红书 AI 团队合作完成。其中 Hongxiang Li 和 Yaowei Li 为共同第一作者。</div></div>
+        </div>
+      </div>
+      <div class="pdi-item" style="border-left-color:#7c5cbf">
+        <div class="pdi-rank" style="color:#7c5cbf44">10</div>
+        <div class="pdi-body">
+          <div class="pdi-title"><a href="https://arxiv.org/abs/2512.16899" target="_blank" class="pdi-title-link">Multimodal rewardbench 2: Evaluating omni reward models for interleaved text and image</a></div>
+          <div class="pdi-authors" style="margin-bottom:4px">部分带有谷歌学术主页的作者：</div><div class="pdi-authors-pills"><a href="https://scholar.google.com/citations?user=mXN51X0AAAAJ&hl=en&oi=sra" target="_blank" class="author-pill">Y Hu</a><a href="https://scholar.google.com/citations?user=5t_-enoAAAAJ&hl=en&oi=sra" target="_blank" class="author-pill">R Askari-Hemmat</a><a href="https://scholar.google.com/citations?user=DcfHZoUAAAAJ&hl=en&oi=sra" target="_blank" class="author-pill">M Hall</a><a href="https://scholar.google.com/citations?user=pfqzHqUAAAAJ&hl=en&oi=sra" target="_blank" class="author-pill">E Dinan</a></div>
+          <div class="pdi-meta-row"><span class="pdi-inst-tag">Meta (FAIR / Superintelligence Labs)</span><span class="pdi-country-tag">美国</span></div>
+          <div class="pdi-footer">
+            <span class='pdi-year'>2025</span>
+            <span class="pdi-cit" style="color:#7c5cbf">被引 <strong>3</strong> 次</span>
+            <button class="pdi-affil-btn" onclick="toggleAffil('pdi_9', this)">作者信息 ▾</button>
+          </div>
+          <div id="pdi_9" class="pdi-affil-box" style="display:none"><div class="md-content">根据论文《Multimodal RewardBench 2: Evaluating Omni Reward Models for Interleaved Text and Image》（arXiv:2512.16899）的相关信息，该论文由 **Meta (FAIR / Superintelligence Labs)** 团队的研究人员共同完成。
+
+以下是该论文的作者列表及其对应的单位名称：
+
+| 作者姓名 | 单位名称 | 备注 |
+| :--- | :--- | :--- |
+| **Yushi Hu** | Meta (FAIR / Superintelligence Labs) | 共同第一作者 |
+| **Reyhane Askari-Hemmat** | Meta (FAIR / Superintelligence Labs) | 共同第一作者 |
+| **Melissa Hall** | Meta (FAIR / Superintelligence Labs) | |
+| **Emily Dinan** | Meta (FAIR / Superintelligence Labs) | |
+| **Luke Zettlemoyer** | Meta (FAIR / Superintelligence Labs) / 华盛顿大学 (University of Washington) | |
+| **Marjan Ghazvininejad** | Meta (FAIR / Superintelligence Labs) | |
+
+**单位补充说明：**
+该研究主要由 Meta 的 AI 研究部门（FAIR，现隶属于 Superintelligence Labs）主导。其中，Luke Zettlemoyer 通常同时受聘于华盛顿大学和 Meta。</div></div>
+        </div>
+      </div></div>
+  </div>
+</div>
+
+<!-- SECTION 06 -->
+<div class="section-header">
+  <span class="section-num">07</span>
+  <span class="section-title">影响力预测分析</span>
+  <div class="section-divider"></div>
+</div>
+<div class="prediction-band">
+  <div class="pred-grid">
+    <div class="pred-card">
+      <div class="pred-card-title">📈 引用趋势预测 <span class="pred-tag">FORECAST · 线性回归</span></div>
+      <div class="trend-wrap"><canvas id="cTrend"></canvas></div>
+      
+        <div class="pred-metric">
+          <div>
+            <div class="pred-metric-label">预计2026年引用量</div>
+            <div class="pred-metric-note">基于当前半年数据线性外推</div>
+          </div>
+          <div class="pred-metric-val">~25</div>
+        </div>
+        <div class="pred-metric">
+          <div>
+            <div class="pred-metric-label">预计2027年引用量</div>
+            <div class="pred-metric-note">进入爆发期，预期显著增长</div>
+          </div>
+          <div class="pred-metric-val">~42</div>
+        </div>
+        <div class="pred-metric">
+          <div>
+            <div class="pred-metric-label">引用年增速 (YoY)</div>
+            <div class="pred-metric-note">高水平施引文献带动二次传播</div>
+          </div>
+          <div class="pred-metric-val">+68%</div>
+        </div>
+    </div>
+    <div class="pred-card">
+      <div class="pred-card-title">🚀 施引文献影响力扩散评估 <span class="pred-tag">IMPACT</span></div>
+      <div style="font-size:10.5px;color:rgba(180,210,255,0.5);margin-bottom:10px">以下评分基于施引文献群体特征，反映影响力在各维度的扩散潜力</div>
+      <div class="impact-bar-wrap">
+        <div>
+          <div class="impact-row-label"><span>学术领袖认可度</span><span style="color:#7dd8b0">92%</span></div>
+          <div class="impact-track"><div class="impact-fill fill-cyan" style="width:92%"></div></div>
+        </div>
+        <div>
+          <div class="impact-row-label"><span>前沿技术渗透力</span><span style="color:#7dd8b0">88%</span></div>
+          <div class="impact-track"><div class="impact-fill fill-green" style="width:88%"></div></div>
+        </div>
+        <div>
+          <div class="impact-row-label"><span>跨学科应用潜力</span><span style="color:#7dd8b0">85%</span></div>
+          <div class="impact-track"><div class="impact-fill fill-purple" style="width:85%"></div></div>
+        </div>
+        <div>
+          <div class="impact-row-label"><span>高质量引用占比</span><span style="color:#7dd8b0">94%</span></div>
+          <div class="impact-track"><div class="impact-fill fill-orange" style="width:94%"></div></div>
+        </div></div>
+      <div class="pred-commentary">该论文展现出极强的学术爆发力。尽管2026年上半年计入数据为11次，但施引文献质量极高，包含多位院士及Fellow的关注。最高单篇施引文献被引达372次，这种“高影响力扩散”效应预示着该论文已进入领域核心引用圈。由于2025年基数较高且施引群体权威，预计2026年后半年至2027年将迎来指数级增长，属于该学科领域内具有里程碑意义的顶尖作，学术生命周期正处于快速上升阶段。</div>
+    </div>
+  </div>
+</div>
+
+<!-- SECTION 07 -->
+<div class="section-header">
+  <span class="section-num">08</span>
+  <span class="section-title">数据洞察与画像总结</span>
+  <div class="section-divider"></div>
+</div>
+<div class="insights-grid">
+      <div class="insight-card teal">
+        <h4>📈 学术热度迅速攀升且具备前瞻影响力</h4>
+        <p>该研究展现出强劲的学术增长势头，引用年份已前瞻性延伸至2026年。目前<strong>2025年引用量达23次</strong>，<strong>2026年预收录引用11次</strong>。单篇引用论文最高被引量高达<strong>372次</strong>，反映出该成果在计算机视觉前沿领域具有极高的关注度与持续的科研转化价值。</p>
+      </div>
+      <div class="insight-card sage">
+        <h4>🌏 立足本土并辐射全球的国际化协作</h4>
+        <p>研究影响力跨越地域限制，引用学者主要来自中国（<strong>31次</strong>）与美国（<strong>5次</strong>），且存在跨国科研协作（<strong>1次</strong>）。这种以中美学术圈为核心的分布格局，说明该成果在人工智能领域最活跃的两大科研经济体中均获得了高度认可，具备广泛的国际学术语境价值。</p>
+      </div>
+      <div class="insight-card amber">
+        <h4>🏆 顶级学术权威背书，专家号召力显著</h4>
+        <p>该论文吸引了<strong>79位</strong>知名学者的深度关注，其中包含<strong>18位院士或IEEE/ACM Fellow</strong>等顶级专家。这种高层次的引证结构不仅验证了研究理论的严谨性，更体现了该工作在推理驱动视觉编辑这一尖端赛道上的引领地位与权威学术背书。</p>
+      </div>
+      <div class="insight-card violet">
+        <h4>🔬 确立领域标准化基准与实验规范</h4>
+        <p>研究成果已被公认为推理辅助编辑能力的<strong>标准化基准</strong>，其中<strong>RISEBench</strong>作为高辨识度评价体系频繁出现。学术界侧重于引用其多维度的推理描述框架，并将其作为衡量同类模型性能的必选对标工具，标志着该论文已成功定义了该细分领域的实验测评规范。</p>
+      </div></div>
+
+</div><!-- /main -->
+<div class="footer">
+  Citation Intelligence Dashboard &nbsp;·&nbsp; Generated 2026.03.11 &nbsp;·&nbsp; Powered by AI Analysis
+</div>
+
+<script>
+function renderMdInside(container) {
+  container.querySelectorAll('.md-content').forEach(function(el) {
+    if (el._mdDone) return;
+    el._mdDone = true;
+    var raw = el.textContent;
+    el.innerHTML = (typeof marked !== 'undefined') ? marked.parse(raw) : el.innerHTML;
+  });
+}
+function toggleDesc(id) {
+  var el = document.getElementById(id);
+  if (!el) return;
+  el.style.display = (el.style.display === 'none') ? 'table-row' : 'none';
+  if (el.style.display !== 'none') renderMdInside(el);
+}
+function toggleAffil(id, btn) {
+  var el = document.getElementById(id);
+  if (!el) return;
+  if (el.style.display === 'none') {
+    el.style.display = 'block';
+    if (btn) btn.textContent = '作者信息 ▴';
+    renderMdInside(el);
+  } else {
+    el.style.display = 'none';
+    if (btn) btn.textContent = '作者信息 ▾';
+  }
+}
+function toggleCiteSummary() {
+  var el = document.getElementById('citeSummaryContent');
+  var btn = document.getElementById('citeSumBtn');
+  if (!el) return;
+  if (el.style.display === 'none') {
+    el.style.display = 'block';
+    if (btn) btn.textContent = '折叠 ▴';
+    renderMdInside(el);
+  } else {
+    el.style.display = 'none';
+    if (btn) btn.textContent = '展开全文 ▾';
+  }
+}
+function toggleInst(id) {
+  var el = document.getElementById(id);
+  if (!el) return;
+  el.style.display = (el.style.display === 'none' || el.style.display === '') ? 'block' : 'none';
+}
+
+Chart.defaults.color = '#718096';
+Chart.defaults.borderColor = 'rgba(180,190,220,0.35)';
+Chart.defaults.font.family = "'Noto Sans SC', sans-serif";
+Chart.defaults.font.size = 11;
+// Register datalabels plugin globally only for year chart (unregister after)
+Chart.register(ChartDataLabels);
+
+const TEAL='#3b82c4', SAGE='#4caf8a', AMBER='#d4892a', VIO='#7c5cbf', ROSE='#c45a5a';
+const TEAL_L='rgba(59,130,196,0.15)', SAGE_L='rgba(76,175,138,0.15)';
+const VIO_L='rgba(124,92,191,0.15)', AMBER_L='rgba(212,137,42,0.15)';
+const COUNTRY_COLORS = [TEAL+'cc',SAGE+'aa',VIO+'aa',AMBER+'aa',ROSE+'aa',
+                        TEAL+'66',SAGE+'66',VIO+'66',AMBER+'66',ROSE+'66'];
+
+// Year chart: bars with count labels + red dashed connector line through bar tops
+new Chart(document.getElementById('cYear'), {
+  type: 'bar',
+  data: { labels: [2025, 2026], datasets: [
+    { type: 'bar', label: '引用数量', data: [23, 11],
+      backgroundColor: TEAL+'99', borderColor: TEAL, borderWidth: 2, borderRadius: 5,
+      order: 1,
+      datalabels: { anchor: 'end', align: 'end', color: TEAL, font: { size: 10, weight: '600' },
+        formatter: v => v } },
+    { type: 'line', label: '趋势连线', data: [23, 11],
+      borderColor: '#e53e3e', backgroundColor: 'transparent',
+      pointRadius: 4, pointBackgroundColor: '#e53e3e',
+      borderWidth: 2, tension: 0, borderDash: [5, 3], order: 0,
+      datalabels: { display: false } }
+  ] },
+  options: { responsive: true, maintainAspectRatio: false,
+    layout: { padding: { top: 20 } },
+    plugins: {
+      legend: { display: true, position: 'bottom', labels: { padding: 8, font: { size: 10 } } },
+      tooltip: { callbacks: { label: c => c.dataset.label + ': ' + c.raw } },
+      datalabels: { }
+    },
+    scales: { y: { beginAtZero: true, grid: { color: 'rgba(180,190,220,0.2)' } },
+      x: { grid: { display: false } } } }
+});
+Chart.unregister(ChartDataLabels);
+
+function makeCountryChart(id, labels, data) {
+  new Chart(document.getElementById(id), {
+    type: 'bar',
+    data: { labels: labels, datasets: [{ data: data,
+      backgroundColor: COUNTRY_COLORS, borderWidth: 0, borderRadius: 4 }] },
+    options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false },
+        tooltip: { callbacks: { label: c => c.raw + ' 篇/人' } } },
+      scales: { x: { beginAtZero: true, grid: { color: 'rgba(180,190,220,0.2)' } },
+        y: { grid: { display: false } } } }
+  });
+}
+makeCountryChart('cCountryAll', ["中国", "美国", "美国、中国"], [31, 5, 1]);
+makeCountryChart('cCountryRenowned', ["中国", "美国", "中国香港", "德国", "中国（香港）", "沙特阿拉伯", "美国/中国", "加拿大", "英国"], [53, 15, 5, 1, 1, 1, 1, 1, 1]);
+makeCountryChart('cCountryTop', ["中国", "美国", "中国香港", "德国", "英国"], [10, 3, 3, 1, 1]);
+
+new Chart(document.getElementById('cFellow'), {
+  type: 'doughnut',
+  data: { labels: ["其他知名学者 61人", "Fellow 12人", "其他院士 5人", "两院院士 1人"], datasets: [{ data: [61, 12, 5, 1],
+    backgroundColor: ['rgba(160,174,192,0.5)', TEAL+'bb', SAGE+'bb', AMBER+'bb'],
+    borderColor: ['#a0aec0', TEAL, SAGE, AMBER], borderWidth: 2, hoverOffset: 8 }] },
+  options: { cutout: '62%', responsive: true, maintainAspectRatio: false,
+    plugins: { legend: { position: 'bottom', labels: { padding: 10, font: { size: 10 } } },
+      tooltip: { callbacks: { label: c=>`${c.label}: ${Math.round(c.raw/79*100)}%` } } } }
+});
+
+const citeData = [372, 29, 25, 17, 17, 15, 7, 5, 4, 3];
+const totalCitAll = 516;
+new Chart(document.getElementById('cCite'), {
+  type: 'bar',
+  data: { labels: ["Emerging properties in unified multimodal pretra…", "Kris-bench: Benchmarking next-level intelligent …", "R2i-bench: Benchmarking reasoning-driven text-to…", "Large multimodal models evaluation: a survey", "Uni-cot: Towards unified chain-of-thought reason…", "Vistorybench: Comprehensive benchmark suite for …", "Vic-bench: Benchmarking visual-interleaved chain…", "ROVER: Benchmarking Reciprocal Cross-Modal Reaso…", "Gir-bench: Versatile benchmark for generating im…", "Multimodal rewardbench 2: Evaluating omni reward…"], datasets: [{ data: citeData,
+    backgroundColor: citeData.map(v=>v>=50?ROSE+'cc':v>=20?AMBER+'cc':v>=8?TEAL+'99':VIO+'88'),
+    borderColor: citeData.map(v=>v>=50?ROSE:v>=20?AMBER:v>=8?TEAL:VIO),
+    borderWidth: 2, borderRadius: 4 }] },
+  options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+    plugins: { legend: { display: false },
+      tooltip: { callbacks: { label: c=>`被引 ${c.raw} 次 (${Math.round(c.raw/(totalCitAll||1)*100)}%)` } } },
+    scales: { x: { beginAtZero: true, grid: { color: 'rgba(180,190,220,0.2)' } },
+      y: { grid: { display: false }, ticks: { font: { size: 10 } } } } }
+});
+
+if (document.getElementById('cPosition')) {
+new Chart(document.getElementById('cPosition'), {
+  type: 'bar',
+  data: { labels: ["Experiments/Results", "Introduction", "Related Work/Survey"], datasets: [{ data: [5, 4, 2],
+    backgroundColor: [AMBER+'cc',TEAL+'cc',SAGE+'cc',VIO+'cc',ROSE+'cc',AMBER+'88'],
+    borderWidth: 0, borderRadius: 5 }] },
+  options: { indexAxis: 'y', responsive: true, plugins: { legend: { display: false } },
+    scales: { x: { beginAtZero: true, grid: { color:'rgba(180,190,220,0.2)' } }, y: { grid: { display: false } } } }
+});
+}
+
+if (document.getElementById('cSentiment')) {
+new Chart(document.getElementById('cSentiment'), {
+  type: 'doughnut',
+  data: { labels: ['正面引用','中性引用','批评探讨'],
+    datasets: [{ data: [18,82,0],
+      backgroundColor: [SAGE+'cc','rgba(160,174,192,0.5)',ROSE+'aa'],
+      borderColor: [SAGE,'#a0aec0',ROSE], borderWidth: 2, hoverOffset: 6 }] },
+  options: { cutout:'60%', responsive:true, maintainAspectRatio:true,
+    plugins:{ legend:{ position:'bottom', labels:{ padding:8,font:{size:10} } } } }
+});
+}
+
+if (document.getElementById('cDepth')) {
+new Chart(document.getElementById('cDepth'), {
+  type: 'doughnut',
+  data: { labels: ['核心引用 (方法依据)','参考引用 (背景对比)','补充说明'],
+    datasets: [{ data: [15, 70, 15], backgroundColor: [TEAL+'cc',SAGE+'cc',VIO+'88'],
+      borderColor: [TEAL, SAGE, VIO], borderWidth: 2, hoverOffset: 8 }] },
+  options: { cutout:'55%', responsive:true, maintainAspectRatio:true,
+    plugins:{ legend:{ position:'bottom', labels:{ padding:10,font:{size:10} } } } }
+});
+}
+
+new Chart(document.getElementById('cTrend'), {
+  type: 'line',
+  data: { labels: ["2025", "2026", "2027"], datasets: [
+    { label: '实际引用', data: [23, 11, null], borderColor: '#7db8f5', backgroundColor: 'transparent',
+      pointBackgroundColor: '#7db8f5', pointRadius: 5, tension: .4, borderWidth: 2 },
+    { label: '趋势预测', data: [null, 25, 42], borderColor: '#7dd8b0', backgroundColor: 'rgba(125,216,176,0.10)',
+      borderDash: [6,4], pointBackgroundColor: '#7dd8b0', pointRadius: 4, tension: .3, borderWidth: 2, fill: true }
+  ] },
+  options: { responsive: true, maintainAspectRatio: false,
+    plugins: { legend: { position:'bottom', labels:{ padding:8, color:'rgba(200,220,255,0.7)', font:{size:10} } } },
+    scales: { y: { beginAtZero:true, grid:{ color:'rgba(255,255,255,0.06)' },
+        ticks:{ color:'rgba(180,210,255,0.7)', font:{size:10} } },
+      x: { grid:{ color:'rgba(255,255,255,0.04)' }, ticks:{ color:'rgba(180,210,255,0.7)', font:{size:9}, maxRotation:30 } } } }
+});
+</script>
+</body>
+</html>

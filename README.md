@@ -3,6 +3,7 @@
 
 # CitationAgent — 论文被引画像分析智能体
 
+  [![🌐 项目主页](https://img.shields.io/badge/🌐-项目主页-blue?style=flat-square)](https://visionxlab.github.io/CitationAgent/)
   ![Python](https://img.shields.io/badge/Python-3.10%2B-3776AB?style=flat-square&logo=python&logoColor=white)
   ![Version](https://img.shields.io/badge/版本-1.0-brightgreen?style=flat-square)
   ![Platform](https://img.shields.io/badge/平台-macOS%20%7C%20Linux%20%7C%20Windows-lightgrey?style=flat-square)
@@ -26,11 +27,12 @@
 
 ## 快速导览
 
-| 文档 | 说明 |
-|------|------|
-| [📊 画像报告示例](https://htmlpreview.github.io/?https://github.com/VisionXLab/CitationAgent/blob/main/data/result-template/paper_dashboard.html) | 真实输出样例，点击即可在线预览最终报告效果 |
-| [📖 深度使用报告](https://htmlpreview.github.io/?https://github.com/VisionXLab/CitationAgent/blob/main/use-report.html) | 一位用户用 CitationAgent 分析自己论文被引情况的完整体验记录 |
-| [🔧 技术架构报告](https://htmlpreview.github.io/?https://github.com/VisionXLab/CitationAgent/blob/main/technical-report.html) | 系统架构、核心模块与实现细节，适合开发者或希望深入了解原理的读者 |
+| 文档                                                                                                                                           | 说明 |
+|----------------------------------------------------------------------------------------------------------------------------------------------|------|
+| [📊 画像报告示例①](https://visionxlab.github.io/CitationAgent/demo1.html) | 真实输出样例，点击即可在线预览最终报告效果（含完整图表） |
+| [📊 画像报告示例②](https://visionxlab.github.io/CitationAgent/demo2.html) | 另一篇真实论文的被引画像报告 |
+| [📖 深度使用报告](https://visionxlab.github.io/CitationAgent/use-report.html) | 一位用户用 CitationAgent 分析自己论文被引情况的完整体验记录 |
+| [🔧 技术架构报告](https://visionxlab.github.io/CitationAgent/technical-report.html) | 系统架构、核心模块与实现细节，适合开发者或希望深入了解原理的读者 |
 
 ---
 

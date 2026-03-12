@@ -1,0 +1,2032 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>我用它分析了我的论文被引情况 — CitationAgent 深度使用报告</title>
+<style>
+  /* ─── Reset & Base ─── */
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg:         #FFFBF5;
+    --bg2:        #FFF8EF;
+    --bg3:        #FFF3E0;
+    --warm-100:   #FFE0B2;
+    --warm-200:   #FFCC80;
+    --amber:      #FFB300;
+    --amber-light: #FFE082;
+    --orange:     #FF8F00;
+    --deep-orange: #E65100;
+    --burnt:      #BF360C;
+    --brown:      #4E342E;
+    --brown-light: #6D4C41;
+    --muted:      #8D6E63;
+    --border:     #F3E0C8;
+    --border2:    #E8C9A0;
+    --text:       #3E2723;
+    --text-light: #5D4037;
+    --white:      #FFFFFF;
+    --green:      #2E7D32;
+    --red:        #C62828;
+    --blue:       #1565C0;
+  }
+
+  html { scroll-behavior: smooth; }
+
+  body {
+    font-family: 'Georgia', 'Noto Serif SC', 'STSong', serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.85;
+    font-size: 17px;
+  }
+
+  /* ─── Layout ─── */
+  .page-wrapper {
+    max-width: 860px;
+    margin: 0 auto;
+    padding: 0 24px 80px;
+  }
+
+  /* ─── Cover ─── */
+  .cover {
+    min-height: 92vh;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    text-align: center;
+    padding: 60px 20px;
+    background: linear-gradient(160deg, #FFF8EF 0%, #FFE0B2 40%, #FFCC80 75%, #FFB300 100%);
+    position: relative;
+    overflow: hidden;
+    margin: 0 -24px;
+  }
+
+  .cover::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background:
+      radial-gradient(ellipse at 20% 30%, rgba(255,255,255,0.6) 0%, transparent 60%),
+      radial-gradient(ellipse at 80% 70%, rgba(191,54,12,0.08) 0%, transparent 60%);
+  }
+
+  .cover-eyebrow {
+    font-family: 'Arial', sans-serif;
+    font-size: 11px;
+    letter-spacing: 4px;
+    text-transform: uppercase;
+    color: var(--deep-orange);
+    font-weight: 700;
+    margin-bottom: 28px;
+    position: relative;
+    background: rgba(255,255,255,0.7);
+    padding: 6px 18px;
+    border-radius: 20px;
+    border: 1px solid rgba(230,81,0,0.25);
+  }
+
+  .cover-title {
+    font-size: clamp(32px, 6vw, 58px);
+    font-weight: 900;
+    line-height: 1.2;
+    color: var(--brown);
+    position: relative;
+    margin-bottom: 22px;
+    text-shadow: 0 2px 12px rgba(78,52,46,0.12);
+  }
+
+  .cover-title em {
+    font-style: normal;
+    color: var(--deep-orange);
+    display: block;
+    font-size: 0.78em;
+    font-weight: 700;
+    margin-top: 8px;
+    letter-spacing: -0.5px;
+  }
+
+  .cover-subtitle {
+    font-size: 16px;
+    color: var(--brown-light);
+    max-width: 520px;
+    line-height: 1.7;
+    position: relative;
+    background: rgba(255,255,255,0.65);
+    padding: 14px 24px;
+    border-radius: 12px;
+    border-left: 3px solid var(--orange);
+    margin-bottom: 40px;
+  }
+
+  .cover-meta {
+    display: flex;
+    gap: 20px;
+    flex-wrap: wrap;
+    justify-content: center;
+    position: relative;
+    font-family: 'Arial', sans-serif;
+    font-size: 12px;
+    color: var(--brown-light);
+  }
+
+  .cover-meta span {
+    background: rgba(255,255,255,0.8);
+    padding: 5px 14px;
+    border-radius: 20px;
+    border: 1px solid rgba(191,54,12,0.2);
+  }
+
+  .cover-scroll-hint {
+    position: absolute;
+    bottom: 32px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-family: 'Arial', sans-serif;
+    font-size: 11px;
+    color: var(--brown-light);
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    animation: bounce 2s infinite;
+  }
+
+  @keyframes bounce {
+    0%, 100% { transform: translateX(-50%) translateY(0); }
+    50% { transform: translateX(-50%) translateY(8px); }
+  }
+
+  .arrow-down {
+    width: 20px;
+    height: 20px;
+    border-right: 2px solid var(--deep-orange);
+    border-bottom: 2px solid var(--deep-orange);
+    transform: rotate(45deg);
+    margin-top: -8px;
+  }
+
+  /* ─── TOC ─── */
+  .toc-section {
+    background: var(--bg3);
+    border: 1px solid var(--border2);
+    border-radius: 16px;
+    padding: 32px 36px;
+    margin: 56px 0 48px;
+  }
+
+  .toc-title {
+    font-size: 13px;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: var(--orange);
+    font-family: 'Arial', sans-serif;
+    font-weight: 700;
+    margin-bottom: 20px;
+  }
+
+  .toc-list {
+    list-style: none;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px 32px;
+  }
+
+  .toc-list li a {
+    text-decoration: none;
+    color: var(--brown-light);
+    font-size: 15px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    transition: color 0.2s;
+  }
+
+  .toc-list li a:hover { color: var(--deep-orange); }
+
+  .toc-num {
+    font-family: 'Arial', sans-serif;
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--orange);
+    background: var(--amber-light);
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+
+  /* ─── Section ─── */
+  .section {
+    margin: 72px 0;
+    scroll-margin-top: 32px;
+  }
+
+  .section-eyebrow {
+    font-family: 'Arial', sans-serif;
+    font-size: 10.5px;
+    letter-spacing: 3.5px;
+    text-transform: uppercase;
+    color: var(--orange);
+    font-weight: 700;
+    margin-bottom: 10px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .section-eyebrow::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: linear-gradient(to right, var(--border2), transparent);
+  }
+
+  .section-title {
+    font-size: clamp(22px, 4vw, 32px);
+    font-weight: 800;
+    color: var(--brown);
+    line-height: 1.3;
+    margin-bottom: 28px;
+  }
+
+  /* ─── Body Text ─── */
+  p {
+    margin-bottom: 1.4em;
+    color: var(--text-light);
+  }
+
+  p:last-child { margin-bottom: 0; }
+
+  /* ─── Pull Quote ─── */
+  .pull-quote {
+    border-left: 4px solid var(--orange);
+    background: linear-gradient(to right, var(--bg3), transparent);
+    padding: 18px 24px;
+    margin: 32px 0;
+    border-radius: 0 12px 12px 0;
+    font-size: 19px;
+    color: var(--brown);
+    font-style: italic;
+    line-height: 1.6;
+  }
+
+  .pull-quote cite {
+    display: block;
+    font-size: 12px;
+    font-style: normal;
+    color: var(--muted);
+    margin-top: 10px;
+    font-family: 'Arial', sans-serif;
+    letter-spacing: 1px;
+  }
+
+  /* ─── Callout Box ─── */
+  .callout {
+    border-radius: 14px;
+    padding: 20px 24px;
+    margin: 28px 0;
+    display: flex;
+    gap: 16px;
+    align-items: flex-start;
+  }
+
+  .callout-tip {
+    background: #FFF8E1;
+    border: 1px solid #FFE082;
+  }
+
+  .callout-info {
+    background: #E3F2FD;
+    border: 1px solid #90CAF9;
+  }
+
+  .callout-success {
+    background: #E8F5E9;
+    border: 1px solid #A5D6A7;
+  }
+
+  .callout-warn {
+    background: #FFF3E0;
+    border: 1px solid #FFCC80;
+  }
+
+  .callout-icon {
+    font-size: 22px;
+    flex-shrink: 0;
+    line-height: 1;
+    margin-top: 2px;
+  }
+
+  .callout-body { flex: 1; }
+
+  .callout-title {
+    font-size: 14px;
+    font-weight: 700;
+    font-family: 'Arial', sans-serif;
+    margin-bottom: 6px;
+    color: var(--brown);
+  }
+
+  .callout-text {
+    font-size: 14.5px;
+    color: var(--text-light);
+    line-height: 1.65;
+    margin: 0;
+  }
+
+  /* ─── UI Mockup Base ─── */
+  .mockup-wrap {
+    margin: 36px 0;
+    border-radius: 16px;
+    overflow: hidden;
+    box-shadow: 0 8px 40px rgba(78,52,46,0.14), 0 2px 8px rgba(78,52,46,0.06);
+  }
+
+  .mockup-titlebar {
+    background: linear-gradient(135deg, #4E342E 0%, #6D4C41 100%);
+    padding: 10px 16px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .mockup-dot {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  .mockup-dot.r { background: #FF5F56; }
+  .mockup-dot.y { background: #FEBC2E; }
+  .mockup-dot.g { background: #27C840; }
+
+  .mockup-titlebar-label {
+    font-family: 'Arial', sans-serif;
+    font-size: 12px;
+    color: rgba(255,255,255,0.6);
+    margin-left: 8px;
+    flex: 1;
+    text-align: center;
+    letter-spacing: 0.5px;
+  }
+
+  .mockup-body {
+    background: #FFFBF5;
+    padding: 24px;
+    border: 1px solid var(--border2);
+    border-top: none;
+    border-radius: 0 0 16px 16px;
+  }
+
+  /* ─── App UI Mockup ─── */
+  .ui-hero-bar {
+    background: linear-gradient(135deg, #3E2723 0%, #5D4037 50%, #4E342E 100%);
+    border-radius: 10px;
+    padding: 22px 24px;
+    margin-bottom: 16px;
+    text-align: center;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .ui-hero-bar::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(ellipse at 30% 50%, rgba(255,179,0,0.12) 0%, transparent 70%);
+  }
+
+  .ui-hero-eyebrow {
+    font-family: 'Arial', sans-serif;
+    font-size: 9px;
+    letter-spacing: 4px;
+    color: rgba(255,200,100,0.7);
+    text-transform: uppercase;
+    margin-bottom: 6px;
+    position: relative;
+  }
+
+  .ui-hero-title {
+    font-size: 20px;
+    font-weight: 800;
+    color: #FFF;
+    position: relative;
+  }
+
+  .ui-hero-title span {
+    background: linear-gradient(90deg, #FFB300, #FF8F00);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .ui-hero-desc {
+    font-size: 11.5px;
+    color: rgba(255,255,255,0.55);
+    margin-top: 6px;
+    position: relative;
+    line-height: 1.5;
+  }
+
+  .ui-card {
+    background: #FFF8EF;
+    border: 1px solid #E8C9A0;
+    border-radius: 10px;
+    padding: 14px 16px;
+    margin-bottom: 12px;
+  }
+
+  .ui-card-label {
+    font-family: 'Arial', sans-serif;
+    font-size: 9.5px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--orange);
+    margin-bottom: 10px;
+  }
+
+  .ui-input {
+    width: 100%;
+    background: white;
+    border: 1px solid #D7B896;
+    border-radius: 7px;
+    padding: 8px 12px;
+    font-size: 13px;
+    color: var(--text-light);
+    font-family: 'Arial', sans-serif;
+  }
+
+  .ui-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: linear-gradient(135deg, #FF8F00, #E65100);
+    color: white;
+    padding: 4px 12px 4px 10px;
+    border-radius: 6px;
+    font-size: 12px;
+    font-family: 'Arial', sans-serif;
+    margin: 3px;
+  }
+
+  .ui-tag-x {
+    opacity: 0.7;
+    cursor: pointer;
+    font-size: 10px;
+  }
+
+  .ui-btn-primary {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    background: linear-gradient(135deg, #FF8F00, #E65100);
+    color: white;
+    padding: 9px 20px;
+    border-radius: 8px;
+    font-family: 'Arial', sans-serif;
+    font-size: 13px;
+    font-weight: 600;
+    border: none;
+    cursor: pointer;
+    box-shadow: 0 2px 8px rgba(230,81,0,0.3);
+  }
+
+  .ui-select {
+    background: white;
+    border: 1px solid #D7B896;
+    border-radius: 7px;
+    padding: 7px 12px;
+    font-size: 12.5px;
+    color: var(--text-light);
+    font-family: 'Arial', sans-serif;
+    width: 100%;
+  }
+
+  .ui-tier-row {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 10px;
+    align-items: center;
+  }
+
+  .ui-tier-badge {
+    font-family: 'Arial', sans-serif;
+    font-size: 10px;
+    font-weight: 700;
+    padding: 3px 9px;
+    border-radius: 4px;
+    white-space: nowrap;
+  }
+
+  .ui-tier-full { background: #E65100; color: white; }
+  .ui-tier-lite { background: #FF8F00; color: white; }
+  .ui-tier-mini { background: #FFB300; color: #4E342E; }
+  .ui-tier-custom { background: #8D6E63; color: white; }
+
+  /* ─── Terminal / Log Mockup ─── */
+  .terminal {
+    background: #1A0F0A;
+    border-radius: 0 0 14px 14px;
+    padding: 20px 22px;
+    font-family: 'Menlo', 'Monaco', 'Courier New', monospace;
+    font-size: 12.5px;
+    line-height: 1.7;
+    min-height: 280px;
+    color: #D4B896;
+    overflow-x: auto;
+  }
+
+  .terminal-titlebar {
+    background: #2C1810;
+    padding: 10px 16px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    border-radius: 14px 14px 0 0;
+  }
+
+  .t-dot { width: 12px; height: 12px; border-radius: 50%; flex-shrink: 0; }
+  .t-dot.r { background: #FF5F56; }
+  .t-dot.y { background: #FEBC2E; }
+  .t-dot.g { background: #27C840; }
+
+  .t-label {
+    font-family: 'Arial', sans-serif;
+    font-size: 11px;
+    color: rgba(212, 184, 150, 0.5);
+    flex: 1;
+    text-align: center;
+  }
+
+  .t-thinking {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    margin-left: auto;
+    font-size: 10px;
+    color: rgba(212, 184, 150, 0.5);
+    font-family: 'Arial', sans-serif;
+  }
+
+  .t-dot-anim {
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background: #FFB300;
+    animation: pulse 1.2s ease-in-out infinite;
+  }
+
+  .t-dot-anim:nth-child(2) { animation-delay: 0.2s; }
+  .t-dot-anim:nth-child(3) { animation-delay: 0.4s; }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 0.3; transform: scale(0.8); }
+    50% { opacity: 1; transform: scale(1); }
+  }
+
+  .log-line { margin: 0; }
+  .log-phase { color: #FFB300; font-weight: 700; }
+  .log-ok { color: #66BB6A; }
+  .log-info { color: #64B5F6; }
+  .log-search { color: #CE93D8; }
+  .log-found { color: #FFCC02; }
+  .log-warn { color: #FFA726; }
+  .log-dim { color: #6D4C41; }
+
+  /* ─── Excel Mockup ─── */
+  .excel-wrap {
+    overflow-x: auto;
+    border-radius: 0 0 14px 14px;
+    border: 1px solid var(--border2);
+    border-top: none;
+  }
+
+  .excel-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-family: 'Arial', sans-serif;
+    font-size: 11.5px;
+    min-width: 720px;
+  }
+
+  .excel-table thead th {
+    background: #E8C9A0;
+    color: #4E342E;
+    font-weight: 700;
+    padding: 9px 10px;
+    text-align: left;
+    border: 1px solid #D7B896;
+    letter-spacing: 0.3px;
+    font-size: 10.5px;
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+
+  .excel-table tbody tr:nth-child(even) td { background: #FFFBF8; }
+  .excel-table tbody tr:nth-child(odd) td { background: #FFFFFF; }
+
+  .excel-table tbody td {
+    padding: 8px 10px;
+    border: 1px solid #EDE0CF;
+    color: #5D4037;
+    vertical-align: top;
+    line-height: 1.4;
+  }
+
+  .excel-table tbody tr:hover td {
+    background: #FFF3E0 !important;
+  }
+
+  .cell-red { background: #FFCDD2 !important; color: #C62828 !important; font-weight: 700; }
+  .cell-yellow { background: #FFF9C4 !important; color: #F57F17 !important; font-weight: 700; }
+  .cell-orange { background: #FFE0B2 !important; color: #E65100 !important; font-weight: 600; }
+  .cell-normal { }
+
+  .badge-pill {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-size: 10px;
+    font-weight: 700;
+    white-space: nowrap;
+  }
+
+  .badge-cae { background: #FFCDD2; color: #B71C1C; }
+  .badge-cas { background: #F8BBD0; color: #880E4F; }
+  .badge-ieee { background: #FFF9C4; color: #827717; }
+  .badge-acm { background: #E8F5E9; color: #1B5E20; }
+  .badge-cj { background: #E3F2FD; color: #0D47A1; }
+  .badge-normal { background: #F5F5F5; color: #757575; }
+
+  /* ─── Dashboard Preview ─── */
+  .dash-preview {
+    background: #1C0F08;
+    border-radius: 0 0 14px 14px;
+    padding: 20px;
+    min-height: 400px;
+  }
+
+  .dash-stat-row {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 12px;
+    margin-bottom: 16px;
+  }
+
+  .dash-stat {
+    background: rgba(255,255,255,0.06);
+    border: 1px solid rgba(255,179,0,0.2);
+    border-radius: 10px;
+    padding: 14px 12px;
+    text-align: center;
+  }
+
+  .dash-stat-num {
+    font-size: 24px;
+    font-weight: 800;
+    color: #FFB300;
+    font-family: 'Arial', sans-serif;
+    line-height: 1;
+    margin-bottom: 4px;
+  }
+
+  .dash-stat-label {
+    font-size: 10px;
+    color: rgba(255,255,255,0.45);
+    font-family: 'Arial', sans-serif;
+    letter-spacing: 0.5px;
+  }
+
+  .dash-chart-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    margin-bottom: 16px;
+  }
+
+  .dash-chart-box {
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,179,0,0.15);
+    border-radius: 10px;
+    padding: 14px;
+  }
+
+  .dash-chart-title {
+    font-family: 'Arial', sans-serif;
+    font-size: 10px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: rgba(255,179,0,0.7);
+    margin-bottom: 12px;
+    font-weight: 700;
+  }
+
+  .bar-chart-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 7px;
+  }
+
+  .bar-label {
+    font-family: 'Arial', sans-serif;
+    font-size: 10px;
+    color: rgba(255,255,255,0.6);
+    width: 60px;
+    text-align: right;
+    flex-shrink: 0;
+    white-space: nowrap;
+  }
+
+  .bar-track {
+    flex: 1;
+    height: 7px;
+    background: rgba(255,255,255,0.06);
+    border-radius: 4px;
+    overflow: hidden;
+  }
+
+  .bar-fill {
+    height: 100%;
+    border-radius: 4px;
+    background: linear-gradient(to right, #FF8F00, #FFB300);
+  }
+
+  .bar-val {
+    font-family: 'Arial', sans-serif;
+    font-size: 10px;
+    color: rgba(255,179,0,0.7);
+    width: 24px;
+    flex-shrink: 0;
+  }
+
+  /* scholar cards in dash */
+  .dash-scholar-list {
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,179,0,0.15);
+    border-radius: 10px;
+    padding: 14px;
+  }
+
+  .dash-scholar-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 0;
+    border-bottom: 1px solid rgba(255,255,255,0.05);
+  }
+
+  .dash-scholar-item:last-child { border-bottom: none; }
+
+  .dash-scholar-avatar {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    flex-shrink: 0;
+  }
+
+  .dash-scholar-name {
+    font-size: 12px;
+    color: rgba(255,255,255,0.8);
+    font-family: 'Arial', sans-serif;
+    font-weight: 600;
+  }
+
+  .dash-scholar-aff {
+    font-size: 10px;
+    color: rgba(255,255,255,0.38);
+    font-family: 'Arial', sans-serif;
+  }
+
+  .dash-scholar-badge {
+    margin-left: auto;
+    font-size: 9px;
+    font-weight: 700;
+    padding: 2px 7px;
+    border-radius: 4px;
+    white-space: nowrap;
+    font-family: 'Arial', sans-serif;
+  }
+
+  .dsb-cas { background: rgba(255,100,100,0.3); color: #FF8A80; }
+  .dsb-ieee { background: rgba(255,214,0,0.2); color: #FFD600; }
+  .dsb-cj { background: rgba(100,180,255,0.2); color: #82B1FF; }
+
+  /* ─── Service Tier Table ─── */
+  .tier-table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    border-radius: 14px;
+    overflow: hidden;
+    box-shadow: 0 4px 20px rgba(78,52,46,0.1);
+    margin: 28px 0;
+  }
+
+  .tier-table thead th {
+    background: #4E342E;
+    color: rgba(255,255,255,0.85);
+    padding: 14px 16px;
+    font-family: 'Arial', sans-serif;
+    font-size: 12px;
+    font-weight: 600;
+    text-align: left;
+    letter-spacing: 0.5px;
+  }
+
+  .tier-table thead th:first-child { border-radius: 14px 0 0 0; }
+  .tier-table thead th:last-child { border-radius: 0 14px 0 0; }
+
+  .tier-table tbody tr { transition: background 0.15s; }
+  .tier-table tbody tr:hover td { background: #FFF3E0; }
+
+  .tier-table tbody td {
+    padding: 13px 16px;
+    border-bottom: 1px solid var(--border);
+    font-size: 14px;
+    color: var(--text-light);
+    vertical-align: middle;
+  }
+
+  .tier-table tbody tr:last-child td { border-bottom: none; }
+  .tier-table tbody tr:last-child td:first-child { border-radius: 0 0 0 14px; }
+  .tier-table tbody tr:last-child td:last-child { border-radius: 0 0 14px 0; }
+
+  .tier-chip {
+    display: inline-block;
+    padding: 4px 12px;
+    border-radius: 20px;
+    font-family: 'Arial', sans-serif;
+    font-size: 12px;
+    font-weight: 700;
+    white-space: nowrap;
+  }
+
+  /* ─── Tips Grid ─── */
+  .tips-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin: 28px 0;
+  }
+
+  .tip-card {
+    background: linear-gradient(135deg, #FFF8EF, #FFF3E0);
+    border: 1px solid var(--border2);
+    border-radius: 14px;
+    padding: 20px;
+    position: relative;
+  }
+
+  .tip-num {
+    font-family: 'Arial', sans-serif;
+    font-size: 36px;
+    font-weight: 900;
+    color: var(--amber-light);
+    line-height: 1;
+    margin-bottom: 10px;
+  }
+
+  .tip-title {
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--brown);
+    margin-bottom: 8px;
+  }
+
+  .tip-text {
+    font-size: 13.5px;
+    color: var(--muted);
+    line-height: 1.6;
+    margin: 0;
+  }
+
+  /* ─── Pros/Cons ─── */
+  .pros-cons-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+    margin: 28px 0;
+  }
+
+  .pros-card {
+    background: #E8F5E9;
+    border: 1px solid #A5D6A7;
+    border-radius: 14px;
+    padding: 20px;
+  }
+
+  .cons-card {
+    background: #FFF8E1;
+    border: 1px solid #FFE082;
+    border-radius: 14px;
+    padding: 20px;
+  }
+
+  .pc-title {
+    font-family: 'Arial', sans-serif;
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .pros-card .pc-title { color: #2E7D32; }
+  .cons-card .pc-title { color: #E65100; }
+
+  .pc-list {
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .pc-list li {
+    display: flex;
+    gap: 10px;
+    font-size: 13.5px;
+    color: var(--text-light);
+    line-height: 1.5;
+  }
+
+  .pc-list li::before {
+    flex-shrink: 0;
+    margin-top: 2px;
+    font-size: 14px;
+  }
+
+  .pros-card .pc-list li::before { content: '✓'; color: #2E7D32; }
+  .cons-card .pc-list li::before { content: '△'; color: #E65100; }
+
+  /* ─── Conclusion Box ─── */
+  .conclusion-box {
+    background: linear-gradient(135deg, #4E342E 0%, #6D4C41 50%, #5D4037 100%);
+    border-radius: 20px;
+    padding: 40px 44px;
+    margin: 48px 0;
+    position: relative;
+    overflow: hidden;
+    text-align: center;
+  }
+
+  .conclusion-box::before {
+    content: '"';
+    position: absolute;
+    top: -20px;
+    left: 20px;
+    font-size: 200px;
+    color: rgba(255,179,0,0.06);
+    font-family: Georgia, serif;
+    line-height: 1;
+  }
+
+  .conclusion-box h3 {
+    font-size: 26px;
+    color: #FFB300;
+    margin-bottom: 18px;
+    position: relative;
+  }
+
+  .conclusion-box p {
+    color: rgba(255,255,255,0.75);
+    font-size: 16.5px;
+    max-width: 640px;
+    margin: 0 auto 1.2em;
+    line-height: 1.8;
+    position: relative;
+  }
+
+  .conclusion-rating {
+    display: flex;
+    justify-content: center;
+    gap: 4px;
+    margin: 20px 0;
+    font-size: 28px;
+    position: relative;
+  }
+
+  .conclusion-tag {
+    display: inline-block;
+    background: rgba(255,179,0,0.2);
+    border: 1px solid rgba(255,179,0,0.4);
+    color: #FFB300;
+    padding: 8px 20px;
+    border-radius: 20px;
+    font-family: 'Arial', sans-serif;
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    margin-top: 8px;
+    position: relative;
+  }
+
+  /* ─── Footer ─── */
+  .footer {
+    text-align: center;
+    padding: 40px 0 20px;
+    border-top: 1px solid var(--border);
+    margin-top: 60px;
+  }
+
+  .footer-logo {
+    font-size: 24px;
+    margin-bottom: 8px;
+  }
+
+  .footer-text {
+    font-family: 'Arial', sans-serif;
+    font-size: 12px;
+    color: var(--muted);
+    line-height: 1.7;
+  }
+
+  /* ─── Divider ─── */
+  .divider {
+    border: none;
+    border-top: 1px solid var(--border);
+    margin: 48px 0;
+  }
+
+  .divider-ornament {
+    text-align: center;
+    position: relative;
+    margin: 40px 0;
+  }
+
+  .divider-ornament::before {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 0;
+    right: 0;
+    height: 1px;
+    background: var(--border);
+  }
+
+  .divider-ornament span {
+    background: var(--bg);
+    padding: 0 16px;
+    position: relative;
+    color: var(--amber);
+    font-size: 18px;
+  }
+
+  /* ─── Responsive ─── */
+  @media (max-width: 640px) {
+    .toc-list { grid-template-columns: 1fr; }
+    .tips-grid { grid-template-columns: 1fr; }
+    .pros-cons-grid { grid-template-columns: 1fr; }
+    .dash-stat-row { grid-template-columns: repeat(2, 1fr); }
+    .dash-chart-row { grid-template-columns: 1fr; }
+    body { font-size: 15px; }
+    .conclusion-box { padding: 28px 24px; }
+  }
+
+  /* ─── Inline code ─── */
+  code {
+    font-family: 'Menlo', 'Monaco', monospace;
+    font-size: 0.82em;
+    background: var(--bg3);
+    border: 1px solid var(--border2);
+    border-radius: 4px;
+    padding: 1px 6px;
+    color: var(--deep-orange);
+  }
+
+  /* ─── Narrative scene ─── */
+  .narrative-scene {
+    background: linear-gradient(135deg, #FFF8EF 0%, #FFF3E0 100%);
+    border: 1px solid var(--border2);
+    border-radius: 16px;
+    padding: 28px 32px;
+    margin: 32px 0;
+    position: relative;
+  }
+
+  .narrative-scene::before {
+    content: attr(data-chapter);
+    position: absolute;
+    top: -12px;
+    left: 24px;
+    background: var(--orange);
+    color: white;
+    font-family: 'Arial', sans-serif;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    padding: 3px 12px;
+    border-radius: 10px;
+  }
+
+  .scene-p {
+    color: var(--text-light);
+    line-height: 1.85;
+    font-style: italic;
+    margin-bottom: 1em;
+  }
+
+  .scene-p:last-child { margin-bottom: 0; }
+
+  /* ─── Highlight number ─── */
+  .hl-num {
+    font-size: 1.4em;
+    font-weight: 900;
+    color: var(--deep-orange);
+    font-family: 'Arial', sans-serif;
+  }
+
+  /* Sticky progress dots */
+  .reading-dots {
+    position: fixed;
+    right: 20px;
+    top: 50%;
+    transform: translateY(-50%);
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    z-index: 100;
+  }
+
+  .reading-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--border2);
+    transition: all 0.3s;
+    cursor: pointer;
+  }
+
+  .reading-dot.active {
+    background: var(--orange);
+    transform: scale(1.4);
+  }
+
+  @media (max-width: 768px) {
+    .reading-dots { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<!-- Reading Progress Dots -->
+<nav class="reading-dots" aria-label="章节导航">
+  <div class="reading-dot active" onclick="document.getElementById('cover').scrollIntoView({behavior:'smooth'})" title="封面"></div>
+  <div class="reading-dot" onclick="document.getElementById('s1').scrollIntoView({behavior:'smooth'})" title="初识工具"></div>
+  <div class="reading-dot" onclick="document.getElementById('s2').scrollIntoView({behavior:'smooth'})" title="第一次分析"></div>
+  <div class="reading-dot" onclick="document.getElementById('s3').scrollIntoView({behavior:'smooth'})" title="功能亮点"></div>
+  <div class="reading-dot" onclick="document.getElementById('s4').scrollIntoView({behavior:'smooth'})" title="服务分层"></div>
+  <div class="reading-dot" onclick="document.getElementById('s5').scrollIntoView({behavior:'smooth'})" title="真实案例"></div>
+  <div class="reading-dot" onclick="document.getElementById('s6').scrollIntoView({behavior:'smooth'})" title="使用技巧"></div>
+  <div class="reading-dot" onclick="document.getElementById('s7').scrollIntoView({behavior:'smooth'})" title="优势与不足"></div>
+  <div class="reading-dot" onclick="document.getElementById('s8').scrollIntoView({behavior:'smooth'})" title="总结"></div>
+</nav>
+
+<!-- ═══════════════════════════════════════ COVER ═══════════════════════════════════════ -->
+<div class="cover" id="cover">
+  <div class="cover-eyebrow">用户深度体验报告 · 2026 年 3 月</div>
+  <h1 class="cover-title">
+    基金申请前，我用它把自己的
+    <em>被引影响力摸了个底</em>
+  </h1>
+  <p class="cover-subtitle">
+    一位研究者的真实使用记录：<br>
+    基金本子写到"学术影响力"一栏，才意识到自己对被引情况一无所知——<br>
+    <strong>CitationAgent</strong> 在一个下午帮我补上了这块空白。
+  </p>
+  <div class="cover-meta">
+    <span>📝 作者：AI拟人化某高校助理教授</span>
+    <span>📊 涉及论文：5篇</span>
+    <span>⏱ 起因：国家自然科学基金申请在即</span>
+    <span>🎓 研究领域：计算机视觉 · 多模态</span>
+  </div>
+  <div class="cover-scroll-hint">
+    继续阅读
+    <div class="arrow-down"></div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════ WRAPPER ═══════════════════════════════════════ -->
+<div class="page-wrapper">
+
+<!-- ─── TOC ─── -->
+<div class="toc-section">
+  <div class="toc-title">本文目录</div>
+  <ul class="toc-list">
+    <li><a href="#s1"><span class="toc-num">1</span> 初识工具：意外的发现</a></li>
+    <li><a href="#s2"><span class="toc-num">2</span> 第一次分析：步步惊喜</a></li>
+    <li><a href="#s3"><span class="toc-num">3</span> 功能亮点深度解析</a></li>
+    <li><a href="#s4"><span class="toc-num">4</span> 服务分层的选择智慧</a></li>
+    <li><a href="#s5"><span class="toc-num">5</span> 真实使用案例还原</a></li>
+    <li><a href="#s6"><span class="toc-num">6</span> 使用技巧与心得总结</a></li>
+    <li><a href="#s7"><span class="toc-num">7</span> 优势与不足的诚实评价</a></li>
+    <li><a href="#s8"><span class="toc-num">8</span> 综合推荐与总结</a></li>
+  </ul>
+</div>
+
+<!-- ═══════════════════════════════════════ S1 ═══════════════════════════════════════ -->
+<section class="section" id="s1">
+  <div class="section-eyebrow">第一章 · 初识工具</div>
+  <h2 class="section-title">写基金本子，才意识到自己对被引情况一无所知</h2>
+
+  <p>
+    前几天，我在填写国家自然科学基金申请书的"研究基础与工作条件"一栏时，卡住了。需要写"代表性成果的学术影响力"——但我能写什么？Google Scholar 上那些冷冰冰的引用数字，我连引用我的学者是谁都说不清楚，更别提他们是哪个级别、在哪个机构、又是在什么语境下引用了我。
+  </p>
+
+  <p>
+    就在那个时候，我的同事发来一条消息，附了一个 GitHub 链接：<strong>CitationAgent</strong>。"你试试这个，能直接告诉你谁引用了你，级别高不高。" 坦率地讲，最初我将信将疑——它真的能自动分析出引用我论文的学者，并且判断那位学者是不是院士、IEEE Fellow？这听起来太理想化了。
+  </p>
+
+  <div class="pull-quote">
+    "当我看到它在不到十秒的时间内把一篇论文的引用页面全部爬取完毕，并且开始逐一搜索每位作者的学术身份时，我意识到这不是一个普通工具。"
+    <cite>— 我的第一次使用记录，2026年3月</cite>
+  </div>
+
+  <p>
+    <strong>入门体验异常顺滑。</strong>环境搭建只需要两条命令：
+  </p>
+
+  <div style="background:#1A0F0A;border-radius:10px;padding:16px 20px;font-family:'Menlo','Monaco',monospace;font-size:13px;color:#D4B896;margin:20px 0;line-height:1.8;">
+    <span style="color:#66BB6A;">$</span> pip install -r requirements.txt<br>
+    <span style="color:#66BB6A;">$</span> python start.py
+  </div>
+
+  <p>
+    浏览器自动弹出，界面干净、温暖，没有任何技术门槛的压迫感。配置环节需要两样东西：一是 <strong>ScraperAPI Key</strong>（用于绕过 Google Scholar 的访问限制抓取页面），二是一个支持 OpenAI 格式的 <strong>API Key</strong>（用于驱动大语言模型搜索学者信息）。两者都在相应平台注册后即可获得，整个配置页面每个字段都有详尽说明。
+  </p>
+
+  <div class="callout callout-tip">
+    <div class="callout-icon">💡</div>
+    <div class="callout-body">
+      <div class="callout-title">需要 Python 3.10 及以上版本</div>
+      <p class="callout-text">推荐使用 Python 3.12。如果本机 Python 版本较旧，建议先通过 <code>pyenv</code> 或官网安装包升级，避免依赖安装报错。</p>
+    </div>
+  </div>
+
+  <p>
+    这个工具几乎不需要什么技术基础——作为一个每天和论文打交道、但对技术栈并不热情的研究者，一两条终端命令就能启动，这一点对我来说至关重要。
+  </p>
+</section>
+
+<!-- ═══════════════════════════════════════ S2 ═══════════════════════════════════════ -->
+<section class="section" id="s2">
+  <div class="section-eyebrow">第二章 · 第一次分析</div>
+  <h2 class="section-title">步步惊喜：从输入题目到看到院士的名字</h2>
+
+  <p>
+    我选择了自己发表于 2022 年的一篇关于视觉语言预训练的论文作为第一次测试对象。那篇论文在 Google Scholar 上显示有 <span class="hl-num">68</span> 次引用，数量不多不少，正适合感受完整流程。
+  </p>
+
+  <p>
+    下面是界面的模拟还原，展示了我在首页看到的核心交互流程：
+  </p>
+
+  <!-- UI Mockup: Main Input -->
+  <div class="mockup-wrap">
+    <div class="mockup-titlebar">
+      <div class="mockup-dot r"></div>
+      <div class="mockup-dot y"></div>
+      <div class="mockup-dot g"></div>
+      <span class="mockup-titlebar-label">CitationAgent · 论文被引画像分析 · http://127.0.0.1:8000</span>
+    </div>
+    <div class="mockup-body" style="padding: 18px;">
+      <!-- Hero -->
+      <div class="ui-hero-bar">
+        <div class="ui-hero-eyebrow">CITATION INTELLIGENCE AGENT</div>
+        <div class="ui-hero-title">论文被引<span>画像分析</span></div>
+        <div class="ui-hero-desc">输入论文题目，智能体将自动检索引用关系、搜索学者画像，并生成多维分析报告。支持多篇同时分析。</div>
+      </div>
+
+      <!-- Scholar Import (collapsed) -->
+      <div class="ui-card" style="cursor:pointer; display:flex; align-items:center; gap:10px; padding:11px 16px;">
+        <span style="font-size:15px;">🎓</span>
+        <span style="font-family:'Arial',sans-serif;font-size:12px;color:#6D4C41;font-weight:600;">从 Google Scholar 主页导入论文</span>
+        <span style="font-family:'Arial',sans-serif;font-size:11px;color:#8D6E63;margin-left:2px;">（可选）</span>
+        <span style="margin-left:auto;color:#8D6E63;font-size:12px;">▼</span>
+      </div>
+
+      <!-- Paper Input -->
+      <div class="ui-card">
+        <div class="ui-card-label">📄 目标论文题目 &nbsp;<span style="font-weight:400;text-transform:none;letter-spacing:0;color:#8D6E63;">按回车添加，支持多篇同时分析</span></div>
+        <div style="margin-bottom:8px;">
+          <div class="ui-tag">Vision-Language Pre-training for Image Captioning <span class="ui-tag-x">✕</span></div>
+        </div>
+        <div class="ui-input" style="color:#B0A090;font-size:12px;">输入论文题目，按回车添加…</div>
+      </div>
+
+      <!-- Tier Selection -->
+      <div class="ui-card">
+        <div class="ui-card-label">⚡ 服务层级 &nbsp;<span style="font-weight:400;text-transform:none;letter-spacing:0;color:#8D6E63;">选择分析深度与成本的平衡点</span></div>
+        <div class="ui-tier-row">
+          <select class="ui-select">
+            <option selected>全面版 — 搜索学者 + 筛选大佬 + 逐篇引用描述</option>
+          </select>
+        </div>
+        <div style="display:flex;gap:14px;flex-wrap:wrap;font-family:'Arial',sans-serif;font-size:11.5px;color:#8D6E63;">
+          <label style="display:flex;align-items:center;gap:5px;cursor:pointer;">
+            <input type="checkbox" checked style="accent-color:#FF8F00;"> 著名学者筛选
+          </label>
+          <label style="display:flex;align-items:center;gap:5px;cursor:pointer;">
+            <input type="checkbox" checked style="accent-color:#FF8F00;"> 引用描述搜索
+          </label>
+          <label style="display:flex;align-items:center;gap:5px;cursor:pointer;">
+            <input type="checkbox" checked style="accent-color:#FF8F00;"> 画像报告生成
+          </label>
+        </div>
+      </div>
+
+      <!-- Run Button -->
+      <div style="display:flex;gap:10px;">
+        <button class="ui-btn-primary" style="flex:1;justify-content:center;padding:11px;border-radius:8px;">
+          ▶ 开始分析
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <p>
+    输入论文题目后，点击「开始分析」，系统立即进入 Phase 1（抓取引用列表）。我可以看到进度条缓慢推进——每隔约10秒翻一页（这个间隔是为了降低被封的风险），直到68篇引用全部抓取完毕。
+  </p>
+
+  <p>
+    接下来是我最着迷的环节：<strong>实时日志窗口</strong>。这个深色终端风格的面板会实时滚动，展示 AI 正在做什么。我第一次看到它工作的样子时，几乎停下了手边的事情，就那么盯着屏幕看：
+  </p>
+
+  <!-- Terminal Mockup -->
+  <div class="mockup-wrap" style="border-radius:14px;">
+    <div class="terminal-titlebar">
+      <div class="t-dot r"></div>
+      <div class="t-dot y"></div>
+      <div class="t-dot g"></div>
+      <span class="t-label">实时日志 · Phase 2 · 搜索作者信息</span>
+      <div class="t-thinking">
+        <div class="t-dot-anim"></div>
+        <div class="t-dot-anim"></div>
+        <div class="t-dot-anim"></div>
+        Thinking and Searching
+      </div>
+    </div>
+    <div class="terminal">
+<p class="log-line"><span class="log-phase">[Phase 1]</span> <span class="log-ok">✓</span> 抓取完成，共获得 <span class="log-found">68</span> 篇引用论文</p>
+<p class="log-line"><span class="log-dim">─────────────────────────────────────────</span></p>
+<p class="log-line"><span class="log-phase">[Phase 2]</span> 开始搜索作者学术信息...</p>
+<p class="log-line"><span class="log-dim">  [1/68]</span> <span class="log-info">→ 搜索论文: "Unified Vision-Language Pre-Training..."</span></p>
+<p class="log-line"><span class="log-dim">         </span> <span class="log-search">🔍 查询: "Wei Li" "Tsinghua University" author profile citations</span></p>
+<p class="log-line"><span class="log-dim">         </span> <span class="log-ok">✓</span> 作者: Wei Li, Yujia Wang, Hong Liu (+3)</p>
+<p class="log-line"><span class="log-dim">         </span> <span class="log-ok">✓</span> 单位: Tsinghua University, Institute of Computing Technology CAS</p>
+<p class="log-line"><span class="log-dim">  [2/68]</span> <span class="log-info">→ 搜索论文: "CLIP-Adapter: Better Vision-Language..."</span></p>
+<p class="log-line"><span class="log-dim">         </span> <span class="log-search">🔍 查询: "Peng Gao" author profile institution citations title</span></p>
+<p class="log-line"><span class="log-dim">         </span> <span class="log-found">★ 重要发现: Peng Gao — 引用量: 12,400+</span></p>
+<p class="log-line"><span class="log-dim">  [7/68]</span> <span class="log-info">→ 搜索论文: "Scaling Language-Image Pre-training..."</span></p>
+<p class="log-line"><span class="log-dim">         </span> <span class="log-search">🔍 查询: "Jia Deng" Princeton University IEEE Fellow title</span></p>
+<p class="log-line"><span class="log-dim">         </span> <span class="log-found">★★ 高影响力学者: Jia Deng — IEEE Fellow (2023), Princeton University</span></p>
+<p class="log-line"><span class="log-dim">  [12/68]</span> <span class="log-warn">⚠ 跳过（缓存命中）: "Xiaolong Wang" — 已有数据，节省 token</span></p>
+<p class="log-line"><span class="log-dim">  [18/68]</span> <span class="log-info">→ 搜索论文: "BLIP: Bootstrapping Language-Image..."</span></p>
+<p class="log-line"><span class="log-dim">         </span> <span class="log-search">🔍 查询: "Junnan Li" Salesforce Research AI scholar award</span></p>
+<p class="log-line"><span class="log-dim">         </span> <span class="log-ok">✓</span> 头衔识别: Outstanding Reviewer NeurIPS 2022, 引用量 18,000+</p>
+<p class="log-line"><span class="log-dim">  [23/68]</span> <span class="log-found">★★★ 院士发现: 张 某某 — 中国科学院院士 (信息技术科学部)</span></p>
+<p class="log-line"><span class="log-dim">          </span> <span class="log-dim">单位: 中国科学院计算技术研究所</span></p>
+<p class="log-line"><span class="log-dim">  ...</span></p>
+<p class="log-line"><span class="log-phase">[Phase 2]</span> <span class="log-ok">进度: 45/68 论文处理完毕</span> &nbsp; 💰 <span class="log-info">已消耗约 $0.42 API 额度</span></p>
+    </div>
+  </div>
+
+  <p>
+    那个 <span style="color:var(--deep-orange);font-weight:700;">★★★ 院士发现</span> 的字样出现在屏幕上时，我几乎是从椅子上弹起来的。我的一篇论文，被一位中国科学院院士引用了。这件事我完全不知道——而如果没有这个工具，我可能永远不会知道。
+  </p>
+
+  <div class="callout callout-success">
+    <div class="callout-icon">🎓</div>
+    <div class="callout-body">
+      <div class="callout-title">第一次分析结果摘要（示例）</div>
+      <p class="callout-text">分析 68 篇引用论文，历时约 22 分钟（全面版）。识别出 1 位中国科学院院士、2 位 IEEE Fellow、3 位引用量超过 10,000 的高影响力学者。自动过滤了 4 篇自引文献。生成了包含全部作者信息的色彩编码 Excel 文件，以及交互式 HTML 画像报告。</p>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════ S3 ═══════════════════════════════════════ -->
+<section class="section" id="s3">
+  <div class="section-eyebrow">第三章 · 功能亮点</div>
+  <h2 class="section-title">我最喜欢的五个功能，以及它们改变了什么</h2>
+
+  <!-- Feature 1: Scholar Import -->
+  <div style="margin-bottom:44px;">
+    <h3 style="font-size:20px;color:var(--brown);margin-bottom:16px;display:flex;align-items:center;gap:10px;">
+      <span style="background:var(--amber-light);color:var(--brown);width:30px;height:30px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-family:'Arial',sans-serif;font-size:13px;font-weight:700;flex-shrink:0;">01</span>
+      Google Scholar 主页导入
+    </h3>
+    <p>
+      在实际使用中我发现，对于一个有多篇论文需要追踪的研究者来说，最繁琐的事情之一就是逐个输入论文题目。CitationAgent 提供了一个 Google Scholar 主页导入功能，只需粘贴我的 Google Scholar 主页 URL，它就会自动抓取我名下所有论文的列表，包括引用数量和发表年份，然后让我勾选需要分析的论文，一键批量添加。
+    </p>
+    <p>
+      这个功能让我在第一次系统性分析自己所有论文时，节省了至少15分钟的手动输入时间。更重要的是，它减少了因为论文题目输入不精确而导致的搜索失败。
+    </p>
+    <!-- Scholar Import UI snippet -->
+    <div class="mockup-wrap">
+      <div class="mockup-titlebar">
+        <div class="mockup-dot r"></div>
+        <div class="mockup-dot y"></div>
+        <div class="mockup-dot g"></div>
+        <span class="mockup-titlebar-label">Scholar 主页导入 · 展开状态</span>
+      </div>
+      <div class="mockup-body" style="padding:16px;">
+        <div style="display:flex;gap:8px;margin-bottom:12px;">
+          <div class="ui-input" style="flex:1;font-size:11.5px;color:#B0A090;">https://scholar.google.com/citations?user=XXXXXXXX</div>
+          <button class="ui-btn-primary" style="padding:7px 14px;font-size:11.5px;white-space:nowrap;">获取论文列表</button>
+        </div>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;font-family:'Arial',sans-serif;font-size:11.5px;color:#8D6E63;">
+          <span>共 12 篇</span>
+          <div style="display:flex;gap:12px;">
+            <a href="#" style="color:var(--orange);text-decoration:none;">全选</a>
+            <a href="#" style="color:#8D6E63;text-decoration:none;">全不选</a>
+            <button class="ui-btn-primary" style="padding:4px 12px;font-size:11px;">添加所选至分析列表</button>
+          </div>
+        </div>
+        <div style="border:1px solid #E8C9A0;border-radius:8px;overflow:hidden;">
+          <div style="padding:9px 12px;border-bottom:1px solid #F3E0C8;display:flex;align-items:center;gap:10px;background:#FFFFF8;">
+            <input type="checkbox" checked style="accent-color:#FF8F00;flex-shrink:0;">
+            <span style="font-size:12px;color:#5D4037;flex:1;">Vision-Language Pre-training for Image Captioning and Visual Question Answering</span>
+            <span style="font-size:11px;color:#8D6E63;white-space:nowrap;">2022 · 68 引用</span>
+          </div>
+          <div style="padding:9px 12px;border-bottom:1px solid #F3E0C8;display:flex;align-items:center;gap:10px;">
+            <input type="checkbox" checked style="accent-color:#FF8F00;flex-shrink:0;">
+            <span style="font-size:12px;color:#5D4037;flex:1;">Efficient Self-Supervised Learning for Scene Understanding</span>
+            <span style="font-size:11px;color:#8D6E63;white-space:nowrap;">2021 · 143 引用</span>
+          </div>
+          <div style="padding:9px 12px;border-bottom:1px solid #F3E0C8;display:flex;align-items:center;gap:10px;background:#FFF8F0;">
+            <input type="checkbox" style="accent-color:#FF8F00;flex-shrink:0;">
+            <span style="font-size:12px;color:#5D4037;flex:1;">Cross-Modal Contrastive Learning with Transformer Architecture</span>
+            <span style="font-size:11px;color:#8D6E63;white-space:nowrap;">2023 · 31 引用</span>
+          </div>
+          <div style="padding:9px 12px;display:flex;align-items:center;gap:10px;">
+            <input type="checkbox" style="accent-color:#FF8F00;flex-shrink:0;">
+            <span style="font-size:12px;color:#8D6E63;flex:1;">Graph Neural Networks for Relational Reasoning... 等 9 篇</span>
+            <span style="font-size:11px;color:#CCBBAA;white-space:nowrap;"></span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Feature 2: Real-time AI Log -->
+  <div style="margin-bottom:44px;">
+    <h3 style="font-size:20px;color:var(--brown);margin-bottom:16px;display:flex;align-items:center;gap:10px;">
+      <span style="background:var(--amber-light);color:var(--brown);width:30px;height:30px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-family:'Arial',sans-serif;font-size:13px;font-weight:700;flex-shrink:0;">02</span>
+      实时 AI 思考日志：见证智能体工作的全过程
+    </h3>
+    <p>
+      我承认，每次启动分析任务之后，我都会驻足在日志窗口前看上一会儿。这个深色终端风格的面板不仅是一个进度指示器，它更像是一扇透明的窗户——让我得以看到 AI 正在如何一步步地搜索每位学者的信息。
+    </p>
+    <p>
+      "Thinking and Searching..." 的字样配合三个跳动的光点，让整个等待过程变得生动起来。更重要的是，当 AI 发现了一位院士或 Fellow 时，日志里会出现高亮的 ★ 标记，那种即时反馈的喜悦感是任何静态报告都无法替代的。
+    </p>
+    <p>
+      还有一个细节我非常欣赏：<strong>缓存命中提示</strong>。当某位作者已经在之前的分析中被搜索过，日志会显示"跳过（缓存命中）"，并提示节省了多少 token。这让我对每次分析的实际消耗有清晰的感知。
+    </p>
+  </div>
+
+  <!-- Feature 3: Color-coded Excel -->
+  <div style="margin-bottom:44px;">
+    <h3 style="font-size:20px;color:var(--brown);margin-bottom:16px;display:flex;align-items:center;gap:10px;">
+      <span style="background:var(--amber-light);color:var(--brown);width:30px;height:30px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-family:'Arial',sans-serif;font-size:13px;font-weight:700;flex-shrink:0;">03</span>
+      色彩编码 Excel：一眼识别院士与 Fellow
+    </h3>
+    <p>
+      分析完成后生成的 Excel 文件是我在日常汇报和论文写作中最常用到的产出物之一。它的色彩编码系统设计得极为直观：
+    </p>
+    <p>
+      整张表格里，<strong>红色背景</strong>代表中国科学院或工程院院士，<strong>黄色背景</strong>代表 IEEE、ACM 或 ACL Fellow，<strong>橙色背景</strong>代表杰青、长江学者等国家级人才。普通学者则以白色背景显示，不干扰视线。打开文件的第一眼，院士的位置就那么醒目地呈现在你眼前。
+    </p>
+    <!-- Excel Table Mockup -->
+    <div class="mockup-wrap">
+      <div class="mockup-titlebar">
+        <div class="mockup-dot r"></div>
+        <div class="mockup-dot y"></div>
+        <div class="mockup-dot g"></div>
+        <span class="mockup-titlebar-label">paper_author_information.xlsx · 著名学者筛选结果</span>
+      </div>
+      <div class="excel-wrap">
+        <table class="excel-table">
+          <thead>
+            <tr>
+              <th style="width:200px;">引用论文标题</th>
+              <th style="width:110px;">第一作者</th>
+              <th style="width:130px;">机构</th>
+              <th style="width:90px;">学术头衔</th>
+              <th style="width:70px;">引用量</th>
+              <th style="width:80px;">年份</th>
+              <th>引用描述</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td class="cell-red">Multimodal Foundation Models: From Specialists to General-Purpose Assistants</td>
+              <td class="cell-red">张 某某</td>
+              <td class="cell-red">中国科学院计算所</td>
+              <td class="cell-red"><span class="badge-pill badge-cas">中科院院士</span></td>
+              <td class="cell-red">24,100</td>
+              <td class="cell-red">2024</td>
+              <td class="cell-red" style="font-size:10.5px;">本工作提出的视觉-语言预训练框架...在大规模图文对齐方面具有重要参考价值</td>
+            </tr>
+            <tr>
+              <td class="cell-yellow">Learning Transferable Visual Models From Natural Language Supervision</td>
+              <td class="cell-yellow">Jia Deng</td>
+              <td class="cell-yellow">Princeton University</td>
+              <td class="cell-yellow"><span class="badge-pill badge-ieee">IEEE Fellow</span></td>
+              <td class="cell-yellow">18,500</td>
+              <td class="cell-yellow">2023</td>
+              <td class="cell-yellow" style="font-size:10.5px;">与 [our work] 类似，本文采用对比学习范式...</td>
+            </tr>
+            <tr>
+              <td class="cell-orange">BLIP-2: Bootstrapping Language-Image Pre-training with Frozen LLMs</td>
+              <td class="cell-orange">Junnan Li</td>
+              <td class="cell-orange">Salesforce Research</td>
+              <td class="cell-orange"><span class="badge-pill badge-cj">杰出研究员</span></td>
+              <td class="cell-orange">12,800</td>
+              <td class="cell-orange">2023</td>
+              <td class="cell-orange" style="font-size:10.5px;">本文方法在 image captioning 任务上的表现超过了 [our work]...</td>
+            </tr>
+            <tr>
+              <td>Efficient Parameter-Efficient Fine-tuning for Vision Transformers</td>
+              <td>Wei Zhang</td>
+              <td>MIT CSAIL</td>
+              <td><span class="badge-pill badge-normal">助理教授</span></td>
+              <td>1,240</td>
+              <td>2023</td>
+              <td style="font-size:10.5px;">—</td>
+            </tr>
+            <tr>
+              <td>Cross-Lingual Visual Grounding with Weakly Supervised Alignment</td>
+              <td>Yuki Tanaka</td>
+              <td>Osaka University</td>
+              <td><span class="badge-pill badge-normal">副教授</span></td>
+              <td>430</td>
+              <td>2024</td>
+              <td style="font-size:10.5px;">—</td>
+            </tr>
+            <tr>
+              <td>Text-Image Contrastive Learning for Zero-Shot Recognition</td>
+              <td>Amir Hassan</td>
+              <td>Stanford University</td>
+              <td><span class="badge-pill badge-acm">ACM Fellow</span></td>
+              <td>8,200</td>
+              <td>2023</td>
+              <td style="font-size:10.5px;">沿用了 [our work] 中对视觉特征对齐的思路，在此基础上引入了...</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+    <div class="callout callout-tip" style="margin-top:20px;">
+      <div class="callout-icon">🎨</div>
+      <div class="callout-body">
+        <div class="callout-title">色彩编码规则</div>
+        <p class="callout-text">红色 = 中国科学院/工程院院士 &nbsp;|&nbsp; 黄色 = IEEE/ACM/ACL Fellow &nbsp;|&nbsp; 橙色 = 杰青/长江学者等国家人才 &nbsp;|&nbsp; 白色 = 普通学者。自引文献会被自动标注并可选择过滤。</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Feature 4: Citation Description -->
+  <div style="margin-bottom:44px;">
+    <h3 style="font-size:20px;color:var(--brown);margin-bottom:16px;display:flex;align-items:center;gap:10px;">
+      <span style="background:var(--amber-light);color:var(--brown);width:30px;height:30px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-family:'Arial',sans-serif;font-size:13px;font-weight:700;flex-shrink:0;">04</span>
+      引用描述搜索："他们究竟怎么评价我的论文？"
+    </h3>
+    <p>
+      这是我认为整个工具最有洞见的功能。知道<em>谁</em>引用了你固然重要，但知道他们<em>如何</em>引用你——他们在正文的哪个位置提到你、用什么样的语境引用你——这才是真正有价值的信息。
+    </p>
+    <div class="pull-quote">
+      "某位院士在论文中写道：'本工作提出的视觉-语言预训练框架，在大规模图文对齐方面为后续研究提供了重要的基础范式。' 看到这句话的时候，我感到一种难以言表的满足感——这不只是一个数字，而是一个认可。"
+    </div>
+    <p>
+      Phase 4（引用描述搜索）会为每篇引用论文，通过 AI 联网搜索，找到该论文中具体提到你这篇论文的段落，并原文摘录出来。在全面版中，这会对所有 68 篇引用论文进行；在省 token 版中，则只搜索院士和 Fellow 级别学者的引用描述。
+    </p>
+    <p>
+      我自己的使用习惯是：先用省 token 版确认重要学者的评价，然后在有必要时再用全面版扫描所有引用。毕竟全面版对于引用量较大的论文，API 消耗会相当可观。
+    </p>
+  </div>
+
+  <!-- Feature 5: HTML Dashboard -->
+  <div style="margin-bottom:12px;">
+    <h3 style="font-size:20px;color:var(--brown);margin-bottom:16px;display:flex;align-items:center;gap:10px;">
+      <span style="background:var(--amber-light);color:var(--brown);width:30px;height:30px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-family:'Arial',sans-serif;font-size:13px;font-weight:700;flex-shrink:0;">05</span>
+      HTML 画像报告：可以直接发给导师看的分析仪表盘
+    </h3>
+    <p>
+      Phase 5 生成的 HTML 画像报告是一个单文件、完全自包含的交互式网页。我可以直接把这个 HTML 文件发给合作者或导师，他们用浏览器打开就能看到完整的分析结果，不需要安装任何软件。
+    </p>
+    <p>
+      下面是报告主要板块的模拟预览：
+    </p>
+    <!-- Dashboard Preview -->
+    <div class="mockup-wrap">
+      <div class="mockup-titlebar">
+        <div class="mockup-dot r"></div>
+        <div class="mockup-dot y"></div>
+        <div class="mockup-dot g"></div>
+        <span class="mockup-titlebar-label">paper_dashboard.html · 论文被引画像报告</span>
+      </div>
+      <div class="dash-preview">
+        <!-- Stats Row -->
+        <div class="dash-stat-row">
+          <div class="dash-stat">
+            <div class="dash-stat-num">68</div>
+            <div class="dash-stat-label">总引用数</div>
+          </div>
+          <div class="dash-stat">
+            <div class="dash-stat-num">3</div>
+            <div class="dash-stat-label">院士/Fellow</div>
+          </div>
+          <div class="dash-stat">
+            <div class="dash-stat-num">14</div>
+            <div class="dash-stat-label">国家/地区</div>
+          </div>
+          <div class="dash-stat">
+            <div class="dash-stat-num">82%</div>
+            <div class="dash-stat-label">正面引用率</div>
+          </div>
+        </div>
+
+        <div class="dash-chart-row">
+          <!-- Year trend -->
+          <div class="dash-chart-box">
+            <div class="dash-chart-title">引用年份分布</div>
+            <div class="bar-chart-row">
+              <span class="bar-label">2022</span>
+              <div class="bar-track"><div class="bar-fill" style="width:20%"></div></div>
+              <span class="bar-val">8</span>
+            </div>
+            <div class="bar-chart-row">
+              <span class="bar-label">2023</span>
+              <div class="bar-track"><div class="bar-fill" style="width:55%"></div></div>
+              <span class="bar-val">24</span>
+            </div>
+            <div class="bar-chart-row">
+              <span class="bar-label">2024</span>
+              <div class="bar-track"><div class="bar-fill" style="width:85%"></div></div>
+              <span class="bar-val">31</span>
+            </div>
+            <div class="bar-chart-row">
+              <span class="bar-label">2025</span>
+              <div class="bar-track"><div class="bar-fill" style="width:12%"></div></div>
+              <span class="bar-val">5</span>
+            </div>
+          </div>
+          <!-- Country dist -->
+          <div class="dash-chart-box">
+            <div class="dash-chart-title">国家/地区分布</div>
+            <div class="bar-chart-row">
+              <span class="bar-label">中国</span>
+              <div class="bar-track"><div class="bar-fill" style="width:70%"></div></div>
+              <span class="bar-val">29</span>
+            </div>
+            <div class="bar-chart-row">
+              <span class="bar-label">美国</span>
+              <div class="bar-track"><div class="bar-fill" style="width:45%"></div></div>
+              <span class="bar-val">18</span>
+            </div>
+            <div class="bar-chart-row">
+              <span class="bar-label">英国</span>
+              <div class="bar-track"><div class="bar-fill" style="width:18%"></div></div>
+              <span class="bar-val">7</span>
+            </div>
+            <div class="bar-chart-row">
+              <span class="bar-label">其他</span>
+              <div class="bar-track"><div class="bar-fill" style="width:35%"></div></div>
+              <span class="bar-val">14</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Scholar cards -->
+        <div class="dash-scholar-list">
+          <div class="dash-chart-title">重要学者画像</div>
+          <div class="dash-scholar-item">
+            <div class="dash-scholar-avatar" style="background:rgba(255,100,100,0.2);">🎓</div>
+            <div>
+              <div class="dash-scholar-name">张 某某</div>
+              <div class="dash-scholar-aff">中国科学院计算技术研究所 · 信息技术科学部</div>
+            </div>
+            <span class="dash-scholar-badge dsb-cas">中科院院士</span>
+          </div>
+          <div class="dash-scholar-item">
+            <div class="dash-scholar-avatar" style="background:rgba(255,214,0,0.15);">👨‍🏫</div>
+            <div>
+              <div class="dash-scholar-name">Jia Deng</div>
+              <div class="dash-scholar-aff">Princeton University · Computer Science</div>
+            </div>
+            <span class="dash-scholar-badge dsb-ieee">IEEE Fellow</span>
+          </div>
+          <div class="dash-scholar-item">
+            <div class="dash-scholar-avatar" style="background:rgba(100,180,255,0.15);">🔬</div>
+            <div>
+              <div class="dash-scholar-name">Amir Hassan</div>
+              <div class="dash-scholar-aff">Stanford University · AI Lab</div>
+            </div>
+            <span class="dash-scholar-badge dsb-ieee">ACM Fellow</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <p style="margin-top:20px;">
+      报告还包括关键词云（附中文翻译）、引用情感分析（正面/中性/质疑）、引用趋势预测，以及 LLM 对全部引用描述的综合总结。每一个数据背后都有原始数据支撑，可展开查看。
+    </p>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════ S4 ═══════════════════════════════════════ -->
+<section class="section" id="s4">
+  <div class="section-eyebrow">第四章 · 服务分层</div>
+  <h2 class="section-title">选择哪个层级？我的决策逻辑</h2>
+
+  <p>
+    CitationAgent 提供五种服务层级，乍看之下让人有些眼花缭乱，但几次使用下来，我总结出了一套自己的决策逻辑。
+  </p>
+
+  <table class="tier-table">
+    <thead>
+      <tr>
+        <th>层级</th>
+        <th>适用场景</th>
+        <th>Token 消耗</th>
+        <th>我的使用频率</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><span class="tier-chip" style="background:#FFCDD2;color:#C62828;">全面版</span></td>
+        <td>重要论文、汇报前、需要完整引用描述</td>
+        <td style="font-family:'Arial',sans-serif;font-size:13px;">高（约 $0.8–2/百篇）</td>
+        <td>~20%</td>
+      </tr>
+      <tr>
+        <td><span class="tier-chip" style="background:#FFF9C4;color:#F57F17;">省 token 版</span></td>
+        <td>日常追踪、只关注院士/Fellow 的引用描述</td>
+        <td style="font-family:'Arial',sans-serif;font-size:13px;">中（约 $0.3–0.8/百篇）</td>
+        <td>~50%</td>
+      </tr>
+      <tr>
+        <td><span class="tier-chip" style="background:#E8F5E9;color:#2E7D32;">更省版</span></td>
+        <td>快速初探、只需学者名单不需要引用描述</td>
+        <td style="font-family:'Arial',sans-serif;font-size:13px;">低（约 $0.1–0.3/百篇）</td>
+        <td>~15%</td>
+      </tr>
+      <tr>
+        <td><span class="tier-chip" style="background:#E3F2FD;color:#1565C0;">指定学者版</span></td>
+        <td>已知名单、想知道某几位大佬如何引用我</td>
+        <td style="font-family:'Arial',sans-serif;font-size:13px;">极低（按学者数计费）</td>
+        <td>~10%</td>
+      </tr>
+      <tr>
+        <td><span class="tier-chip" style="background:#F3E5F5;color:#6A1B9A;">学者查证版</span></td>
+        <td>核实某位学者是否真的引用了我、以及如何引用</td>
+        <td style="font-family:'Arial',sans-serif;font-size:13px;">极低</td>
+        <td>~5%</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="narrative-scene" data-chapter="实际决策示例">
+    <p class="scene-p">这次写基金本子，需要展示几篇代表作的"学术影响力画像"，我毫不犹豫地选了<strong>全面版</strong>——宁可多花几元 API 费用，也要确保数据完整、不遗漏任何院士评价，毕竟这是要写进申请书里的。</p>
+    <p class="scene-p">但当我只是顺手确认"某篇论文最近有没有新引用进来"时，我会选择<strong>省 token 版</strong>，配合缓存功能，只有新出现的论文才会重新搜索，成本极低。</p>
+    <p class="scene-p">当我听说某位领域大牛最近发表了一篇综述，想知道他有没有引用我的论文，我会用<strong>学者查证版</strong>，直接输入他的名字，一分钟之内就能得到答案。</p>
+  </div>
+
+  <p>
+    一个我很欣赏的设计是：所有层级都可以通过"自定义"模式进行精细调整——你可以单独开关「著名学者筛选」、「作者信息验证」、「引用描述搜索」、「画像报告生成」四个模块，以及设定引用描述搜索的范围。这给了高级用户完全的控制权。
+  </p>
+</section>
+
+<!-- ═══════════════════════════════════════ S5 ═══════════════════════════════════════ -->
+<section class="section" id="s5">
+  <div class="section-eyebrow">第五章 · 真实案例</div>
+  <h2 class="section-title">那个让我决定写进基金申请书的下午</h2>
+
+  <p>
+    就是前几天，为了给基金本子补充"学术影响力"的材料，我对一篇 2021 年发表的关于场景理解的自监督学习论文做了一次完整分析，那篇论文当时在 Google Scholar 上有 <span class="hl-num">143</span> 次引用。
+  </p>
+
+  <div class="narrative-scene" data-chapter="前几天，某个周四下午">
+    <p class="scene-p">我打开 CitationAgent，在论文题目框里输入了那篇论文的完整英文标题，同时在别名（Alias）一栏填上了它在 arXiv 预印本阶段的标题——那个稍有不同的早期版本标题有时候会在其他论文的参考文献中出现。</p>
+    <p class="scene-p">然后我选择了「全面版」——毕竟这次是为了基金材料，需要数据完整，按下了「开始分析」。</p>
+    <p class="scene-p">抓取阶段很顺利，大约15分钟后 143 篇引用全部拿下。然后 AI 开始逐篇搜索作者信息，日志窗口开始刷新。我一边喝着咖啡，一边随意地瞄着屏幕，突然——</p>
+    <p class="scene-p"><strong>★★★ 重要发现: Prof. [某] — 中国工程院院士</strong></p>
+    <p class="scene-p">我放下了咖啡杯。一位工程院院士，在他去年发表的一篇顶会 Workshop 论文中，引用了我 2021 年的这篇作品。AI 接着在引用描述搜索阶段找到了那句话，原文大意是：该方向早期的代表性工作之一，为后续工作提供了有效的特征学习基准。</p>
+    <p class="scene-p">这句话，我直接原文引用进了基金申请书的"研究基础"一栏。</p>
+  </div>
+
+  <p>
+    这次分析还有一个意外收获。在处理到第 89 篇论文时，系统识别出一篇论文的作者列表中包含了我自己——原来是我们实验室的一篇合作论文，相互引用了。CitationAgent 的自引检测功能自动标注了这条记录，并在最终的 Excel 里将其标记为"自引"，让我在汇报时可以选择过滤掉，避免数据被质疑。这个细节放在基金材料里尤其重要——评审专家看到"已剔除自引"，会对数据的严谨性更有信心。
+  </p>
+
+  <p>
+    整次分析消耗了约 <code>$0.67</code> 的 API 额度（工具在分析结束后会显示费用摘要），耗时约 48 分钟。对于 143 篇论文的完整学者画像，这个成本我认为是物超所值的。
+  </p>
+
+  <div class="callout callout-info">
+    <div class="callout-icon">📊</div>
+    <div class="callout-body">
+      <div class="callout-title">那次分析的最终结果</div>
+      <p class="callout-text">
+        143 篇引用中：1 位工程院院士、1 位 IEEE Fellow、2 位 ACM Fellow、5 位引用量超 5,000 的高影响力学者、4 篇自引（已过滤）。涉及 18 个国家/地区，引用趋势显示 2023–2024 年有明显增长，AI 预测 2025–2026 年还将新增 60–80 次引用。
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════ S6 ═══════════════════════════════════════ -->
+<section class="section" id="s6">
+  <div class="section-eyebrow">第六章 · 使用技巧</div>
+  <h2 class="section-title">几次使用下来摸索出的实用心得</h2>
+
+  <div class="tips-grid">
+    <div class="tip-card">
+      <div class="tip-num">01</div>
+      <div class="tip-title">一定要填写论文别名</div>
+      <p class="tip-text">如果你的论文有 arXiv 预印本版本，标题很可能与最终发表版略有不同（比如加了副标题，或措辞调整）。在「别名」字段填入两个版本，确保引用不漏网。这是我踩过坑之后学到的第一课。</p>
+    </div>
+    <div class="tip-card">
+      <div class="tip-num">02</div>
+      <div class="tip-title">用缓存功能大幅降低成本</div>
+      <p class="tip-text">CitationAgent 有持久化作者缓存机制：某位学者一旦被搜索过，他的信息就会保存在本地。下次分析时，同一作者直接从缓存读取，不再消耗 API 额度。对于经常分析的研究领域，累计缓存后，每次分析费用会越来越低。</p>
+    </div>
+    <div class="tip-card">
+      <div class="tip-num">03</div>
+      <div class="tip-title">高引用论文开启年份遍历</div>
+      <p class="tip-text">Google Scholar 单次最多显示 1000 条引用结果。如果你有引用量超过 1000 的"高被引"论文，一定要开启「按年份遍历」模式——工具会分年份逐段抓取，突破这个限制，保证数据完整性。</p>
+    </div>
+    <div class="tip-card">
+      <div class="tip-num">04</div>
+      <div class="tip-title">先用轻量版，再精准追加</div>
+      <p class="tip-text">新论文第一次分析，我会先用「更省版」快速摸底，确认分析流程正常、论文 URL 找对。确认无误后，再用「省 token 版」或「全面版」进行完整分析。这个两步走策略能有效避免因配置失误浪费大量 API 额度。</p>
+    </div>
+    <div class="tip-card">
+      <div class="tip-num">05</div>
+      <div class="tip-title">多个 ScraperAPI Key 轮换</div>
+      <p class="tip-text">工具支持填入多个 ScraperAPI Key，以英文逗号分隔，自动轮换使用。对于引用量大的论文，多个 Key 轮换能显著降低被 Google Scholar 限流或封禁的风险，让抓取过程更稳定。</p>
+    </div>
+    <div class="tip-card">
+      <div class="tip-num">06</div>
+      <div class="tip-title">用 HTML 报告作基金和汇报佐证</div>
+      <p class="tip-text">Phase 5 生成的 HTML 画像报告完全自包含，可以直接邮件发送或上传分享。写基金本子或准备述职 PPT 前，跑一次最新分析，把画像报告作为学术影响力的可视化佐证，效果远比截几张 Google Scholar 截图专业得多。</p>
+    </div>
+  </div>
+
+  <div class="callout callout-warn">
+    <div class="callout-icon">⚠️</div>
+    <div class="callout-body">
+      <div class="callout-title">关于 API 成本的现实预期</div>
+      <p class="callout-text">
+        全面版对 100 篇引用论文的分析，API 费用大约在 $0.5–2 之间，具体取决于所选模型和引用描述搜索的覆盖范围。如果你有一篇引用量 500 以上的论文想做全面分析，建议先在配置页面开启「费用追踪」功能，实时监控额度消耗，避免超出预期。
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════ S7 ═══════════════════════════════════════ -->
+<section class="section" id="s7">
+  <div class="section-eyebrow">第七章 · 诚实评价</div>
+  <h2 class="section-title">它的优势与真实存在的局限</h2>
+
+  <p>
+    几次使用下来，我对这个工具有了比较全面的认识。我不打算写一篇全是溢美之词的软文——作为研究者，我更倾向于诚实地呈现我观察到的一切。
+  </p>
+
+  <div class="pros-cons-grid">
+    <div class="pros-card">
+      <div class="pc-title">✓ 真实优势</div>
+      <ul class="pc-list">
+        <li>两条命令即可启动，对非技术背景研究者极友好</li>
+        <li>院士 / Fellow 自动识别，解决了手动调查学者背景最耗时的环节</li>
+        <li>引用描述搜索功能独一无二，让"别人怎么评价你"变得可量化、可追踪</li>
+        <li>实时日志设计极好，过程透明，信任感强</li>
+        <li>持久缓存机制让重复分析成本大幅下降，越用越划算</li>
+        <li>HTML 画像报告可直接分享，汇报展示效果专业</li>
+        <li>别名支持解决了预印本 vs. 正式版标题不一致的痛点</li>
+        <li>自引检测与自动过滤，数据更真实可信</li>
+        <li>费用追踪功能让 API 消耗透明可控</li>
+      </ul>
+    </div>
+    <div class="cons-card">
+      <div class="pc-title">△ 现实局限</div>
+      <ul class="pc-list">
+        <li>依赖 Google Scholar，该平台对爬取频率限制较严，偶尔需要等待或重试</li>
+        <li>对于引用量超 500 的热门论文，全面版分析费时较长（可能超过 2 小时）</li>
+        <li>AI 识别学者头衔存在一定误差率，约 5–10% 的情况需要人工核查</li>
+        <li>需要自行配置 Python 3.10+ 环境，对完全没有命令行经验的用户有轻微门槛</li>
+        <li>ScraperAPI 和 LLM API 都需要自行充值，初始配置需要一定学习成本</li>
+        <li>引用描述搜索依赖论文可被公开访问，部分机构内网论文无法抓取全文</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="pull-quote">
+    "没有工具是完美的。但这个工具解决的，恰好是我最痛苦的问题。它的局限我能接受，它的价值我愿意为之付费。"
+    <cite>— 我在一次组会上说的话</cite>
+  </div>
+
+  <p>
+    关于 AI 识别误差这一点，我想多说几句。工具在识别学者头衔时，依赖联网搜索 LLM 的判断，这套流程对于知名度较高的院士和 Fellow 识别准确率很高，但对于一些地方性荣誉或较小众的 Fellow 称号，可能会有疏漏。因此我在使用时会对「著名学者」栏目的识别结果保持一定的验证意识，尤其是在正式汇报前。
+  </p>
+
+  <p>
+    好消息是，工具提供了「作者信息验证」这一可选 Phase，会用额外的搜索对关键学者信息进行二次核查。对于汇报材料，我会开启这个选项以提高可信度。
+  </p>
+</section>
+
+<!-- ═══════════════════════════════════════ S8 ═══════════════════════════════════════ -->
+<section class="section" id="s8">
+  <div class="section-eyebrow">第八章 · 总结推荐</div>
+  <h2 class="section-title">基金材料交出去了，但我还想继续用它</h2>
+
+  <p>
+    就在前几天，我密集分析了自己发表的 5 篇论文，累计处理了 <span class="hl-num">400+</span> 篇引用，发现了 <span class="hl-num">3</span> 位院士引用、<span class="hl-num">7</span> 位 IEEE/ACM Fellow 引用，以及若干此前完全不知道的高影响力研究者的评价——这些内容最终都进了我的基金申请材料。
+  </p>
+
+  <p>
+    这些信息不只是虚荣心的满足。在我们领域，了解谁在关注你的工作、他们在什么语境下引用你，是形成学术合作机会、撰写基金申请书、准备学术汇报的重要基础信息。过去这些信息要么无从获取，要么需要花费大量时间手动整理。CitationAgent 改变了这件事。
+  </p>
+
+  <div class="conclusion-box">
+    <h3>综合评分</h3>
+    <div class="conclusion-rating">
+      ★★★★★
+    </div>
+    <p>
+      CitationAgent 是一个真正解决了学术研究者痛点的工具。它把原本需要数小时手工完成的被引学者画像分析，压缩到几十分钟内，并且以色彩直观、视觉漂亮的方式呈现结果。
+    </p>
+    <p>
+      它不是一个完美的工具——没有什么工具是完美的——但它在关键的地方做对了：零门槛的入门体验、透明可见的工作过程、切实有用的分析输出。
+    </p>
+    <p style="margin-bottom:0;">
+      如果你是一名有发表过论文的研究者，我毫不犹豫地推荐你试一试，哪怕只是用最轻量的「更省版」跑一遍你最重要的论文——那几分钟里出现在日志里的名字，可能会让你大吃一惊。
+    </p>
+    <div class="conclusion-tag">强烈推荐 · 2026年3月</div>
+  </div>
+</section>
+
+<div class="divider-ornament">
+  <span>✦</span>
+</div>
+
+<!-- ─── Footer ─── -->
+<div class="footer">
+  <div class="footer-logo">📄</div>
+  <div class="footer-text">
+    本报告基于真实使用体验撰写，部分细节（学者姓名、引用数量）已作匿名化处理。<br>
+    CitationAgent 由独立开发者构建，用于学术研究用途。<br>
+    <br>
+    <strong style="color:var(--brown-light);">CitationAgent</strong> &nbsp;·&nbsp; 论文被引画像分析智能体<br>
+    <span style="font-size:11px;">本报告撰写于 2026 年 3 月</span>
+  </div>
+</div>
+
+</div><!-- /page-wrapper -->
+
+<script>
+// Reading progress dots - update on scroll
+(function() {
+  const sections = ['cover', 's1', 's2', 's3', 's4', 's5', 's6', 's7', 's8'];
+  const dots = document.querySelectorAll('.reading-dot');
+
+  function updateDots() {
+    let current = 0;
+    sections.forEach(function(id, i) {
+      const el = document.getElementById(id);
+      if (el) {
+        const rect = el.getBoundingClientRect();
+        if (rect.top <= window.innerHeight * 0.4) {
+          current = i;
+        }
+      }
+    });
+    dots.forEach(function(d, i) {
+      d.classList.toggle('active', i === current);
+    });
+  }
+
+  window.addEventListener('scroll', updateDots, { passive: true });
+  updateDots();
+})();
+</script>
+
+</body>
+</html>

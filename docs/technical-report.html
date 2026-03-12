@@ -1,0 +1,2503 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CitationAgent — 技术架构报告</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;600;700&family=Noto+Sans+SC:wght@300;400;500;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  /* ===== ROOT VARIABLES ===== */
+  :root {
+    --bg-page:       #FFF8F0;
+    --bg-warm:       #FFF3E0;
+    --bg-card:       #FFFDF9;
+    --bg-amber:      #FFE0B2;
+    --bg-deep:       #3E2723;
+    --bg-code:       #2C1810;
+    --accent-fire:   #FF8C00;
+    --accent-ember:  #D84315;
+    --accent-brown:  #4E342E;
+    --text-dark:     #3E2723;
+    --text-body:     #5D4037;
+    --text-muted:    #8D6E63;
+    --text-light:    #BCAAA4;
+    --border:        #FFCCBC;
+    --border-warm:   #FFB74D;
+    --shadow-sm:     0 2px 8px rgba(62,39,35,0.08);
+    --shadow-md:     0 4px 20px rgba(62,39,35,0.12);
+    --shadow-lg:     0 8px 40px rgba(62,39,35,0.16);
+    --radius:        12px;
+    --radius-sm:     6px;
+    --radius-lg:     20px;
+  }
+
+  /* ===== RESET & BASE ===== */
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; }
+  body {
+    background: var(--bg-page);
+    color: var(--text-body);
+    font-family: 'Noto Sans SC', -apple-system, sans-serif;
+    font-size: 16px;
+    line-height: 1.8;
+    font-weight: 400;
+  }
+  ::selection { background: #FFB74D; color: #3E2723; }
+
+  /* ===== SCROLLBAR ===== */
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: var(--bg-warm); }
+  ::-webkit-scrollbar-thumb { background: var(--border-warm); border-radius: 3px; }
+
+  /* ===== TYPOGRAPHY ===== */
+  h1, h2, h3, h4, h5 {
+    font-family: 'Noto Serif SC', serif;
+    color: var(--text-dark);
+    line-height: 1.4;
+  }
+  h1 { font-size: 3.2rem; font-weight: 700; }
+  h2 { font-size: 2rem; font-weight: 700; }
+  h3 { font-size: 1.4rem; font-weight: 600; }
+  h4 { font-size: 1.1rem; font-weight: 600; }
+  p { margin-bottom: 1rem; }
+  a { color: var(--accent-fire); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  code {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.85em;
+    background: var(--bg-amber);
+    color: var(--accent-ember);
+    padding: 2px 6px;
+    border-radius: 4px;
+  }
+  strong { color: var(--text-dark); font-weight: 700; }
+  em { color: var(--accent-ember); font-style: italic; }
+
+  /* ===== LAYOUT ===== */
+  .container {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 0 40px;
+  }
+  .section {
+    padding: 80px 0;
+  }
+  .section + .section {
+    border-top: 1px solid var(--border);
+  }
+
+  /* ===== NAV ===== */
+  nav {
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    background: rgba(255,248,240,0.92);
+    backdrop-filter: blur(12px);
+    border-bottom: 1px solid var(--border);
+    padding: 0 40px;
+  }
+  nav .nav-inner {
+    max-width: 1100px;
+    margin: 0 auto;
+    display: flex;
+    align-items: center;
+    height: 56px;
+    gap: 32px;
+  }
+  .nav-brand {
+    font-family: 'JetBrains Mono', monospace;
+    font-weight: 700;
+    font-size: 1rem;
+    color: var(--accent-fire);
+    white-space: nowrap;
+  }
+  .nav-links {
+    display: flex;
+    gap: 24px;
+    overflow-x: auto;
+    list-style: none;
+    padding: 0;
+  }
+  .nav-links a {
+    font-size: 0.82rem;
+    color: var(--text-muted);
+    font-weight: 500;
+    white-space: nowrap;
+    transition: color 0.2s;
+  }
+  .nav-links a:hover { color: var(--accent-fire); text-decoration: none; }
+
+  /* ===== HERO / COVER ===== */
+  .hero {
+    background: linear-gradient(135deg, #3E2723 0%, #5D4037 30%, #D84315 60%, #FF8C00 85%, #FFB74D 100%);
+    padding: 120px 40px 100px;
+    position: relative;
+    overflow: hidden;
+  }
+  .hero::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background:
+      radial-gradient(ellipse 600px 400px at 80% 20%, rgba(255,140,0,0.25), transparent),
+      radial-gradient(ellipse 400px 300px at 20% 80%, rgba(216,67,21,0.2), transparent);
+  }
+  .hero-inner {
+    max-width: 1100px;
+    margin: 0 auto;
+    position: relative;
+    z-index: 1;
+  }
+  .hero-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: rgba(255,255,255,0.12);
+    border: 1px solid rgba(255,255,255,0.25);
+    color: #FFE0B2;
+    padding: 6px 14px;
+    border-radius: 999px;
+    font-size: 0.78rem;
+    font-family: 'JetBrains Mono', monospace;
+    margin-bottom: 28px;
+    letter-spacing: 0.05em;
+  }
+  .hero-badge .dot {
+    width: 7px; height: 7px;
+    background: #4CAF50;
+    border-radius: 50%;
+    animation: pulse 2s infinite;
+  }
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.4; }
+  }
+  .hero h1 {
+    color: #FFF8F0;
+    font-size: 4rem;
+    line-height: 1.15;
+    margin-bottom: 16px;
+    text-shadow: 0 2px 20px rgba(0,0,0,0.3);
+  }
+  .hero h1 span {
+    color: #FFD54F;
+  }
+  .hero-subtitle {
+    font-size: 1.25rem;
+    color: #FFCC80;
+    font-family: 'Noto Serif SC', serif;
+    margin-bottom: 48px;
+    max-width: 680px;
+    line-height: 1.7;
+  }
+  .hero-meta {
+    display: flex;
+    gap: 40px;
+    flex-wrap: wrap;
+  }
+  .hero-meta-item {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .hero-meta-item .label {
+    font-size: 0.72rem;
+    color: #FFAB91;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    font-family: 'JetBrains Mono', monospace;
+  }
+  .hero-meta-item .value {
+    font-size: 0.95rem;
+    color: #FFF3E0;
+    font-weight: 500;
+  }
+  .hero-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr 1fr 1fr;
+    gap: 16px;
+    margin-top: 60px;
+  }
+  .hero-stat {
+    background: rgba(255,255,255,0.1);
+    border: 1px solid rgba(255,255,255,0.2);
+    border-radius: var(--radius);
+    padding: 20px;
+    text-align: center;
+  }
+  .hero-stat .num {
+    font-size: 2.2rem;
+    font-weight: 700;
+    color: #FFD54F;
+    font-family: 'JetBrains Mono', monospace;
+    display: block;
+  }
+  .hero-stat .lbl {
+    font-size: 0.78rem;
+    color: #FFCC80;
+    margin-top: 4px;
+    display: block;
+  }
+
+  /* ===== SECTION HEADERS ===== */
+  .section-header {
+    margin-bottom: 48px;
+  }
+  .section-number {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.75rem;
+    color: var(--accent-fire);
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    font-weight: 700;
+    margin-bottom: 8px;
+  }
+  .section-header h2 {
+    font-size: 2.2rem;
+    margin-bottom: 12px;
+  }
+  .section-header p {
+    font-size: 1.05rem;
+    color: var(--text-muted);
+    max-width: 680px;
+    margin-bottom: 0;
+  }
+  .divider {
+    width: 48px;
+    height: 4px;
+    background: linear-gradient(90deg, var(--accent-fire), var(--accent-ember));
+    border-radius: 2px;
+    margin: 16px 0 24px;
+  }
+
+  /* ===== CARDS ===== */
+  .card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 28px;
+    box-shadow: var(--shadow-sm);
+    transition: box-shadow 0.2s, transform 0.2s;
+  }
+  .card:hover {
+    box-shadow: var(--shadow-md);
+    transform: translateY(-2px);
+  }
+  .card-grid {
+    display: grid;
+    gap: 20px;
+  }
+  .card-grid-2 { grid-template-columns: 1fr 1fr; }
+  .card-grid-3 { grid-template-columns: 1fr 1fr 1fr; }
+  .card-icon {
+    width: 44px; height: 44px;
+    border-radius: 10px;
+    background: linear-gradient(135deg, var(--accent-fire), var(--accent-ember));
+    display: flex; align-items: center; justify-content: center;
+    font-size: 1.3rem;
+    margin-bottom: 16px;
+    box-shadow: 0 4px 12px rgba(255,140,0,0.3);
+  }
+  .card h3 { margin-bottom: 8px; }
+  .card p { font-size: 0.9rem; color: var(--text-muted); margin-bottom: 0; line-height: 1.6; }
+
+  /* ===== CODE BLOCKS ===== */
+  .code-block {
+    background: var(--bg-code);
+    border-radius: var(--radius);
+    overflow: hidden;
+    margin: 24px 0;
+    box-shadow: var(--shadow-md);
+    border: 1px solid #4a2810;
+  }
+  .code-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 16px;
+    background: rgba(255,255,255,0.05);
+    border-bottom: 1px solid rgba(255,255,255,0.08);
+  }
+  .code-dots {
+    display: flex;
+    gap: 6px;
+  }
+  .code-dots span {
+    width: 12px; height: 12px;
+    border-radius: 50%;
+  }
+  .code-dots span:nth-child(1) { background: #FF5F57; }
+  .code-dots span:nth-child(2) { background: #FFBD2E; }
+  .code-dots span:nth-child(3) { background: #28CA41; }
+  .code-filename {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.75rem;
+    color: #8D6E63;
+    letter-spacing: 0.05em;
+  }
+  .code-lang {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.7rem;
+    color: #FF8C00;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+  }
+  pre {
+    padding: 24px;
+    overflow-x: auto;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.82rem;
+    line-height: 1.7;
+    color: #F5DEB3;
+  }
+  .kw { color: #FF8C00; font-weight: 700; }
+  .fn { color: #FFD700; }
+  .str { color: #98C379; }
+  .cm { color: #636363; font-style: italic; }
+  .num { color: #61AFEF; }
+  .cls { color: #E5C07B; }
+  .dec { color: #C678DD; }
+  .var { color: #ABB2BF; }
+  .op { color: #56B6C2; }
+
+  /* ===== PIPELINE DIAGRAM ===== */
+  .pipeline {
+    display: flex;
+    align-items: stretch;
+    gap: 0;
+    overflow-x: auto;
+    padding-bottom: 8px;
+    margin: 32px 0;
+  }
+  .phase-box {
+    flex: 1;
+    min-width: 140px;
+    background: var(--bg-card);
+    border: 2px solid var(--border);
+    border-radius: var(--radius);
+    padding: 20px 14px;
+    text-align: center;
+    position: relative;
+    transition: all 0.2s;
+  }
+  .phase-box:hover {
+    border-color: var(--accent-fire);
+    box-shadow: 0 0 20px rgba(255,140,0,0.2);
+    transform: translateY(-3px);
+  }
+  .phase-box .phase-num {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.65rem;
+    color: var(--accent-fire);
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    margin-bottom: 10px;
+  }
+  .phase-box .phase-icon {
+    font-size: 1.8rem;
+    margin-bottom: 10px;
+    display: block;
+  }
+  .phase-box .phase-name {
+    font-size: 0.8rem;
+    font-weight: 700;
+    color: var(--text-dark);
+    margin-bottom: 6px;
+    font-family: 'Noto Serif SC', serif;
+  }
+  .phase-box .phase-file {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.65rem;
+    color: var(--text-muted);
+    line-height: 1.5;
+  }
+  .phase-box .phase-output {
+    margin-top: 12px;
+    background: var(--bg-amber);
+    border-radius: 4px;
+    padding: 4px 8px;
+    font-size: 0.65rem;
+    color: var(--accent-ember);
+    font-family: 'JetBrains Mono', monospace;
+  }
+  .arrow-wrap {
+    display: flex;
+    align-items: center;
+    padding: 0 8px;
+    flex-shrink: 0;
+  }
+  .arrow {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+  }
+  .arrow-line {
+    width: 32px;
+    height: 2px;
+    background: linear-gradient(90deg, var(--border-warm), var(--accent-fire));
+  }
+  .arrow-head {
+    width: 0; height: 0;
+    border-top: 6px solid transparent;
+    border-bottom: 6px solid transparent;
+    border-left: 8px solid var(--accent-fire);
+    margin-left: 30px;
+    margin-top: -8px;
+  }
+
+  /* ===== PHASE DETAIL ===== */
+  .phase-detail {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+    margin: 32px 0;
+    box-shadow: var(--shadow-sm);
+  }
+  .phase-detail-header {
+    background: linear-gradient(135deg, var(--bg-deep), #5D4037);
+    padding: 24px 32px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+  .phase-detail-header .badge {
+    background: rgba(255,140,0,0.25);
+    border: 1px solid rgba(255,140,0,0.5);
+    color: #FFD54F;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.72rem;
+    padding: 4px 12px;
+    border-radius: 999px;
+    font-weight: 700;
+    white-space: nowrap;
+  }
+  .phase-detail-header h3 {
+    color: #FFF8F0;
+    font-size: 1.3rem;
+    margin: 0;
+  }
+  .phase-detail-header .subtitle {
+    color: #FFAB91;
+    font-size: 0.85rem;
+    margin-left: auto;
+    font-family: 'JetBrains Mono', monospace;
+  }
+  .phase-detail-body {
+    padding: 32px;
+  }
+  .phase-detail-body p {
+    color: var(--text-body);
+    line-height: 1.8;
+  }
+
+  /* ===== FEATURE LIST ===== */
+  .feature-list {
+    list-style: none;
+    display: grid;
+    gap: 12px;
+  }
+  .feature-list li {
+    display: flex;
+    gap: 12px;
+    align-items: flex-start;
+    font-size: 0.9rem;
+    color: var(--text-body);
+    line-height: 1.6;
+  }
+  .feature-list li::before {
+    content: '';
+    width: 20px; height: 20px;
+    background: linear-gradient(135deg, var(--accent-fire), var(--accent-ember));
+    border-radius: 50%;
+    flex-shrink: 0;
+    margin-top: 2px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.7rem;
+    color: white;
+  }
+  .feature-list.check li::before {
+    content: '✓';
+    font-size: 0.65rem;
+    line-height: 20px;
+    text-align: center;
+  }
+
+  /* ===== TABLES ===== */
+  .table-wrap {
+    overflow-x: auto;
+    border-radius: var(--radius);
+    border: 1px solid var(--border);
+    margin: 24px 0;
+    box-shadow: var(--shadow-sm);
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.88rem;
+  }
+  thead {
+    background: linear-gradient(135deg, var(--accent-ember), var(--bg-deep));
+    color: #FFF8F0;
+  }
+  thead th {
+    padding: 14px 18px;
+    text-align: left;
+    font-weight: 600;
+    font-size: 0.8rem;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+  tbody tr:nth-child(odd) { background: var(--bg-card); }
+  tbody tr:nth-child(even) { background: var(--bg-warm); }
+  tbody tr:hover { background: var(--bg-amber); transition: background 0.15s; }
+  tbody td {
+    padding: 12px 18px;
+    border-top: 1px solid var(--border);
+    color: var(--text-body);
+    line-height: 1.5;
+  }
+  .badge-red { background: #FFEBEE; color: #C62828; padding: 2px 8px; border-radius: 4px; font-size: 0.75rem; font-weight: 600; }
+  .badge-green { background: #E8F5E9; color: #2E7D32; padding: 2px 8px; border-radius: 4px; font-size: 0.75rem; font-weight: 600; }
+  .badge-yellow { background: #FFFDE7; color: #F57F17; padding: 2px 8px; border-radius: 4px; font-size: 0.75rem; font-weight: 600; }
+  .badge-blue { background: #E3F2FD; color: #1565C0; padding: 2px 8px; border-radius: 4px; font-size: 0.75rem; font-weight: 600; }
+  .badge-gray { background: #F5F5F5; color: #616161; padding: 2px 8px; border-radius: 4px; font-size: 0.75rem; font-weight: 600; }
+
+  /* ===== CALLOUT ===== */
+  .callout {
+    border-left: 4px solid var(--accent-fire);
+    background: #FFF3E0;
+    border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+    padding: 16px 20px;
+    margin: 24px 0;
+  }
+  .callout.info { border-color: #0288D1; background: #E1F5FE; }
+  .callout.success { border-color: #388E3C; background: #E8F5E9; }
+  .callout.warning { border-color: var(--accent-fire); background: #FFF3E0; }
+  .callout.danger { border-color: var(--accent-ember); background: #FBE9E7; }
+  .callout-title {
+    font-weight: 700;
+    color: var(--text-dark);
+    margin-bottom: 6px;
+    font-size: 0.88rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+  .callout p { margin-bottom: 0; font-size: 0.9rem; }
+
+  /* ===== RETRY DIAGRAM ===== */
+  .retry-diagram {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    margin: 24px 0;
+    border-radius: var(--radius);
+    overflow: hidden;
+    border: 1px solid var(--border);
+  }
+  .retry-tier {
+    display: flex;
+    align-items: center;
+    gap: 24px;
+    padding: 20px 28px;
+    border-bottom: 1px solid var(--border);
+  }
+  .retry-tier:last-child { border-bottom: none; }
+  .retry-tier:nth-child(1) { background: linear-gradient(90deg, #FFF8F0, #FFF3E0); }
+  .retry-tier:nth-child(2) { background: linear-gradient(90deg, #FFF3E0, #FFE0B2); }
+  .retry-tier:nth-child(3) { background: linear-gradient(90deg, #FFE0B2, #FFCC80); }
+  .retry-tier-num {
+    width: 36px; height: 36px;
+    border-radius: 50%;
+    background: var(--accent-fire);
+    color: white;
+    font-weight: 700;
+    font-size: 0.9rem;
+    display: flex; align-items: center; justify-content: center;
+    font-family: 'JetBrains Mono', monospace;
+    flex-shrink: 0;
+    box-shadow: 0 2px 8px rgba(255,140,0,0.4);
+  }
+  .retry-tier-content { flex: 1; }
+  .retry-tier-title {
+    font-weight: 700;
+    color: var(--text-dark);
+    font-size: 0.95rem;
+    margin-bottom: 4px;
+  }
+  .retry-tier-desc {
+    font-size: 0.85rem;
+    color: var(--text-muted);
+    line-height: 1.5;
+  }
+  .retry-tier-badge {
+    background: rgba(255,140,0,0.15);
+    border: 1px solid rgba(255,140,0,0.35);
+    color: var(--accent-ember);
+    font-size: 0.72rem;
+    font-family: 'JetBrains Mono', monospace;
+    padding: 4px 10px;
+    border-radius: 4px;
+    white-space: nowrap;
+  }
+
+  /* ===== UI MOCKUP ===== */
+  .mockup-window {
+    background: #1C1210;
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.4);
+    border: 1px solid #3a1a0a;
+    margin: 32px 0;
+  }
+  .mockup-titlebar {
+    background: #2a1510;
+    padding: 10px 16px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    border-bottom: 1px solid #3a1a0a;
+  }
+  .mockup-titlebar .dots { display: flex; gap: 6px; }
+  .mockup-titlebar .dots span {
+    width: 12px; height: 12px; border-radius: 50%;
+  }
+  .mockup-titlebar .dots span:nth-child(1) { background: #FF5F57; }
+  .mockup-titlebar .dots span:nth-child(2) { background: #FFBD2E; }
+  .mockup-titlebar .dots span:nth-child(3) { background: #28CA41; }
+  .mockup-titlebar .title {
+    flex: 1;
+    text-align: center;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.75rem;
+    color: #8D6E63;
+  }
+  .mockup-body {
+    padding: 20px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.78rem;
+    line-height: 1.7;
+    min-height: 200px;
+  }
+  .log-line { padding: 2px 0; }
+  .log-info { color: #7CB9E8; }
+  .log-success { color: #4CAF50; }
+  .log-warning { color: #FFB300; }
+  .log-error { color: #FF5252; }
+  .log-dim { color: #5D4037; }
+  .log-time { color: #5D4037; margin-right: 8px; }
+  .log-tag { font-size: 0.7rem; padding: 1px 6px; border-radius: 3px; margin-right: 6px; }
+  .tag-info { background: #0D47A1; color: #90CAF9; }
+  .tag-ok { background: #1B5E20; color: #A5D6A7; }
+  .tag-warn { background: #E65100; color: #FFCC80; }
+  .tag-err { background: #B71C1C; color: #FFCDD2; }
+
+  /* ===== MENUBAR MOCKUP ===== */
+  .menubar-mockup {
+    display: flex;
+    justify-content: flex-end;
+    background: linear-gradient(180deg, #2a1510 0%, #1a0d08 100%);
+    padding: 8px 16px;
+    border-radius: var(--radius);
+    margin: 24px 0;
+    box-shadow: var(--shadow-md);
+    position: relative;
+  }
+  .menubar-items {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    color: #F5DEB3;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.78rem;
+  }
+  .menubar-dropdown {
+    position: absolute;
+    top: 44px;
+    right: 16px;
+    background: #2a1510;
+    border: 1px solid #5D4037;
+    border-radius: 8px;
+    padding: 6px;
+    min-width: 240px;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+  }
+  .menubar-item {
+    padding: 8px 12px;
+    border-radius: 4px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.78rem;
+    color: #F5DEB3;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .menubar-item:hover { background: rgba(255,140,0,0.15); }
+  .menubar-item .icon { color: var(--accent-fire); width: 16px; text-align: center; }
+  .menubar-separator { height: 1px; background: #3a1a0a; margin: 4px 8px; }
+
+  /* ===== SERVICE TIERS ===== */
+  .tier-grid {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 12px;
+    margin: 32px 0;
+  }
+  .tier-card {
+    border-radius: var(--radius);
+    overflow: hidden;
+    border: 2px solid transparent;
+    transition: all 0.2s;
+  }
+  .tier-card:hover {
+    transform: translateY(-4px);
+    box-shadow: var(--shadow-lg);
+  }
+  .tier-card.tier-1 { border-color: #B0BEC5; }
+  .tier-card.tier-2 { border-color: #66BB6A; }
+  .tier-card.tier-3 { border-color: #FFA726; }
+  .tier-card.tier-4 { border-color: #EF5350; }
+  .tier-card.tier-5 { border-color: #7E57C2; }
+  .tier-header {
+    padding: 16px 14px;
+    text-align: center;
+  }
+  .tier-card.tier-1 .tier-header { background: #ECEFF1; }
+  .tier-card.tier-2 .tier-header { background: #E8F5E9; }
+  .tier-card.tier-3 .tier-header { background: #FFF3E0; }
+  .tier-card.tier-4 .tier-header { background: #FFEBEE; }
+  .tier-card.tier-5 .tier-header { background: #EDE7F6; }
+  .tier-name {
+    font-weight: 700;
+    font-size: 0.85rem;
+    color: var(--text-dark);
+    font-family: 'Noto Serif SC', serif;
+  }
+  .tier-en {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.65rem;
+    color: var(--text-muted);
+    margin-top: 2px;
+  }
+  .tier-body {
+    padding: 14px;
+    background: var(--bg-card);
+  }
+  .tier-feature {
+    font-size: 0.72rem;
+    color: var(--text-body);
+    padding: 3px 0;
+    display: flex;
+    align-items: flex-start;
+    gap: 6px;
+    line-height: 1.4;
+  }
+  .tier-feature .check { color: #4CAF50; font-size: 0.8rem; flex-shrink: 0; }
+  .tier-feature .cross { color: #EF5350; font-size: 0.8rem; flex-shrink: 0; }
+
+  /* ===== DATA FLOW SVG ===== */
+  .flow-diagram {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: 40px;
+    margin: 32px 0;
+    overflow-x: auto;
+  }
+
+  /* ===== PRINCIPLES ===== */
+  .principle-list {
+    display: grid;
+    gap: 16px;
+  }
+  .principle-item {
+    display: flex;
+    gap: 20px;
+    align-items: flex-start;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 24px;
+    transition: all 0.2s;
+  }
+  .principle-item:hover {
+    border-color: var(--border-warm);
+    box-shadow: var(--shadow-sm);
+  }
+  .principle-num {
+    width: 48px; height: 48px;
+    background: linear-gradient(135deg, var(--accent-fire), var(--accent-ember));
+    border-radius: 12px;
+    display: flex; align-items: center; justify-content: center;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: white;
+    flex-shrink: 0;
+    box-shadow: 0 4px 12px rgba(255,140,0,0.3);
+  }
+  .principle-content h4 {
+    margin-bottom: 6px;
+    font-size: 1rem;
+    color: var(--text-dark);
+  }
+  .principle-content p {
+    margin-bottom: 0;
+    font-size: 0.88rem;
+    color: var(--text-muted);
+    line-height: 1.7;
+  }
+
+  /* ===== FOOTER ===== */
+  .footer {
+    background: var(--bg-deep);
+    color: #8D6E63;
+    padding: 60px 40px;
+    text-align: center;
+  }
+  .footer .logo {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 1.5rem;
+    color: #FF8C00;
+    font-weight: 700;
+    margin-bottom: 12px;
+  }
+  .footer p { font-size: 0.85rem; line-height: 1.8; }
+  .footer a { color: #FFB74D; }
+
+  /* ===== TAG CLOUD ===== */
+  .tag-cloud {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin: 24px 0;
+    justify-content: center;
+  }
+  .tag-cloud .tag {
+    background: var(--bg-amber);
+    color: var(--accent-ember);
+    border: 1px solid var(--border-warm);
+    border-radius: 999px;
+    padding: 6px 16px;
+    font-size: 0.82rem;
+    font-family: 'JetBrains Mono', monospace;
+    cursor: default;
+    transition: all 0.2s;
+  }
+  .tag-cloud .tag:hover {
+    background: var(--accent-fire);
+    color: white;
+    border-color: var(--accent-fire);
+    transform: scale(1.05);
+  }
+  .tag-cloud .tag.lg { font-size: 1rem; padding: 8px 20px; }
+  .tag-cloud .tag.sm { font-size: 0.72rem; padding: 4px 12px; }
+
+  /* ===== WS MESSAGE FLOW ===== */
+  .ws-flow {
+    display: flex;
+    gap: 0;
+    margin: 24px 0;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    overflow: hidden;
+  }
+  .ws-col {
+    flex: 1;
+    padding: 20px;
+  }
+  .ws-col:first-child { background: #E3F2FD; border-right: 1px solid var(--border); }
+  .ws-col:last-child { background: var(--bg-card); }
+  .ws-col h4 { font-size: 0.85rem; margin-bottom: 12px; color: var(--text-dark); }
+  .ws-msg {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    margin-bottom: 8px;
+    font-size: 0.78rem;
+  }
+  .ws-msg .arrow { color: var(--accent-fire); font-weight: 700; }
+  .ws-msg .type {
+    font-family: 'JetBrains Mono', monospace;
+    background: var(--bg-deep);
+    color: #FFD54F;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 0.7rem;
+    white-space: nowrap;
+  }
+  .ws-msg .desc { color: var(--text-muted); line-height: 1.4; }
+
+  /* ===== RESPONSIVE ===== */
+  @media (max-width: 900px) {
+    .hero h1 { font-size: 2.5rem; }
+    .hero-grid { grid-template-columns: repeat(3, 1fr); }
+    .card-grid-3 { grid-template-columns: 1fr 1fr; }
+    .tier-grid { grid-template-columns: 1fr 1fr; }
+  }
+  @media (max-width: 600px) {
+    .container { padding: 0 20px; }
+    .hero h1 { font-size: 2rem; }
+    .hero-grid { grid-template-columns: repeat(2, 1fr); }
+    .card-grid-2, .card-grid-3 { grid-template-columns: 1fr; }
+    .tier-grid { grid-template-columns: 1fr; }
+    h2 { font-size: 1.6rem; }
+  }
+
+  /* ===== INLINE DIAGRAM HELPERS ===== */
+  .box-connector {
+    display: flex;
+    align-items: center;
+    gap: 0;
+    margin: 16px 0;
+  }
+  .box-node {
+    flex: 1;
+    background: var(--bg-warm);
+    border: 2px solid var(--border-warm);
+    border-radius: var(--radius-sm);
+    padding: 12px 16px;
+    text-align: center;
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: var(--text-dark);
+  }
+  .box-arrow {
+    padding: 0 8px;
+    color: var(--accent-fire);
+    font-size: 1.4rem;
+    flex-shrink: 0;
+  }
+
+  /* ===== CACHE DIAGRAM ===== */
+  .cache-diagram {
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+    gap: 16px;
+    align-items: center;
+    margin: 24px 0;
+  }
+  .cache-box {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 20px;
+  }
+  .cache-box h4 { font-size: 0.88rem; margin-bottom: 8px; color: var(--accent-ember); }
+  .cache-box pre { padding: 0; background: transparent; font-size: 0.75rem; color: var(--text-muted); }
+  .cache-arrows { display: flex; flex-direction: column; gap: 8px; align-items: center; }
+  .cache-arrows .arr { color: var(--accent-fire); font-size: 1.5rem; }
+  .cache-arrows .lbl { font-size: 0.7rem; color: var(--text-muted); white-space: nowrap; }
+
+  /* ===== LIMITS SECTION ===== */
+  .limit-card {
+    display: flex;
+    gap: 16px;
+    align-items: flex-start;
+    padding: 20px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--bg-card);
+    margin-bottom: 12px;
+  }
+  .limit-icon {
+    width: 40px; height: 40px;
+    border-radius: 8px;
+    background: var(--bg-amber);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 1.2rem;
+    flex-shrink: 0;
+  }
+  .limit-content h4 { font-size: 0.95rem; margin-bottom: 4px; }
+  .limit-content p { font-size: 0.85rem; color: var(--text-muted); margin-bottom: 0; line-height: 1.6; }
+
+  /* Progress bar */
+  .progress-bar-wrap { margin: 8px 0; }
+  .progress-label { font-size: 0.75rem; color: var(--text-muted); margin-bottom: 4px; display: flex; justify-content: space-between; }
+  .progress-bar-track { height: 8px; background: var(--bg-amber); border-radius: 4px; overflow: hidden; }
+  .progress-bar-fill { height: 100%; border-radius: 4px; background: linear-gradient(90deg, var(--accent-fire), var(--accent-ember)); }
+</style>
+</head>
+<body>
+
+<!-- ===== NAV ===== -->
+<nav>
+  <div class="nav-inner">
+    <div class="nav-brand">CitationAgent</div>
+    <ul class="nav-links">
+      <li><a href="#overview">概览</a></li>
+      <li><a href="#philosophy">设计哲学</a></li>
+      <li><a href="#architecture">架构图</a></li>
+      <li><a href="#pipeline">五阶段流水线</a></li>
+      <li><a href="#modules">核心模块</a></li>
+      <li><a href="#resilience">弹性设计</a></li>
+      <li><a href="#macos">macOS打包</a></li>
+      <li><a href="#tiers">服务分层</a></li>
+      <li><a href="#limits">限制与展望</a></li>
+    </ul>
+  </div>
+</nav>
+
+<!-- ===== HERO ===== -->
+<div class="hero">
+  <div class="hero-inner">
+    <div class="hero-badge">
+      <span class="dot"></span>
+      v1.0 &nbsp;·&nbsp; Python 3.12 &nbsp;·&nbsp; FastAPI &nbsp;·&nbsp; OpenAI-compatible
+    </div>
+    <h1>Citation<span>Agent</span></h1>
+    <p class="hero-subtitle">
+      一个面向科研工作者的全自动学术引用分析系统 —— 从 Google Scholar 抓取到 AI 驱动的作者画像，再到自包含的 HTML 分析仪表盘，端到端无缝流水线。
+    </p>
+    <div class="hero-meta">
+      <div class="hero-meta-item">
+        <span class="label">文档类型</span>
+        <span class="value">技术架构报告</span>
+      </div>
+      <div class="hero-meta-item">
+        <span class="label">目标读者</span>
+        <span class="value">后端 / AI 开发者</span>
+      </div>
+      <div class="hero-meta-item">
+        <span class="label">更新日期</span>
+        <span class="value">2026年3月</span>
+      </div>
+      <div class="hero-meta-item">
+        <span class="label">许可协议</span>
+        <span class="value">Internal</span>
+      </div>
+    </div>
+    <div class="hero-grid">
+      <div class="hero-stat"><span class="num">5</span><span class="lbl">流水线阶段</span></div>
+      <div class="hero-stat"><span class="num">12</span><span class="lbl">核心模块</span></div>
+      <div class="hero-stat"><span class="num">3</span><span class="lbl">重试层级</span></div>
+      <div class="hero-stat"><span class="num">1000+</span><span class="lbl">绕过论文上限</span></div>
+      <div class="hero-stat"><span class="num">async</span><span class="lbl">并发架构</span></div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== SECTION 1: OVERVIEW ===== -->
+<section class="section" id="overview">
+  <div class="container">
+    <div class="section-header">
+      <div class="section-number">01 &mdash; 项目概览</div>
+      <h2>它到底解决了什么问题？</h2>
+      <div class="divider"></div>
+      <p>手动追踪一篇论文的数百个引用来源、判断引用者的学术影响力，是科研工作中极为耗时的任务。CitationAgent 将这一过程完全自动化。</p>
+    </div>
+
+    <div class="card-grid card-grid-3" style="margin-bottom:40px;">
+      <div class="card">
+        <div class="card-icon">&#128269;</div>
+        <h3>自动化采集</h3>
+        <p>通过 ScraperAPI 代理绕过 Google Scholar 的反爬机制，支持三级重试与地理节点轮换，稳定抓取所有引用论文。</p>
+      </div>
+      <div class="card">
+        <div class="card-icon">&#129504;</div>
+        <h3>AI 作者画像</h3>
+        <p>调用 OpenAI-compatible LLM（含 Web Search）识别每位第一作者的机构、国家、Scholar 引用数，以及院士/Fellow/杰青等学术头衔。</p>
+      </div>
+      <div class="card">
+        <div class="card-icon">&#128202;</div>
+        <h3>自包含仪表盘</h3>
+        <p>生成单个 HTML 文件，内嵌 Chart.js 交互图表、关键词词云、趋势预测、引用描述摘要，无需服务器即可打开分享。</p>
+      </div>
+    </div>
+
+    <div class="card-grid card-grid-2">
+      <div class="card">
+        <h3 style="margin-bottom:16px;">&#128230; 技术栈一览</h3>
+        <div class="tag-cloud">
+          <span class="tag lg">Python 3.12</span>
+          <span class="tag lg">FastAPI</span>
+          <span class="tag">Uvicorn</span>
+          <span class="tag">AsyncIO</span>
+          <span class="tag">OpenAI SDK</span>
+          <span class="tag">BeautifulSoup4</span>
+          <span class="tag lg">Pandas</span>
+          <span class="tag">OpenPyXL</span>
+          <span class="tag">Pydantic v2</span>
+          <span class="tag sm">rumps (macOS)</span>
+          <span class="tag">Bootstrap 5</span>
+          <span class="tag lg">Chart.js 4</span>
+          <span class="tag sm">marked.js</span>
+          <span class="tag sm">ScraperAPI</span>
+        </div>
+      </div>
+      <div class="card">
+        <h3 style="margin-bottom:16px;">&#128203; 输出产物</h3>
+        <ul class="feature-list check" style="gap:8px;">
+          <li>Excel 工作簿 × 3（带颜色编码）</li>
+          <li>JSON 结构化数据</li>
+          <li>自包含 HTML 仪表盘（~2000+ 行）</li>
+          <li>引用描述 Excel（含具体引用语句）</li>
+          <li>JSONL 原始抓取数据</li>
+          <li>持久化作者信息缓存</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ===== SECTION 2: DESIGN PHILOSOPHY ===== -->
+<section class="section" id="philosophy">
+  <div class="container">
+    <div class="section-header">
+      <div class="section-number">02 &mdash; 设计哲学</div>
+      <h2>为什么这样设计？</h2>
+      <div class="divider"></div>
+      <p>每一个技术决策的背后都有明确的工程理由。以下是驱动 CitationAgent 架构的核心原则。</p>
+    </div>
+
+    <div class="principle-list">
+      <div class="principle-item">
+        <div class="principle-num">01</div>
+        <div class="principle-content">
+          <h4>OpenAI-compatible API 抽象</h4>
+          <p>系统通过标准 <code>openai.AsyncOpenAI</code> SDK 与任何兼容 OpenAI Chat Completion 协议的服务对话。使用 <code>extra_body={"web_search_options": {}}</code> 扩展字段启用 Web Search，这使得系统天然兼容 Gemini via Proxy、GPT-4o、DeepSeek、Qwen 等多种后端，切换成本为零。</p>
+        </div>
+      </div>
+      <div class="principle-item">
+        <div class="principle-num">02</div>
+        <div class="principle-content">
+          <h4>Async-first 并发架构</h4>
+          <p>Phase 2（作者搜索）和 Phase 4（引用描述）均为 I/O-bound 工作负载（HTTP 调用 LLM API），使用 <code>asyncio.Semaphore</code> 控制并发数，Phase 1 中 ScraperAPI 的同步调用通过 <code>asyncio.to_thread</code> 包装，不阻塞事件循环。理论并发限制取决于 API 配额，而非线程池大小。</p>
+        </div>
+      </div>
+      <div class="principle-item">
+        <div class="principle-num">03</div>
+        <div class="principle-content">
+          <h4>三层重试弹性</h4>
+          <p>Google Scholar 的反爬策略在三个维度上发力：网络层（HTTP 错误）、应用层（CAPTCHA/登录页）、基础设施层（数据中心地理不一致）。CitationAgent 针对每层单独设计对策，而非用一个简单的指数退避处理所有错误——这大幅提升了大规模抓取的成功率。</p>
+        </div>
+      </div>
+      <div class="principle-item">
+        <div class="principle-num">04</div>
+        <div class="principle-content">
+          <h4>持久化增量缓存</h4>
+          <p>作者信息缓存以 JSON 文件存储在 <code>data/cache/author_info_cache.json</code>，以论文 URL 或标题为 key，支持字段级增量更新。这意味着用不同配置重跑流水线时，已搜索的作者信息无需重新查询，极大节省 LLM API 费用。</p>
+        </div>
+      </div>
+      <div class="principle-item">
+        <div class="principle-num">05</div>
+        <div class="principle-content">
+          <h4>自包含 HTML 输出</h4>
+          <p>仪表盘的所有数据以 JS 变量形式 inline 在 HTML 中，Chart.js 和 marked.js 通过 CDN 加载，其余 CSS/JS 全部内嵌。这使得非技术用户可以直接双击打开，邮件附件发送，或上传至任何静态托管服务，而无需部署任何后端。</p>
+        </div>
+      </div>
+      <div class="principle-item">
+        <div class="principle-num">06</div>
+        <div class="principle-content">
+          <h4>macOS Shell .app 打包（无 Electron）</h4>
+          <p>通过 Shell 脚本构建标准 <code>.app</code> 包结构，用 <code>rumps</code> 实现原生菜单栏 Daemon，Python 环境隔离在 <code>~/Library/Application Support</code> 的 venv 中，使用 <code>arch -arm64</code> 强制 Apple Silicon 原生编译。相比 PyInstaller 或 Electron，打包产物更小，启动更快，无跨平台运行时依赖。</p>
+        </div>
+      </div>
+      <div class="principle-item">
+        <div class="principle-num">07</div>
+        <div class="principle-content">
+          <h4>确定性降级 Fallback</h4>
+          <p>Phase 5（仪表盘）的每个 LLM 分析步骤都有一个不依赖 LLM 的确定性算法作为后备：关键词分析用词频统计，趋势预测用线性回归（含同比增长率截断），洞察生成用模板字符串。这确保了即使 LLM API 完全不可用，系统仍能输出有意义的报告。</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ===== SECTION 3: ARCHITECTURE DIAGRAM ===== -->
+<section class="section" id="architecture">
+  <div class="container">
+    <div class="section-header">
+      <div class="section-number">03 &mdash; 技术架构图</div>
+      <h2>全景系统架构</h2>
+      <div class="divider"></div>
+      <p>从用户输入到最终产物的完整数据流与模块拓扑。</p>
+    </div>
+
+    <!-- High-level pipeline -->
+    <div class="pipeline">
+      <div class="phase-box">
+        <div class="phase-num">Phase 0</div>
+        <span class="phase-icon">&#128279;</span>
+        <div class="phase-name">URL 发现</div>
+        <div class="phase-file">url_finder.py</div>
+        <div class="phase-output">citing_url</div>
+      </div>
+      <div class="arrow-wrap">
+        <div class="arrow">
+          <div class="arrow-line"></div>
+          <div class="arrow-head"></div>
+        </div>
+      </div>
+      <div class="phase-box">
+        <div class="phase-num">Phase 1</div>
+        <span class="phase-icon">&#129345;</span>
+        <div class="phase-name">Scholar 抓取</div>
+        <div class="phase-file">scraper.py</div>
+        <div class="phase-output">papers.jsonl</div>
+      </div>
+      <div class="arrow-wrap">
+        <div class="arrow">
+          <div class="arrow-line"></div>
+          <div class="arrow-head"></div>
+        </div>
+      </div>
+      <div class="phase-box">
+        <div class="phase-num">Phase 2</div>
+        <span class="phase-icon">&#128100;</span>
+        <div class="phase-name">作者搜索</div>
+        <div class="phase-file">author_searcher.py</div>
+        <div class="phase-output">authors.json</div>
+      </div>
+      <div class="arrow-wrap">
+        <div class="arrow">
+          <div class="arrow-line"></div>
+          <div class="arrow-head"></div>
+        </div>
+      </div>
+      <div class="phase-box">
+        <div class="phase-num">Phase 3</div>
+        <span class="phase-icon">&#128196;</span>
+        <div class="phase-name">导出 Excel</div>
+        <div class="phase-file">exporter.py</div>
+        <div class="phase-output">3 × .xlsx</div>
+      </div>
+      <div class="arrow-wrap">
+        <div class="arrow">
+          <div class="arrow-line"></div>
+          <div class="arrow-head"></div>
+        </div>
+      </div>
+      <div class="phase-box">
+        <div class="phase-num">Phase 4</div>
+        <span class="phase-icon">&#128209;</span>
+        <div class="phase-name">引用描述</div>
+        <div class="phase-file">citing_description_searcher.py</div>
+        <div class="phase-output">desc.xlsx</div>
+      </div>
+      <div class="arrow-wrap">
+        <div class="arrow">
+          <div class="arrow-line"></div>
+          <div class="arrow-head"></div>
+        </div>
+      </div>
+      <div class="phase-box">
+        <div class="phase-num">Phase 5</div>
+        <span class="phase-icon">&#128202;</span>
+        <div class="phase-name">仪表盘生成</div>
+        <div class="phase-file">dashboard_generator.py</div>
+        <div class="phase-output">dashboard.html</div>
+      </div>
+    </div>
+
+    <!-- System topology SVG -->
+    <div class="flow-diagram">
+      <svg viewBox="0 0 1020 520" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:auto;min-width:700px;">
+        <defs>
+          <marker id="arrow" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+            <path d="M0,0 L0,6 L8,3 z" fill="#FF8C00"/>
+          </marker>
+          <marker id="arrow-gray" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+            <path d="M0,0 L0,6 L8,3 z" fill="#8D6E63"/>
+          </marker>
+          <linearGradient id="grd1" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" style="stop-color:#FF8C00;stop-opacity:1" />
+            <stop offset="100%" style="stop-color:#D84315;stop-opacity:1" />
+          </linearGradient>
+          <linearGradient id="grd2" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" style="stop-color:#3E2723;stop-opacity:1" />
+            <stop offset="100%" style="stop-color:#5D4037;stop-opacity:1" />
+          </linearGradient>
+        </defs>
+
+        <!-- User -->
+        <rect x="10" y="220" width="90" height="80" rx="10" fill="#FFF3E0" stroke="#FFB74D" stroke-width="1.5"/>
+        <text x="55" y="255" text-anchor="middle" font-family="'Noto Sans SC',sans-serif" font-size="11" fill="#3E2723" font-weight="600">用户</text>
+        <text x="55" y="272" text-anchor="middle" font-family="'JetBrains Mono',monospace" font-size="9" fill="#8D6E63">Browser</text>
+        <text x="55" y="287" text-anchor="middle" font-family="'JetBrains Mono',monospace" font-size="9" fill="#8D6E63">/ CLI</text>
+
+        <!-- FastAPI Server -->
+        <rect x="145" y="160" width="140" height="200" rx="12" fill="url(#grd2)" stroke="#FF8C00" stroke-width="1.5"/>
+        <text x="215" y="188" text-anchor="middle" font-family="'Noto Sans SC',sans-serif" font-size="11" fill="#FFD54F" font-weight="700">FastAPI Server</text>
+        <text x="215" y="206" text-anchor="middle" font-family="'JetBrains Mono',monospace" font-size="9" fill="#FFAB91">app/main.py</text>
+        <line x1="155" y1="216" x2="275" y2="216" stroke="#5D4037" stroke-width="1"/>
+        <text x="215" y="232" text-anchor="middle" font-family="'JetBrains Mono',monospace" font-size="8.5" fill="#FFB74D">POST /api/run</text>
+        <text x="215" y="248" text-anchor="middle" font-family="'JetBrains Mono',monospace" font-size="8.5" fill="#FFB74D">WS  /ws</text>
+        <text x="215" y="264" text-anchor="middle" font-family="'JetBrains Mono',monospace" font-size="8.5" fill="#FFB74D">GET  /api/results/*</text>
+        <text x="215" y="280" text-anchor="middle" font-family="'JetBrains Mono',monospace" font-size="8.5" fill="#FFB74D">GET  /api/quota/check</text>
+        <line x1="155" y1="294" x2="275" y2="294" stroke="#5D4037" stroke-width="1"/>
+        <text x="215" y="310" text-anchor="middle" font-family="'Noto Sans SC',sans-serif" font-size="9" fill="#BCAAA4">task_executor.py</text>
+        <text x="215" y="326" text-anchor="middle" font-family="'Noto Sans SC',sans-serif" font-size="9" fill="#BCAAA4">log_manager.py</text>
+        <text x="215" y="342" text-anchor="middle" font-family="'Noto Sans SC',sans-serif" font-size="9" fill="#BCAAA4">cost_tracker.py</text>
+
+        <!-- Core Pipeline -->
+        <rect x="335" y="40" width="130" height="60" rx="10" fill="#FFF3E0" stroke="#FFB74D" stroke-width="1.5"/>
+        <text x="400" y="65" text-anchor="middle" font-family="'Noto Sans SC',sans-serif" font-size="10" fill="#3E2723" font-weight="600">Phase 0</text>
+        <text x="400" y="80" text-anchor="middle" font-family="'JetBrains Mono',monospace" font-size="8.5" fill="#8D6E63">url_finder.py</text>
+        <text x="400" y="93" text-anchor="middle" font-family="'Noto Sans SC',sans-serif" font-size="8.5" fill="#D84315">URL 发现</text>
+
+        <rect x="335" y="130" width="130" height="60" rx="10" fill="#FFF3E0" stroke="#FFB74D" stroke-width="1.5"/>
+        <text x="400" y="155" text-anchor="middle" font-family="'Noto Sans SC',sans-serif" font-size="10" fill="#3E2723" font-weight="600">Phase 1</text>
+        <text x="400" y="170" text-anchor="middle" font-family="'JetBrains Mono',monospace" font-size="8.5" fill="#8D6E63">scraper.py</text>
+        <text x="400" y="183" text-anchor="middle" font-family="'Noto Sans SC',sans-serif" font-size="8.5" fill="#D84315">Scholar 抓取</text>
+
+        <rect x="335" y="220" width="130" height="60" rx="10" fill="#FFF3E0" stroke="#FFB74D" stroke-width="1.5"/>
+        <text x="400" y="245" text-anchor="middle" font-family="'Noto Sans SC',sans-serif" font-size="10" fill="#3E2723" font-weight="600">Phase 2</text>
+        <text x="400" y="260" text-anchor="middle" font-family="'JetBrains Mono',monospace" font-size="8.5" fill="#8D6E63">author_searcher.py</text>
+        <text x="400" y="273" text-anchor="middle" font-family="'Noto Sans SC',sans-serif" font-size="8.5" fill="#D84315">作者搜索 (async)</text>
+
+        <rect x="335" y="310" width="130" height="60" rx="10" fill="#FFF3E0" stroke="#FFB74D" stroke-width="1.5"/>
+        <text x="400" y="335" text-anchor="middle" font-family="'Noto Sans SC',sans-serif" font-size="10" fill="#3E2723" font-weight="600">Phase 3</text>
+        <text x="400" y="350" text-anchor="middle" font-family="'JetBrains Mono',monospace" font-size="8.5" fill="#8D6E63">exporter.py</text>
+        <text x="400" y="363" text-anchor="middle" font-family="'Noto Sans SC',sans-serif" font-size="8.5" fill="#D84315">Excel 导出</text>
+
+        <rect x="335" y="400" width="130" height="60" rx="10" fill="#FFF3E0" stroke="#FFB74D" stroke-width="1.5"/>
+        <text x="400" y="425" text-anchor="middle" font-family="'Noto Sans SC',sans-serif" font-size="10" fill="#3E2723" font-weight="600">Phase 4</text>
+        <text x="400" y="440" text-anchor="middle" font-family="'JetBrains Mono',monospace" font-size="8.5" fill="#8D6E63">citing_description_searcher.py</text>
+        <text x="400" y="453" text-anchor="middle" font-family="'Noto Sans SC',sans-serif" font-size="8.5" fill="#D84315">引用描述</text>
+
+        <!-- Phase 5 -->
+        <rect x="335" y="487" width="130" height="26" rx="8" fill="url(#grd1)"/>
+        <text x="400" y="503" text-anchor="middle" font-family="'Noto Sans SC',sans-serif" font-size="9" fill="white" font-weight="700">Phase 5: dashboard_generator.py</text>
+
+        <!-- Arrows between phases -->
+        <line x1="400" y1="100" x2="400" y2="128" stroke="#FF8C00" stroke-width="1.5" marker-end="url(#arrow)"/>
+        <line x1="400" y1="190" x2="400" y2="218" stroke="#FF8C00" stroke-width="1.5" marker-end="url(#arrow)"/>
+        <line x1="400" y1="280" x2="400" y2="308" stroke="#FF8C00" stroke-width="1.5" marker-end="url(#arrow)"/>
+        <line x1="400" y1="370" x2="400" y2="398" stroke="#FF8C00" stroke-width="1.5" marker-end="url(#arrow)"/>
+        <line x1="400" y1="460" x2="400" y2="485" stroke="#FF8C00" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+        <!-- Arrow from user to server -->
+        <line x1="100" y1="260" x2="143" y2="260" stroke="#FF8C00" stroke-width="1.5" marker-end="url(#arrow)"/>
+        <!-- Arrow from server to pipeline -->
+        <line x1="285" y1="200" x2="333" y2="70" stroke="#8D6E63" stroke-width="1.2" stroke-dasharray="4,3" marker-end="url(#arrow-gray)"/>
+        <text x="302" y="155" font-family="'JetBrains Mono',monospace" font-size="8" fill="#8D6E63" transform="rotate(-30,302,155)">trigger</text>
+
+        <!-- External Services -->
+        <rect x="540" y="40" width="130" height="55" rx="10" fill="#E8F5E9" stroke="#66BB6A" stroke-width="1.5"/>
+        <text x="605" y="63" text-anchor="middle" font-family="'Noto Sans SC',sans-serif" font-size="10" fill="#2E7D32" font-weight="600">ScraperAPI</text>
+        <text x="605" y="78" text-anchor="middle" font-family="'JetBrains Mono',monospace" font-size="8.5" fill="#388E3C">Proxy + Geo Rotate</text>
+        <text x="605" y="89" text-anchor="middle" font-family="'JetBrains Mono',monospace" font-size="8" fill="#66BB6A">$49/100k credits</text>
+
+        <rect x="540" y="130" width="130" height="55" rx="10" fill="#E3F2FD" stroke="#42A5F5" stroke-width="1.5"/>
+        <text x="605" y="153" text-anchor="middle" font-family="'Noto Sans SC',sans-serif" font-size="10" fill="#1565C0" font-weight="600">Google Scholar</text>
+        <text x="605" y="168" text-anchor="middle" font-family="'JetBrains Mono',monospace" font-size="8.5" fill="#1976D2">scholar.google.com</text>
+        <text x="605" y="179" text-anchor="middle" font-family="'JetBrains Mono',monospace" font-size="8" fill="#64B5F6">cites=XXXXX</text>
+
+        <rect x="540" y="220" width="130" height="55" rx="10" fill="#FFF3E0" stroke="#FFA726" stroke-width="1.5"/>
+        <text x="605" y="243" text-anchor="middle" font-family="'Noto Sans SC',sans-serif" font-size="10" fill="#E65100" font-weight="600">LLM API</text>
+        <text x="605" y="258" text-anchor="middle" font-family="'JetBrains Mono',monospace" font-size="8.5" fill="#F57C00">OpenAI-compatible</text>
+        <text x="605" y="269" text-anchor="middle" font-family="'JetBrains Mono',monospace" font-size="8" fill="#FFB74D">web_search_options</text>
+
+        <!-- Storage -->
+        <rect x="540" y="320" width="130" height="55" rx="10" fill="#F3E5F5" stroke="#BA68C8" stroke-width="1.5"/>
+        <text x="605" y="343" text-anchor="middle" font-family="'Noto Sans SC',sans-serif" font-size="10" fill="#6A1B9A" font-weight="600">作者缓存</text>
+        <text x="605" y="358" text-anchor="middle" font-family="'JetBrains Mono',monospace" font-size="8.5" fill="#7B1FA2">author_info_cache.json</text>
+        <text x="605" y="369" text-anchor="middle" font-family="'Noto Sans SC',sans-serif" font-size="8" fill="#CE93D8">持久化 / 增量更新</text>
+
+        <rect x="540" y="410" width="130" height="55" rx="10" fill="#EFEBE9" stroke="#A1887F" stroke-width="1.5"/>
+        <text x="605" y="433" text-anchor="middle" font-family="'Noto Sans SC',sans-serif" font-size="10" fill="#4E342E" font-weight="600">data/ 目录</text>
+        <text x="605" y="448" text-anchor="middle" font-family="'JetBrains Mono',monospace" font-size="8.5" fill="#6D4C41">.jsonl / .xlsx / .html</text>
+        <text x="605" y="459" text-anchor="middle" font-family="'Noto Sans SC',sans-serif" font-size="8" fill="#A1887F">结果文件存储</text>
+
+        <!-- Arrows Phase 0 → ScraperAPI -->
+        <line x1="465" y1="68" x2="538" y2="68" stroke="#66BB6A" stroke-width="1.2" marker-end="url(#arrow-gray)"/>
+        <line x1="465" y1="160" x2="538" y2="160" stroke="#42A5F5" stroke-width="1.2" marker-end="url(#arrow-gray)"/>
+        <line x1="465" y1="250" x2="538" y2="250" stroke="#FFA726" stroke-width="1.2" marker-end="url(#arrow-gray)"/>
+        <line x1="465" y1="250" x2="538" y2="350" stroke="#BA68C8" stroke-width="1" stroke-dasharray="3,3" marker-end="url(#arrow-gray)"/>
+        <line x1="465" y1="340" x2="538" y2="440" stroke="#A1887F" stroke-width="1" stroke-dasharray="3,3" marker-end="url(#arrow-gray)"/>
+
+        <!-- Output -->
+        <rect x="750" y="220" width="130" height="280" rx="12" fill="url(#grd2)" stroke="#FF8C00" stroke-width="1.5"/>
+        <text x="815" y="248" text-anchor="middle" font-family="'Noto Sans SC',sans-serif" font-size="11" fill="#FFD54F" font-weight="700">最终产物</text>
+        <line x1="760" y1="258" x2="870" y2="258" stroke="#5D4037" stroke-width="1"/>
+        <text x="815" y="278" text-anchor="middle" font-family="'JetBrains Mono',monospace" font-size="8.5" fill="#FFCC80">papers.jsonl</text>
+        <text x="815" y="296" text-anchor="middle" font-family="'JetBrains Mono',monospace" font-size="8.5" fill="#FFCC80">main_table.xlsx</text>
+        <text x="815" y="314" text-anchor="middle" font-family="'JetBrains Mono',monospace" font-size="8.5" fill="#FFCC80">renowned_only.xlsx</text>
+        <text x="815" y="332" text-anchor="middle" font-family="'JetBrains Mono',monospace" font-size="8.5" fill="#FFCC80">all_papers.xlsx</text>
+        <text x="815" y="350" text-anchor="middle" font-family="'JetBrains Mono',monospace" font-size="8.5" fill="#FFCC80">structured.json</text>
+        <text x="815" y="368" text-anchor="middle" font-family="'JetBrains Mono',monospace" font-size="8.5" fill="#FFCC80">description.xlsx</text>
+        <text x="815" y="390" text-anchor="middle" font-family="'JetBrains Mono',monospace" font-size="10" fill="#FF8C00" font-weight="700">dashboard.html</text>
+        <rect x="762" y="398" width="106" height="22" rx="4" fill="rgba(255,140,0,0.2)" stroke="rgba(255,140,0,0.5)" stroke-width="1"/>
+        <text x="815" y="413" text-anchor="middle" font-family="'Noto Sans SC',sans-serif" font-size="8" fill="#FFD54F">自包含 HTML + Chart.js</text>
+        <text x="815" y="440" text-anchor="middle" font-family="'Noto Sans SC',sans-serif" font-size="8.5" fill="#BCAAA4">颜色编码:</text>
+        <rect x="768" y="450" width="10" height="10" rx="2" fill="#EF5350"/>
+        <text x="782" y="459" font-family="'Noto Sans SC',sans-serif" font-size="8" fill="#FFAB91">院士</text>
+        <rect x="810" y="450" width="10" height="10" rx="2" fill="#66BB6A"/>
+        <text x="824" y="459" font-family="'Noto Sans SC',sans-serif" font-size="8" fill="#FFAB91">其他院士</text>
+        <rect x="768" y="468" width="10" height="10" rx="2" fill="#FFEE58"/>
+        <text x="782" y="477" font-family="'Noto Sans SC',sans-serif" font-size="8" fill="#FFAB91">Fellow</text>
+        <text x="815" y="492" text-anchor="middle" font-family="'Noto Sans SC',sans-serif" font-size="8" fill="#8D6E63">path traversal 保护</text>
+
+        <!-- Arrow from pipeline to output -->
+        <line x1="670" y1="440" x2="748" y2="360" stroke="#FF8C00" stroke-width="1.5" stroke-dasharray="5,3" marker-end="url(#arrow)"/>
+
+        <!-- WS arrow -->
+        <text x="120" y="148" text-anchor="middle" font-family="'JetBrains Mono',monospace" font-size="8" fill="#FF8C00">WebSocket</text>
+        <line x1="100" y1="230" x2="143" y2="200" stroke="#FF8C00" stroke-width="1" stroke-dasharray="3,3" marker-end="url(#arrow)"/>
+
+        <!-- Labels -->
+        <text x="492" y="55" font-family="'JetBrains Mono',monospace" font-size="7.5" fill="#8D6E63">HTTP</text>
+        <text x="492" y="145" font-family="'JetBrains Mono',monospace" font-size="7.5" fill="#8D6E63">parse</text>
+        <text x="492" y="238" font-family="'JetBrains Mono',monospace" font-size="7.5" fill="#8D6E63">Chat API</text>
+      </svg>
+    </div>
+  </div>
+</section>
+
+<!-- ===== SECTION 4: PIPELINE DETAIL ===== -->
+<section class="section" id="pipeline">
+  <div class="container">
+    <div class="section-header">
+      <div class="section-number">04 &mdash; 五阶段流水线详解</div>
+      <h2>每个阶段的内部机制</h2>
+      <div class="divider"></div>
+    </div>
+
+    <!-- Phase 0 -->
+    <div class="phase-detail">
+      <div class="phase-detail-header">
+        <span class="badge">Phase 0</span>
+        <h3>URL 发现</h3>
+        <span class="subtitle">url_finder.py</span>
+      </div>
+      <div class="phase-detail-body">
+        <div class="card-grid card-grid-2" style="margin-bottom:20px;">
+          <div>
+            <p>接收用户提供的 Google Scholar 论文 URL 或 <code>cites=</code> 参数，构造引用列表的起始 URL。核心逻辑是用 BeautifulSoup 解析 Scholar 搜索结果页，从 <code>&lt;a href="..."&gt;</code> 中提取 <code>cites=XXXXX</code> 参数。</p>
+            <p>通过 ScraperAPI 代理发送 HTTP 请求，返回包含引用计数的引用列表 URL，作为 Phase 1 抓取的入口。</p>
+          </div>
+          <div>
+            <div class="box-connector">
+              <div class="box-node">Scholar 论文 URL<br><small style="color:#8D6E63;">用户输入</small></div>
+              <div class="box-arrow">→</div>
+              <div class="box-node">ScraperAPI 请求<br><small style="color:#8D6E63;">解析 HTML</small></div>
+              <div class="box-arrow">→</div>
+              <div class="box-node"><code>cites=XXXXX</code><br><small style="color:#8D6E63;">引用列表 URL</small></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Phase 1 -->
+    <div class="phase-detail">
+      <div class="phase-detail-header">
+        <span class="badge">Phase 1</span>
+        <h3>Google Scholar 抓取器</h3>
+        <span class="subtitle">scraper.py · GoogleScholarScraper</span>
+      </div>
+      <div class="phase-detail-body">
+        <p>这是整个系统中工程难度最高的模块。Google Scholar 有三种主要的反爬手段，系统针对每种手段设计了独立的对策。</p>
+
+        <div class="code-block">
+          <div class="code-header">
+            <div class="code-dots"><span></span><span></span><span></span></div>
+            <div class="code-filename">core/scraper.py — 年份遍历模式</div>
+            <div class="code-lang">Python</div>
+          </div>
+          <pre><span class="cm"># 年份遍历模式：绕过 Google Scholar 每次只返回 ~1000 篇的硬限制</span>
+<span class="cm"># 解析 .gs_hist_g_a[data-year][data-count] 柱状图</span>
+<span class="kw">async def</span> <span class="fn">_scrape_by_year</span>(<span class="var">self</span>, <span class="var">base_url</span>: <span class="cls">str</span>):
+    <span class="cm"># 先获取年份直方图</span>
+    <span class="var">histogram</span> = <span class="kw">await</span> <span class="var">self</span>.<span class="fn">_fetch_year_histogram</span>(<span class="var">base_url</span>)
+    <span class="cm"># {2018: 43, 2019: 127, 2020: 289, ...}</span>
+
+    <span class="kw">for</span> <span class="var">year</span>, <span class="var">count</span> <span class="kw">in</span> <span class="var">histogram</span>.<span class="fn">items</span>():
+        <span class="cm"># 对每个年份单独构造 URL 并抓取</span>
+        <span class="var">year_url</span> = <span class="var">base_url</span> + <span class="str">f"&as_ylo=<span class="kw">{year}</span>&as_yhi=<span class="kw">{year}</span>"</span>
+        <span class="var">papers</span> = <span class="kw">await</span> <span class="var">self</span>.<span class="fn">_scrape_url</span>(<span class="var">year_url</span>)
+        <span class="kw">yield</span> <span class="var">papers</span>
+        <span class="kw">await</span> <span class="fn">self</span>.<span class="fn">_write_jsonl_page</span>(<span class="var">papers</span>)</pre>
+        </div>
+
+        <div class="code-block">
+          <div class="code-header">
+            <div class="code-dots"><span></span><span></span><span></span></div>
+            <div class="code-filename">core/scraper.py — 数据中心重试与地理轮换</div>
+            <div class="code-lang">Python</div>
+          </div>
+          <pre><span class="cm"># 20 个优先国家代码（学术流量大，被封概率低）</span>
+<span class="cls">PREFERRED_GEO_COUNTRIES</span> = [
+    <span class="str">'us'</span>, <span class="str">'uk'</span>, <span class="str">'de'</span>, <span class="str">'fr'</span>, <span class="str">'ca'</span>, <span class="str">'au'</span>, <span class="str">'jp'</span>,
+    <span class="str">'kr'</span>, <span class="str">'sg'</span>, <span class="str">'nl'</span>, <span class="str">'se'</span>, <span class="str">'ch'</span>, <span class="str">'at'</span>, <span class="str">'dk'</span>,
+    <span class="str">'fi'</span>, <span class="str">'no'</span>, <span class="str">'nz'</span>, <span class="str">'ie'</span>, <span class="str">'be'</span>, <span class="str">'it'</span>,
+]
+
+<span class="kw">async def</span> <span class="fn">_detect_dc_inconsistency</span>(<span class="var">self</span>, <span class="var">page_html</span>: <span class="cls">str</span>) <span class="op">-></span> <span class="cls">bool</span>:
+    <span class="cm"># 短页面检测：正常页面应有 10 篇论文</span>
+    <span class="var">papers_found</span> = <span class="var">self</span>.<span class="var">parser</span>.<span class="fn">count_results</span>(<span class="var">page_html</span>)
+    <span class="kw">return</span> <span class="var">papers_found</span> <span class="op"><</span> <span class="num">2</span>
+
+<span class="kw">async def</span> <span class="fn">_rotate_geo</span>(<span class="var">self</span>, <span class="var">attempt</span>: <span class="cls">int</span>) <span class="op">-></span> <span class="cls">str</span>:
+    <span class="kw">if</span> <span class="var">attempt</span> <span class="op"><</span> <span class="num">20</span>:
+        <span class="kw">return</span> <span class="var">self</span>.<span class="cls">PREFERRED_GEO_COUNTRIES</span>[<span class="var">attempt</span> <span class="op">%</span> <span class="num">20</span>]
+    <span class="kw">else</span>:
+        <span class="kw">return</span> <span class="fn">random</span>.<span class="fn">choice</span>(<span class="var">self</span>.<span class="cls">ALL_GEO_COUNTRIES</span>)</pre>
+        </div>
+
+        <div class="callout warning">
+          <div class="callout-title">&#9888; 年份遍历的意义</div>
+          <p>Google Scholar 对任意查询最多返回约 <strong>1000 篇</strong>论文。对于高引用论文（如引用数超过 2000），不分年份直接抓取会丢失大量数据。年份遍历模式将问题分解为每年独立的子查询，每年通常不超过 300 篇，从而突破硬限制。</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Phase 2 -->
+    <div class="phase-detail">
+      <div class="phase-detail-header">
+        <span class="badge">Phase 2</span>
+        <h3>作者搜索器</h3>
+        <span class="subtitle">author_searcher.py · AuthorSearcher</span>
+      </div>
+      <div class="phase-detail-body">
+        <p>每篇引用论文需要经过多轮 LLM 对话来完成完整的作者画像。整个过程通过 <code>asyncio.Semaphore</code> 控制并发，避免超出 API 速率限制。</p>
+
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr><th>步骤</th><th>操作</th><th>输入</th><th>输出</th><th>模型</th></tr>
+            </thead>
+            <tbody>
+              <tr><td><strong>Step 1</strong></td><td>LLM Web Search → 作者+机构（自由文本）</td><td>论文标题 + 第一作者名</td><td>机构名、所在国家（非结构化）</td><td><span class="badge-blue">主模型</span></td></tr>
+              <tr><td><strong>Step 1b</strong></td><td>JSON 提取</td><td>Step 1 输出</td><td><code>first_author_institution</code>, <code>country</code></td><td><span class="badge-blue">主模型</span></td></tr>
+              <tr><td><strong>Step 2</strong></td><td>LLM Web Search → Scholar 引用数 + 学术头衔</td><td>作者名 + 机构</td><td>引用数、院士/Fellow/杰青等识别</td><td><span class="badge-blue">主模型</span></td></tr>
+              <tr><td><strong>Step 3</strong></td><td>事实核验（可选）</td><td>Step 2 输出</td><td>核实后的信息</td><td><span class="badge-green">verify模型</span></td></tr>
+              <tr><td><strong>Step 4</strong></td><td>自引检测</td><td>引用作者集合 vs 目标作者</td><td>is_self_citation (bool)</td><td><span class="badge-blue">主模型</span></td></tr>
+              <tr><td><strong>Step 5</strong></td><td>重要学者识别 + 结构化 JSON</td><td>所有已收集信息</td><td>完整结构化 JSON</td><td><span class="badge-yellow">renowned模型</span></td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="code-block">
+          <div class="code-header">
+            <div class="code-dots"><span></span><span></span><span></span></div>
+            <div class="code-filename">core/author_searcher.py — 并发控制</div>
+            <div class="code-lang">Python</div>
+          </div>
+          <pre><span class="kw">class</span> <span class="cls">AuthorSearcher</span>:
+    <span class="kw">async def</span> <span class="fn">search_all</span>(<span class="var">self</span>, <span class="var">papers</span>: <span class="cls">list</span>, <span class="var">parallel_workers</span>: <span class="cls">int</span> = <span class="num">5</span>):
+        <span class="var">sem</span> = <span class="cls">asyncio</span>.<span class="fn">Semaphore</span>(<span class="var">parallel_workers</span>)
+
+        <span class="kw">async def</span> <span class="fn">_bounded_search</span>(<span class="var">paper</span>):
+            <span class="kw">async with</span> <span class="var">sem</span>:
+                <span class="cm"># 先检查缓存</span>
+                <span class="var">cached</span> = <span class="var">self</span>.<span class="var">cache</span>.<span class="fn">get</span>(<span class="var">paper</span>[<span class="str">'url'</span>])
+                <span class="kw">if</span> <span class="var">cached</span> <span class="kw">and</span> <span class="var">cached</span>.<span class="fn">is_complete</span>():
+                    <span class="kw">return</span> <span class="var">cached</span>
+                <span class="cm"># 执行多步 LLM 搜索</span>
+                <span class="kw">return</span> <span class="kw">await</span> <span class="var">self</span>.<span class="fn">_search_single</span>(<span class="var">paper</span>)
+
+        <span class="var">tasks</span> = [<span class="fn">_bounded_search</span>(<span class="var">p</span>) <span class="kw">for</span> <span class="var">p</span> <span class="kw">in</span> <span class="var">papers</span>]
+        <span class="kw">return</span> <span class="kw">await</span> <span class="cls">asyncio</span>.<span class="fn">gather</span>(<span class="op">*</span><span class="var">tasks</span>)
+
+    <span class="kw">async def</span> <span class="fn">_llm_web_search</span>(<span class="var">self</span>, <span class="var">prompt</span>: <span class="cls">str</span>) <span class="op">-></span> <span class="cls">str</span>:
+        <span class="cm"># extra_body 启用 Web Search（OpenAI-compatible 扩展）</span>
+        <span class="var">resp</span> = <span class="kw">await</span> <span class="var">self</span>.<span class="var">client</span>.<span class="var">chat</span>.<span class="var">completions</span>.<span class="fn">create</span>(
+            <span class="var">model</span>=<span class="var">self</span>.<span class="var">model</span>,
+            <span class="var">messages</span>=[{<span class="str">"role"</span>: <span class="str">"user"</span>, <span class="str">"content"</span>: <span class="var">prompt</span>}],
+            <span class="var">extra_body</span>={<span class="str">"web_search_options"</span>: {}}
+        )
+        <span class="kw">return</span> <span class="var">resp</span>.<span class="var">choices</span>[<span class="num">0</span>].<span class="var">message</span>.<span class="var">content</span></pre>
+        </div>
+      </div>
+    </div>
+
+    <!-- Phase 3 -->
+    <div class="phase-detail">
+      <div class="phase-detail-header">
+        <span class="badge">Phase 3</span>
+        <h3>Excel 导出器</h3>
+        <span class="subtitle">exporter.py</span>
+      </div>
+      <div class="phase-detail-body">
+        <div class="card-grid card-grid-2">
+          <div>
+            <p>使用 Pandas 构建 DataFrame，通过 OpenPyXL 写入 Excel。最关键的特性是按学术影响力进行颜色编码，使分析者一眼识别重要引用来源。</p>
+            <ul class="feature-list check">
+              <li><span class="badge-red">红色</span> CAS/CAE 院士（中国两院院士）</li>
+              <li><span class="badge-green">绿色</span> 其他院士（外国院院士等）</li>
+              <li><span class="badge-yellow">黄色</span> IEEE/ACM Fellow 等国际称号</li>
+              <li>白色 / 普通：其他作者</li>
+            </ul>
+          </div>
+          <div>
+            <p><strong>三种 Excel 输出：</strong></p>
+            <ul class="feature-list">
+              <li><code>main_table.xlsx</code> — 完整引用表</li>
+              <li><code>renowned_only.xlsx</code> — 仅重要学者</li>
+              <li><code>all_papers.xlsx</code> — 保留所有字段的原始数据</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Phase 4 -->
+    <div class="phase-detail">
+      <div class="phase-detail-header">
+        <span class="badge">Phase 4</span>
+        <h3>引用描述搜索器</h3>
+        <span class="subtitle">citing_description_searcher.py</span>
+      </div>
+      <div class="phase-detail-body">
+        <p>对每篇引用论文，LLM 通过 Web Search 访问其 URL，定位并提取<strong>准确引用被引论文的原句</strong>（citation sentence）。</p>
+
+        <div class="code-block">
+          <div class="code-header">
+            <div class="code-dots"><span></span><span></span><span></span></div>
+            <div class="code-filename">core/citing_description_searcher.py — 锁机制防止重复</div>
+            <div class="code-lang">Python</div>
+          </div>
+          <pre><span class="cm"># 对目标论文标题加锁，防止并发时重复查找同一目标</span>
+<span class="var">self</span>.<span class="var">_title_locks</span>: <span class="cls">dict</span>[<span class="cls">str</span>, <span class="cls">asyncio</span>.<span class="cls">Lock</span>] = {}
+
+<span class="kw">async def</span> <span class="fn">_get_lock</span>(<span class="var">self</span>, <span class="var">title</span>: <span class="cls">str</span>) <span class="op">-></span> <span class="cls">asyncio</span>.<span class="cls">Lock</span>:
+    <span class="kw">if</span> <span class="var">title</span> <span class="kw">not in</span> <span class="var">self</span>.<span class="var">_title_locks</span>:
+        <span class="var">self</span>.<span class="var">_title_locks</span>[<span class="var">title</span>] = <span class="cls">asyncio</span>.<span class="fn">Lock</span>()
+    <span class="kw">return</span> <span class="var">self</span>.<span class="var">_title_locks</span>[<span class="var">title</span>]
+
+<span class="cm"># 三种抓取范围</span>
+<span class="cm"># "all"            → 所有引用论文</span>
+<span class="cm"># "renowned_only"  → 仅重要学者的论文</span>
+<span class="cm"># "specified_only" → 用户指定的论文列表</span></pre>
+        </div>
+      </div>
+    </div>
+
+    <!-- Phase 5 -->
+    <div class="phase-detail">
+      <div class="phase-detail-header">
+        <span class="badge">Phase 5</span>
+        <h3>仪表盘生成器</h3>
+        <span class="subtitle">dashboard_generator.py · DashboardGenerator</span>
+      </div>
+      <div class="phase-detail-body">
+        <p>通过 4 次 LLM 调用生成深度分析报告，并将所有数据 inline 在单个 HTML 文件中。</p>
+
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>LLM 调用</th><th>功能</th><th>Fallback 算法</th></tr></thead>
+            <tbody>
+              <tr><td><code>_llm_keywords()</code></td><td>关键词提取与权重分析</td><td>词频统计（TF）</td></tr>
+              <tr><td><code>_llm_description_analysis()</code></td><td>引用描述语义分析</td><td>模板字符串</td></tr>
+              <tr><td><code>_llm_trend_prediction()</code></td><td>未来 3 年引用趋势预测</td><td>线性回归 + YoY 增长率截断</td></tr>
+              <tr><td><code>_llm_insights()</code></td><td>洞察报告生成（Markdown）</td><td>基于统计数据的模板</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="callout success">
+          <div class="callout-title">&#128161; 自包含 HTML 的实现方式</div>
+          <p>所有 Chart.js 数据（labels, datasets）通过 Python <code>json.dumps()</code> 序列化后，以 <code>&lt;script&gt;const data = ...&lt;/script&gt;</code> 形式内嵌在 HTML 中。Markdown 洞察通过 <code>marked.js</code> CDN 在浏览器端渲染。CSS 和逻辑 JS 全部 inline，最终产物为单个约 2000+ 行的 .html 文件。</p>
+        </div>
+
+        <!-- Dashboard mockup -->
+        <div class="mockup-window" style="margin-top:24px;">
+          <div class="mockup-titlebar">
+            <div class="dots"><span></span><span></span><span></span></div>
+            <div class="title">dashboard.html — Chrome</div>
+          </div>
+          <div style="background:#fff8f0;padding:0;">
+            <!-- Simulated dashboard header -->
+            <div style="background:linear-gradient(135deg,#3E2723,#D84315,#FF8C00);padding:24px 28px;color:#FFF8F0;">
+              <div style="font-size:0.7rem;opacity:0.7;font-family:'JetBrains Mono',monospace;margin-bottom:6px;">CITATION ANALYTICS DASHBOARD</div>
+              <div style="font-size:1.2rem;font-weight:700;font-family:'Noto Serif SC',serif;margin-bottom:4px;">《XXX领域核心论文》引用分析报告</div>
+              <div style="font-size:0.75rem;opacity:0.6;font-family:'JetBrains Mono',monospace;">Generated by CitationAgent · 2026-03 · 347 citing papers</div>
+            </div>
+            <!-- Simulated stat cards -->
+            <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;padding:16px;background:#FFF3E0;">
+              <div style="background:white;border-radius:8px;padding:12px;text-align:center;box-shadow:0 1px 4px rgba(0,0,0,0.08);">
+                <div style="font-size:1.6rem;font-weight:700;color:#D84315;font-family:'JetBrains Mono',monospace;">347</div>
+                <div style="font-size:0.65rem;color:#8D6E63;">引用论文总数</div>
+              </div>
+              <div style="background:white;border-radius:8px;padding:12px;text-align:center;box-shadow:0 1px 4px rgba(0,0,0,0.08);">
+                <div style="font-size:1.6rem;font-weight:700;color:#D84315;font-family:'JetBrains Mono',monospace;">23</div>
+                <div style="font-size:0.65rem;color:#8D6E63;">院士/Fellow</div>
+              </div>
+              <div style="background:white;border-radius:8px;padding:12px;text-align:center;box-shadow:0 1px 4px rgba(0,0,0,0.08);">
+                <div style="font-size:1.6rem;font-weight:700;color:#D84315;font-family:'JetBrains Mono',monospace;">38</div>
+                <div style="font-size:0.65rem;color:#8D6E63;">国家/地区</div>
+              </div>
+              <div style="background:white;border-radius:8px;padding:12px;text-align:center;box-shadow:0 1px 4px rgba(0,0,0,0.08);">
+                <div style="font-size:1.6rem;font-weight:700;color:#D84315;font-family:'JetBrains Mono',monospace;">2.4x</div>
+                <div style="font-size:0.65rem;color:#8D6E63;">5年增长倍数</div>
+              </div>
+            </div>
+            <!-- Simulated chart area -->
+            <div style="display:grid;grid-template-columns:2fr 1fr;gap:12px;padding:0 16px 16px;background:#FFF3E0;">
+              <div style="background:white;border-radius:8px;padding:16px;box-shadow:0 1px 4px rgba(0,0,0,0.08);">
+                <div style="font-size:0.75rem;font-weight:700;color:#3E2723;margin-bottom:10px;font-family:'Noto Serif SC',serif;">年度引用趋势</div>
+                <!-- Simulated bar chart -->
+                <div style="display:flex;align-items:flex-end;gap:6px;height:80px;">
+                  <div style="flex:1;background:linear-gradient(180deg,#FF8C00,#D84315);border-radius:3px 3px 0 0;height:20%;"></div>
+                  <div style="flex:1;background:linear-gradient(180deg,#FF8C00,#D84315);border-radius:3px 3px 0 0;height:30%;"></div>
+                  <div style="flex:1;background:linear-gradient(180deg,#FF8C00,#D84315);border-radius:3px 3px 0 0;height:45%;"></div>
+                  <div style="flex:1;background:linear-gradient(180deg,#FF8C00,#D84315);border-radius:3px 3px 0 0;height:60%;"></div>
+                  <div style="flex:1;background:linear-gradient(180deg,#FF8C00,#D84315);border-radius:3px 3px 0 0;height:75%;"></div>
+                  <div style="flex:1;background:linear-gradient(180deg,#FF8C00,#D84315);border-radius:3px 3px 0 0;height:90%;"></div>
+                  <div style="flex:1;background:linear-gradient(180deg,#FF8C00,#D84315);border-radius:3px 3px 0 0;height:100%;"></div>
+                  <div style="flex:1;background:rgba(255,140,0,0.3);border-radius:3px 3px 0 0;height:110%;border:1px dashed #FF8C00;margin-bottom:-10px;"></div>
+                </div>
+                <div style="display:flex;gap:6px;margin-top:4px;">
+                  <div style="flex:1;text-align:center;font-size:0.55rem;color:#8D6E63;font-family:'JetBrains Mono',monospace;">2019</div>
+                  <div style="flex:1;text-align:center;font-size:0.55rem;color:#8D6E63;font-family:'JetBrains Mono',monospace;">2020</div>
+                  <div style="flex:1;text-align:center;font-size:0.55rem;color:#8D6E63;font-family:'JetBrains Mono',monospace;">2021</div>
+                  <div style="flex:1;text-align:center;font-size:0.55rem;color:#8D6E63;font-family:'JetBrains Mono',monospace;">2022</div>
+                  <div style="flex:1;text-align:center;font-size:0.55rem;color:#8D6E63;font-family:'JetBrains Mono',monospace;">2023</div>
+                  <div style="flex:1;text-align:center;font-size:0.55rem;color:#8D6E63;font-family:'JetBrains Mono',monospace;">2024</div>
+                  <div style="flex:1;text-align:center;font-size:0.55rem;color:#8D6E63;font-family:'JetBrains Mono',monospace;">2025</div>
+                  <div style="flex:1;text-align:center;font-size:0.55rem;color:#FF8C00;font-family:'JetBrains Mono',monospace;">2026↗</div>
+                </div>
+              </div>
+              <div style="background:white;border-radius:8px;padding:16px;box-shadow:0 1px 4px rgba(0,0,0,0.08);">
+                <div style="font-size:0.75rem;font-weight:700;color:#3E2723;margin-bottom:10px;font-family:'Noto Serif SC',serif;">国家分布</div>
+                <div style="display:flex;flex-direction:column;gap:4px;">
+                  <div style="display:flex;align-items:center;gap:8px;">
+                    <div style="width:35px;font-size:0.6rem;color:#8D6E63;font-family:'JetBrains Mono',monospace;">🇺🇸 US</div>
+                    <div style="flex:1;background:#FFE0B2;border-radius:2px;height:8px;">
+                      <div style="width:80%;background:linear-gradient(90deg,#FF8C00,#D84315);border-radius:2px;height:100%;"></div>
+                    </div>
+                    <div style="font-size:0.6rem;color:#D84315;font-family:'JetBrains Mono',monospace;">82</div>
+                  </div>
+                  <div style="display:flex;align-items:center;gap:8px;">
+                    <div style="width:35px;font-size:0.6rem;color:#8D6E63;font-family:'JetBrains Mono',monospace;">🇨🇳 CN</div>
+                    <div style="flex:1;background:#FFE0B2;border-radius:2px;height:8px;">
+                      <div style="width:65%;background:linear-gradient(90deg,#FF8C00,#D84315);border-radius:2px;height:100%;"></div>
+                    </div>
+                    <div style="font-size:0.6rem;color:#D84315;font-family:'JetBrains Mono',monospace;">67</div>
+                  </div>
+                  <div style="display:flex;align-items:center;gap:8px;">
+                    <div style="width:35px;font-size:0.6rem;color:#8D6E63;font-family:'JetBrains Mono',monospace;">🇬🇧 UK</div>
+                    <div style="flex:1;background:#FFE0B2;border-radius:2px;height:8px;">
+                      <div style="width:38%;background:linear-gradient(90deg,#FF8C00,#D84315);border-radius:2px;height:100%;"></div>
+                    </div>
+                    <div style="font-size:0.6rem;color:#D84315;font-family:'JetBrains Mono',monospace;">39</div>
+                  </div>
+                  <div style="display:flex;align-items:center;gap:8px;">
+                    <div style="width:35px;font-size:0.6rem;color:#8D6E63;font-family:'JetBrains Mono',monospace;">🇩🇪 DE</div>
+                    <div style="flex:1;background:#FFE0B2;border-radius:2px;height:8px;">
+                      <div style="width:28%;background:linear-gradient(90deg,#FF8C00,#D84315);border-radius:2px;height:100%;"></div>
+                    </div>
+                    <div style="font-size:0.6rem;color:#D84315;font-family:'JetBrains Mono',monospace;">29</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ===== SECTION 5: CORE MODULES ===== -->
+<section class="section" id="modules">
+  <div class="container">
+    <div class="section-header">
+      <div class="section-number">05 &mdash; 核心模块解析</div>
+      <h2>关键实现细节</h2>
+      <div class="divider"></div>
+    </div>
+
+    <!-- WebSocket -->
+    <h3 style="margin-bottom:16px;color:var(--text-dark);">&#128268; WebSocket 实时通信</h3>
+    <p>FastAPI 在 <code>/ws</code> 端点维护一个 WebSocket 连接，将流水线运行时的日志、进度和阶段事件实时推送到前端。</p>
+
+    <div class="ws-flow">
+      <div class="ws-col">
+        <h4>&#8593; 服务端 → 客户端消息类型</h4>
+        <div class="ws-msg"><span class="arrow">→</span><span class="type">history</span><span class="desc">连接建立时回放历史日志</span></div>
+        <div class="ws-msg"><span class="arrow">→</span><span class="type">log</span><span class="desc">实时日志行（info/success/warning/error）</span></div>
+        <div class="ws-msg"><span class="arrow">→</span><span class="type">progress</span><span class="desc">进度更新 {current, total}</span></div>
+        <div class="ws-msg"><span class="arrow">→</span><span class="type">stage1_complete</span><span class="desc">Phase 1 抓取完成，触发 UI 更新</span></div>
+        <div class="ws-msg"><span class="arrow">→</span><span class="type">all_done</span><span class="desc">全部阶段完成，含结果文件路径</span></div>
+        <div class="ws-msg"><span class="arrow">→</span><span class="type">ping</span><span class="desc">每 60s 保活心跳（防 timeout）</span></div>
+      </div>
+      <div class="ws-col">
+        <h4>&#128187; 前端 Terminal 日志 UI 模拟</h4>
+        <div class="mockup-body" style="background:#1C1210;border-radius:8px;padding:14px;min-height:unset;">
+          <div class="log-line"><span class="log-time">10:23:01</span><span class="log-tag tag-info">INFO</span><span class="log-info">开始抓取引用列表 URL...</span></div>
+          <div class="log-line"><span class="log-time">10:23:03</span><span class="log-tag tag-ok">OK</span><span class="log-success">找到 347 篇引用论文</span></div>
+          <div class="log-line"><span class="log-time">10:23:05</span><span class="log-tag tag-info">INFO</span><span class="log-info">第 1/35 页 [10篇]</span></div>
+          <div class="log-line"><span class="log-time">10:23:12</span><span class="log-tag tag-warn">WARN</span><span class="log-warning">检测到短页面，切换到 de 节点</span></div>
+          <div class="log-line"><span class="log-time">10:23:15</span><span class="log-tag tag-ok">OK</span><span class="log-success">第 2/35 页 [10篇]</span></div>
+          <div class="log-line"><span class="log-time">10:24:03</span><span class="log-tag tag-ok">OK</span><span class="log-success">Phase 1 完成，写入 papers.jsonl</span></div>
+          <div class="log-line"><span class="log-time">10:24:04</span><span class="log-tag tag-info">INFO</span><span class="log-info">启动 Phase 2，并发数=5...</span></div>
+          <div class="log-line log-dim"><span class="log-time">10:24:07</span><span class="log-tag tag-info">INFO</span><span class="log-info">搜索作者: Zhang Wei (MIT)...</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Cost Tracker -->
+    <h3 style="margin:40px 0 16px;color:var(--text-dark);">&#128176; 费用追踪器</h3>
+    <p>系统在任务执行前后分别调用 <code>GET /api/user/self</code> 快照配额，差值即为本次任务消耗。支持两种计费模型：</p>
+
+    <div class="card-grid card-grid-2">
+      <div class="card">
+        <h4 style="margin-bottom:12px;">ScraperAPI 费用</h4>
+        <p style="font-size:0.88rem;">每次 HTTP 响应的 <code>sa-credit-cost</code> 响应头携带本次消耗的 credits 数量。</p>
+        <div style="margin-top:12px;background:var(--bg-code);border-radius:6px;padding:12px;">
+          <code style="background:transparent;color:#F5DEB3;font-size:0.8rem;">
+            sa-credit-cost: 10<br>
+            # 费率：$49 / 100,000 credits
+          </code>
+        </div>
+      </div>
+      <div class="card">
+        <h4 style="margin-bottom:12px;">LLM API 费用</h4>
+        <p style="font-size:0.88rem;">通过 API 配额快照差值计算 token 消耗，换算为人民币费用显示在日志中。</p>
+        <div style="margin-top:12px;background:var(--bg-code);border-radius:6px;padding:12px;">
+          <code style="background:transparent;color:#F5DEB3;font-size:0.8rem;">
+            token_diff = quota_before - quota_after<br>
+            units = token_diff ÷ 500,000<br>
+            cost_rmb = units × ¥2
+          </code>
+        </div>
+      </div>
+    </div>
+
+    <!-- Config Manager -->
+    <h3 style="margin:40px 0 16px;color:var(--text-dark);">&#9881;&#65039; 配置管理器</h3>
+    <p><code>app/config_manager.py</code> 负责读写 <code>config.json</code>，并通过 <code>_safe_data_path()</code> 对所有文件路径进行路径穿越攻击防护。</p>
+
+    <div class="code-block">
+      <div class="code-header">
+        <div class="code-dots"><span></span><span></span><span></span></div>
+        <div class="code-filename">app/config_manager.py — 路径安全校验</div>
+        <div class="code-lang">Python</div>
+      </div>
+      <pre><span class="kw">def</span> <span class="fn">_safe_data_path</span>(<span class="var">relative_path</span>: <span class="cls">str</span>) <span class="op">-></span> <span class="cls">Path</span>:
+    <span class="cm">"""防止路径穿越攻击 (e.g. ../../etc/passwd)"""</span>
+    <span class="var">base</span> = <span class="cls">Path</span>(<span class="str">"data"</span>).<span class="fn">resolve</span>()
+    <span class="var">target</span> = (<span class="var">base</span> / <span class="var">relative_path</span>).<span class="fn">resolve</span>()
+    <span class="kw">if</span> <span class="kw">not</span> <span class="var">str</span>(<span class="var">target</span>).<span class="fn">startswith</span>(<span class="var">str</span>(<span class="var">base</span>)):
+        <span class="kw">raise</span> <span class="cls">ValueError</span>(<span class="str">f"Path traversal attempt detected: {relative_path}"</span>)
+    <span class="kw">return</span> <span class="var">target</span></pre>
+    </div>
+  </div>
+</section>
+
+<!-- ===== SECTION 6: RESILIENCE ===== -->
+<section class="section" id="resilience">
+  <div class="container">
+    <div class="section-header">
+      <div class="section-number">06 &mdash; 弹性设计</div>
+      <h2>三层容错机制与缓存策略</h2>
+      <div class="divider"></div>
+    </div>
+
+    <h3 style="margin-bottom:20px;">三层重试架构</h3>
+    <p style="color:var(--text-muted);margin-bottom:24px;">Google Scholar 的反爬机制在三个不同层面运作，系统针对每一层设计了独立的检测与对策逻辑：</p>
+
+    <div class="retry-diagram">
+      <div class="retry-tier">
+        <div class="retry-tier-num">T1</div>
+        <div class="retry-tier-content">
+          <div class="retry-tier-title">HTTP 层重试 — 网络错误与 5xx 响应</div>
+          <div class="retry-tier-desc">
+            检测条件：HTTP 状态码 &ne; 200，或网络超时。<br>
+            对策：轮换 ScraperAPI API Keys；按配置间隔（如 <code>5,10,20</code> 秒）指数退避；最多 N 次（默认 3）。
+          </div>
+        </div>
+        <div class="retry-tier-badge">rotate api_keys</div>
+      </div>
+      <div class="retry-tier">
+        <div class="retry-tier-num">T2</div>
+        <div class="retry-tier-content">
+          <div class="retry-tier-title">CAPTCHA 层重试 — 登录页 / 验证码检测</div>
+          <div class="retry-tier-desc">
+            检测条件：解析到的有效论文数 &lt; 2（说明返回的是登录/验证码页面，而非真实结果）。<br>
+            对策：轮换 ScraperAPI Session Number（生成新的随机 6 位 session ID），触发服务器重新分配代理 IP。
+          </div>
+        </div>
+        <div class="retry-tier-badge">rotate session_number</div>
+      </div>
+      <div class="retry-tier">
+        <div class="retry-tier-num">T3</div>
+        <div class="retry-tier-content">
+          <div class="retry-tier-title">数据中心不一致层 — 短页面地理切换</div>
+          <div class="retry-tier-desc">
+            检测条件：页面内容完整（非 CAPTCHA），但论文数量异常少（数据中心缓存不一致）。<br>
+            对策：通过 ScraperAPI <code>country_code</code> 参数切换出口节点地理位置。前 20 次循环使用优先国家列表，之后随机抽取全球 60+ 国家池。
+          </div>
+        </div>
+        <div class="retry-tier-badge">rotate country_code</div>
+      </div>
+    </div>
+
+    <!-- Retry flow diagram -->
+    <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-lg);padding:32px;margin:24px 0;">
+      <h4 style="margin-bottom:20px;color:var(--text-dark);">重试决策流程</h4>
+      <svg viewBox="0 0 800 200" style="width:100%;height:auto;" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <marker id="arr2" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+            <path d="M0,0 L0,6 L8,3 z" fill="#FF8C00"/>
+          </marker>
+        </defs>
+        <!-- Start -->
+        <ellipse cx="60" cy="100" rx="50" ry="28" fill="#FFF3E0" stroke="#FFB74D" stroke-width="1.5"/>
+        <text x="60" y="104" text-anchor="middle" font-family="'Noto Sans SC',sans-serif" font-size="10" fill="#3E2723">HTTP 请求</text>
+        <!-- Decision 1 -->
+        <polygon points="185,72 245,100 185,128 125,100" fill="#FFE0B2" stroke="#FF8C00" stroke-width="1.5"/>
+        <text x="185" y="97" text-anchor="middle" font-family="'Noto Sans SC',sans-serif" font-size="9" fill="#3E2723">HTTP</text>
+        <text x="185" y="109" text-anchor="middle" font-family="'Noto Sans SC',sans-serif" font-size="9" fill="#3E2723">200?</text>
+        <line x1="110" y1="100" x2="122" y2="100" stroke="#FF8C00" stroke-width="1.5" marker-end="url(#arr2)"/>
+        <!-- No branch: rotate key -->
+        <line x1="185" y1="72" x2="185" y2="44" stroke="#EF5350" stroke-width="1.2"/>
+        <rect x="140" y="18" width="90" height="26" rx="6" fill="#FFEBEE" stroke="#EF5350" stroke-width="1.2"/>
+        <text x="185" y="35" text-anchor="middle" font-family="'JetBrains Mono',monospace" font-size="8.5" fill="#C62828">轮换 API Key</text>
+        <text x="195" y="60" font-family="'Noto Sans SC',sans-serif" font-size="8" fill="#C62828">✗</text>
+        <!-- Decision 2 -->
+        <polygon points="360,72 420,100 360,128 300,100" fill="#FFE0B2" stroke="#FF8C00" stroke-width="1.5"/>
+        <text x="360" y="97" text-anchor="middle" font-family="'Noto Sans SC',sans-serif" font-size="9" fill="#3E2723">论文</text>
+        <text x="360" y="109" text-anchor="middle" font-family="'Noto Sans SC',sans-serif" font-size="9" fill="#3E2723">≥2?</text>
+        <line x1="247" y1="100" x2="298" y2="100" stroke="#FF8C00" stroke-width="1.5" marker-end="url(#arr2)"/>
+        <text x="272" y="92" text-anchor="middle" font-family="'Noto Sans SC',sans-serif" font-size="8" fill="#388E3C">✓ 200</text>
+        <!-- CAPTCHA branch -->
+        <line x1="360" y1="72" x2="360" y2="44" stroke="#EF5350" stroke-width="1.2"/>
+        <rect x="305" y="18" width="110" height="26" rx="6" fill="#FFEBEE" stroke="#EF5350" stroke-width="1.2"/>
+        <text x="360" y="35" text-anchor="middle" font-family="'JetBrains Mono',monospace" font-size="8.5" fill="#C62828">轮换 Session #</text>
+        <text x="370" y="60" font-family="'Noto Sans SC',sans-serif" font-size="8" fill="#C62828">✗</text>
+        <!-- Decision 3 -->
+        <polygon points="543,72 603,100 543,128 483,100" fill="#FFE0B2" stroke="#FF8C00" stroke-width="1.5"/>
+        <text x="543" y="97" text-anchor="middle" font-family="'Noto Sans SC',sans-serif" font-size="9" fill="#3E2723">页面</text>
+        <text x="543" y="109" text-anchor="middle" font-family="'Noto Sans SC',sans-serif" font-size="9" fill="#3E2723">完整?</text>
+        <line x1="422" y1="100" x2="481" y2="100" stroke="#FF8C00" stroke-width="1.5" marker-end="url(#arr2)"/>
+        <text x="452" y="92" text-anchor="middle" font-family="'Noto Sans SC',sans-serif" font-size="8" fill="#388E3C">✓ ≥2</text>
+        <!-- DC branch -->
+        <line x1="543" y1="72" x2="543" y2="44" stroke="#FFA726" stroke-width="1.2"/>
+        <rect x="485" y="18" width="115" height="26" rx="6" fill="#FFF3E0" stroke="#FFA726" stroke-width="1.2"/>
+        <text x="543" y="35" text-anchor="middle" font-family="'JetBrains Mono',monospace" font-size="8.5" fill="#E65100">轮换 country_code</text>
+        <text x="552" y="60" font-family="'Noto Sans SC',sans-serif" font-size="8" fill="#E65100">✗</text>
+        <!-- Success -->
+        <ellipse cx="725" cy="100" rx="55" ry="28" fill="#E8F5E9" stroke="#66BB6A" stroke-width="1.5"/>
+        <text x="725" y="104" text-anchor="middle" font-family="'Noto Sans SC',sans-serif" font-size="10" fill="#2E7D32">写入 JSONL ✓</text>
+        <line x1="605" y1="100" x2="668" y2="100" stroke="#FF8C00" stroke-width="1.5" marker-end="url(#arr2)"/>
+        <text x="636" y="92" text-anchor="middle" font-family="'Noto Sans SC',sans-serif" font-size="8" fill="#388E3C">✓ 完整</text>
+      </svg>
+    </div>
+
+    <!-- Cache Strategy -->
+    <h3 style="margin:40px 0 20px;">持久化缓存策略</h3>
+
+    <div class="cache-diagram">
+      <div class="cache-box">
+        <h4>缓存结构（JSON）</h4>
+        <div class="code-block" style="margin:0;">
+          <div class="code-header">
+            <div class="code-dots"><span></span><span></span><span></span></div>
+            <div class="code-filename">author_info_cache.json</div>
+          </div>
+          <pre style="font-size:0.75rem;">{
+  <span class="str">"https://paper.url/..."</span>: {
+    <span class="str">"first_author"</span>: <span class="str">"Zhang Wei"</span>,
+    <span class="str">"institution"</span>: <span class="str">"MIT"</span>,
+    <span class="str">"country"</span>: <span class="str">"US"</span>,
+    <span class="str">"scholar_citations"</span>: <span class="num">12400</span>,
+    <span class="str">"is_academician"</span>: <span class="kw">false</span>,
+    <span class="str">"is_fellow"</span>: <span class="kw">true</span>,
+    <span class="str">"fellow_type"</span>: <span class="str">"IEEE Fellow"</span>,
+    <span class="str">"is_self_citation"</span>: <span class="kw">false</span>,
+    <span class="str">"cached_at"</span>: <span class="str">"2026-03-01T10:23:00"</span>
+  }
+}</pre>
+        </div>
+      </div>
+      <div class="cache-arrows">
+        <div class="arr">⇄</div>
+        <div class="lbl">读写</div>
+        <div style="height:20px;"></div>
+        <div class="arr" style="transform:rotate(180deg);">⇄</div>
+        <div class="lbl">增量更新</div>
+      </div>
+      <div class="cache-box">
+        <h4>缓存行为</h4>
+        <ul class="feature-list check" style="gap:10px;">
+          <li>以论文 URL 为主键，标题为备用键</li>
+          <li>命中缓存直接返回，无需调用 LLM</li>
+          <li>字段级增量更新：新增字段追加，已有字段保留</li>
+          <li>跨任务运行持久化，减少重复开销</li>
+          <li>支持强制刷新（<code>force_refresh=True</code>）</li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- Fallback -->
+    <h3 style="margin:40px 0 20px;">仪表盘 LLM Fallback 机制</h3>
+    <div class="card-grid card-grid-2">
+      <div class="card">
+        <h4 style="margin-bottom:12px;">&#129504; LLM 路径</h4>
+        <ul class="feature-list check" style="gap:8px;">
+          <li>4 步 LLM 调用依次执行</li>
+          <li>关键词权重由 LLM 语义理解生成</li>
+          <li>趋势预测包含学术背景推理</li>
+          <li>Markdown 格式洞察报告</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h4 style="margin-bottom:12px;">&#128208; Fallback 路径（确定性算法）</h4>
+        <ul class="feature-list check" style="gap:8px;">
+          <li>关键词：TF（词频）统计，中英文分词</li>
+          <li>趋势：OLS 线性回归，YoY 增长率上限截断</li>
+          <li>洞察：基于统计数据的模板字符串</li>
+          <li>始终产出有意义的报告，无依赖 LLM</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ===== SECTION 7: MACOS ===== -->
+<section class="section" id="macos">
+  <div class="container">
+    <div class="section-header">
+      <div class="section-number">07 &mdash; macOS App 打包方案</div>
+      <h2>原生菜单栏应用</h2>
+      <div class="divider"></div>
+      <p>无需 Electron，无需 PyInstaller，通过 Shell 脚本构建标准 <code>.app</code> 包，实现真正的 macOS 原生体验。</p>
+    </div>
+
+    <div class="card-grid card-grid-2" style="margin-bottom:32px;">
+      <div class="card">
+        <h3 style="margin-bottom:16px;">&#128193; .app 包结构</h3>
+        <div class="code-block" style="margin:0;">
+          <div class="code-header">
+            <div class="code-dots"><span></span><span></span><span></span></div>
+            <div class="code-filename">CitationAgent.app/</div>
+            <div class="code-lang">Shell</div>
+          </div>
+          <pre style="font-size:0.76rem;"><span class="var">CitationAgent</span>.app/
+└── <span class="var">Contents</span>/
+    ├── <span class="var">Info</span>.plist           <span class="cm"># 应用元数据</span>
+    ├── <span class="var">MacOS</span>/
+    │   └── <span class="var">CitationAgent</span>    <span class="cm"># Shell 启动脚本</span>
+    └── <span class="var">Resources</span>/
+        └── <span class="var">icon</span>.icns         <span class="cm"># 应用图标</span></pre>
+        </div>
+      </div>
+      <div class="card">
+        <h3 style="margin-bottom:16px;">&#9889; 构建关键步骤</h3>
+        <ul class="feature-list check" style="gap:8px;">
+          <li><code>arch -arm64</code> 强制 Apple Silicon 原生 venv 创建</li>
+          <li>venv 路径：<code>~/Library/Application Support/CitationAgent/venv</code></li>
+          <li>依赖安装：<code>pip install -r requirements.txt</code></li>
+          <li><code>rumps</code> 实现原生 macOS 菜单栏 Daemon</li>
+          <li>启动时自动检测 Port 冲突并 kill 旧进程</li>
+          <li>首次启动自动打开浏览器 <code>localhost:8000</code></li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- Menubar mockup -->
+    <h3 style="margin-bottom:16px;">菜单栏 UI 模拟</h3>
+    <div class="menubar-mockup">
+      <div class="menubar-items">
+        <span>&#8981;</span>
+        <span>&#128084;</span>
+        <span>&#128246;</span>
+        <span style="color:#FF8C00;font-weight:700;">&#128301; CA</span>
+        <span>&#128337;</span>
+        <span>100%</span>
+        <span>&#9001;</span>
+      </div>
+      <div class="menubar-dropdown">
+        <div class="menubar-item"><span class="icon">&#128301;</span>CitationAgent</div>
+        <div class="menubar-separator"></div>
+        <div class="menubar-item"><span class="icon">&#128269;</span>打开控制面板</div>
+        <div class="menubar-item"><span class="icon">&#128196;</span>查看结果文件</div>
+        <div class="menubar-item"><span class="icon">&#128202;</span>打开最新仪表盘</div>
+        <div class="menubar-separator"></div>
+        <div class="menubar-item"><span class="icon">&#9881;&#65039;</span>偏好设置...</div>
+        <div class="menubar-item"><span class="icon">&#9432;</span>关于 CitationAgent</div>
+        <div class="menubar-separator"></div>
+        <div class="menubar-item"><span class="icon">&#9209;&#65039;</span>停止服务</div>
+        <div class="menubar-item"><span class="icon">&#128682;</span>退出</div>
+      </div>
+    </div>
+
+    <div class="code-block">
+      <div class="code-header">
+        <div class="code-dots"><span></span><span></span><span></span></div>
+        <div class="code-filename">build_macos_app.sh — arm64 强制编译</div>
+        <div class="code-lang">Bash</div>
+      </div>
+      <pre><span class="cm">#!/bin/bash</span>
+<span class="cm"># 强制使用 arm64 架构创建 venv（避免 Rosetta 下创建 x86_64 环境）</span>
+<span class="var">VENV_DIR</span>=<span class="str">"$HOME/Library/Application Support/CitationAgent/venv"</span>
+
+<span class="kw">if</span> [ ! -d <span class="str">"$VENV_DIR"</span> ]; <span class="kw">then</span>
+    <span class="cm"># arch -arm64 确保 Python 解释器以原生 ARM64 运行</span>
+    <span class="fn">arch</span> <span class="op">-arm64</span> <span class="fn">python3</span> <span class="op">-m</span> venv <span class="str">"$VENV_DIR"</span>
+    <span class="str">"$VENV_DIR"</span>/bin/pip <span class="fn">install</span> <span class="op">-r</span> requirements.txt
+<span class="kw">fi</span>
+
+<span class="cm"># 启动 FastAPI 服务（后台运行）</span>
+<span class="str">"$VENV_DIR"</span>/bin/python <span class="fn">start</span>.py &
+<span class="var">SERVER_PID</span>=$!
+
+<span class="cm"># 启动 rumps 菜单栏 Daemon</span>
+<span class="str">"$VENV_DIR"</span>/bin/python <span class="fn">menubar_app</span>.py</pre>
+    </div>
+
+    <div class="callout info">
+      <div class="callout-title">&#128161; 为什么不用 PyInstaller 或 Electron？</div>
+      <p>PyInstaller 的产物体积通常 100MB+，且对动态导入（如 BeautifulSoup 的 parser）不友好。Electron 引入了完整的 Node.js 和 Chromium 运行时（500MB+）。Shell .app 方案产物极小，启动仅需激活 venv，所有依赖明确且可审计，完全符合 macOS 的应用沙盒规范。</p>
+    </div>
+  </div>
+</section>
+
+<!-- ===== SECTION 8: SERVICE TIERS ===== -->
+<section class="section" id="tiers">
+  <div class="container">
+    <div class="section-header">
+      <div class="section-number">08 &mdash; 服务分层设计</div>
+      <h2>五档服务预设</h2>
+      <div class="divider"></div>
+      <p>不同的使用场景对数据深度和成本的要求不同。CitationAgent 提供五个预设档位，覆盖从"快速概览"到"完整深度分析"的全谱需求。</p>
+    </div>
+
+    <div class="tier-grid">
+      <div class="tier-card tier-1">
+        <div class="tier-header">
+          <div class="tier-name">&#127968; 极简</div>
+          <div class="tier-en">minimal</div>
+        </div>
+        <div class="tier-body">
+          <div class="tier-feature"><span class="check">✓</span>Scholar 抓取</div>
+          <div class="tier-feature"><span class="check">✓</span>基础 Excel 导出</div>
+          <div class="tier-feature"><span class="cross">✗</span>作者 AI 搜索</div>
+          <div class="tier-feature"><span class="cross">✗</span>引用描述</div>
+          <div class="tier-feature"><span class="cross">✗</span>仪表盘生成</div>
+          <div class="tier-feature"><span class="cross">✗</span>重要学者筛选</div>
+        </div>
+      </div>
+      <div class="tier-card tier-2">
+        <div class="tier-header">
+          <div class="tier-name">&#127840; 基础</div>
+          <div class="tier-en">basic</div>
+        </div>
+        <div class="tier-body">
+          <div class="tier-feature"><span class="check">✓</span>Scholar 抓取</div>
+          <div class="tier-feature"><span class="check">✓</span>作者搜索（单步）</div>
+          <div class="tier-feature"><span class="check">✓</span>彩色 Excel 导出</div>
+          <div class="tier-feature"><span class="cross">✗</span>院士二次筛选</div>
+          <div class="tier-feature"><span class="cross">✗</span>引用描述</div>
+          <div class="tier-feature"><span class="cross">✗</span>仪表盘</div>
+        </div>
+      </div>
+      <div class="tier-card tier-3">
+        <div class="tier-header">
+          <div class="tier-name">&#127757; 标准</div>
+          <div class="tier-en">standard</div>
+        </div>
+        <div class="tier-body">
+          <div class="tier-feature"><span class="check">✓</span>Scholar 抓取</div>
+          <div class="tier-feature"><span class="check">✓</span>完整作者搜索</div>
+          <div class="tier-feature"><span class="check">✓</span>重要学者识别</div>
+          <div class="tier-feature"><span class="check">✓</span>彩色 Excel 导出</div>
+          <div class="tier-feature"><span class="check">✓</span>仪表盘（LLM分析）</div>
+          <div class="tier-feature"><span class="cross">✗</span>引用描述（全量）</div>
+        </div>
+      </div>
+      <div class="tier-card tier-4">
+        <div class="tier-header">
+          <div class="tier-name">&#127775; 深度</div>
+          <div class="tier-en">deep</div>
+        </div>
+        <div class="tier-body">
+          <div class="tier-feature"><span class="check">✓</span>全量功能 (standard)</div>
+          <div class="tier-feature"><span class="check">✓</span>引用描述（重要学者）</div>
+          <div class="tier-feature"><span class="check">✓</span>事实核验（verify）</div>
+          <div class="tier-feature"><span class="check">✓</span>引用描述仪表盘整合</div>
+          <div class="tier-feature"><span class="cross">✗</span>全量引用描述</div>
+          <div class="tier-feature"><span class="cross">✗</span>—</div>
+        </div>
+      </div>
+      <div class="tier-card tier-5">
+        <div class="tier-header">
+          <div class="tier-name">&#128081; 完整</div>
+          <div class="tier-en">full</div>
+        </div>
+        <div class="tier-body">
+          <div class="tier-feature"><span class="check">✓</span>全量功能 (deep)</div>
+          <div class="tier-feature"><span class="check">✓</span>引用描述（全量所有论文）</div>
+          <div class="tier-feature"><span class="check">✓</span>最高并发分析</div>
+          <div class="tier-feature"><span class="check">✓</span>完整 4-step 作者分析</div>
+          <div class="tier-feature"><span class="check">✓</span>最全仪表盘报告</div>
+          <div class="tier-feature"><span class="check">✓</span>年份遍历模式</div>
+        </div>
+      </div>
+    </div>
+
+<!-- ===== SECTION 9: API ENDPOINTS ===== -->
+<section class="section" id="api">
+  <div class="container">
+    <div class="section-header">
+      <div class="section-number">09 &mdash; API 接口设计</div>
+      <h2>RESTful + WebSocket 接口</h2>
+      <div class="divider"></div>
+    </div>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>Method</th><th>Path</th><th>功能</th><th>备注</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><span class="badge-red">POST</span></td>
+            <td><code>/api/run</code></td>
+            <td>启动完整分析流水线</td>
+            <td>异步执行，通过 WS 推送进度</td>
+          </tr>
+          <tr>
+            <td><span class="badge-red">POST</span></td>
+            <td><code>/api/scholar/papers</code></td>
+            <td>抓取 Scholar 个人主页论文列表</td>
+            <td>独立功能，不触发完整流水线</td>
+          </tr>
+          <tr>
+            <td><span class="badge-green">GET</span></td>
+            <td><code>/api/quota/check</code></td>
+            <td>查询 LLM API 配额余额</td>
+            <td>调用 <code>/api/user/self</code> 快照</td>
+          </tr>
+          <tr>
+            <td><span class="badge-green">GET</span></td>
+            <td><code>/api/results/list</code></td>
+            <td>列出 data/ 目录下的结果文件</td>
+            <td>路径穿越保护</td>
+          </tr>
+          <tr>
+            <td><span class="badge-green">GET</span></td>
+            <td><code>/api/results/view/{path}</code></td>
+            <td>在浏览器中查看文件（HTML/Excel）</td>
+            <td>路径穿越保护</td>
+          </tr>
+          <tr>
+            <td><span class="badge-green">GET</span></td>
+            <td><code>/api/results/download/{path}</code></td>
+            <td>下载文件</td>
+            <td>Content-Disposition: attachment</td>
+          </tr>
+          <tr>
+            <td><span class="badge-blue">WS</span></td>
+            <td><code>/ws</code></td>
+            <td>实时日志与进度推送</td>
+            <td>60s timeout → server ping 保活</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="code-block">
+      <div class="code-header">
+        <div class="code-dots"><span></span><span></span><span></span></div>
+        <div class="code-filename">POST /api/run — 请求体示例</div>
+        <div class="code-lang">JSON</div>
+      </div>
+      <pre>{
+  <span class="str">"scholar_url"</span>: <span class="str">"https://scholar.google.com/scholar?cites=12345"</span>,
+  <span class="str">"service_tier"</span>: <span class="str">"standard"</span>,
+  <span class="str">"parallel_workers"</span>: <span class="num">5</span>,
+  <span class="str">"year_traverse"</span>: <span class="kw">true</span>,
+  <span class="str">"geo_rotate"</span>: <span class="kw">true</span>,
+  <span class="str">"dc_retry_max_attempts"</span>: <span class="num">10</span>,
+  <span class="str">"enable_renowned_scholar"</span>: <span class="kw">true</span>,
+  <span class="str">"citing_description_scope"</span>: <span class="str">"renowned_only"</span>
+}</pre>
+    </div>
+  </div>
+</section>
+
+<!-- ===== SECTION 10: LIMITS ===== -->
+<section class="section" id="limits">
+  <div class="container">
+    <div class="section-header">
+      <div class="section-number">10 &mdash; 已知限制与优化方向</div>
+      <h2>诚实面对当前的权衡</h2>
+      <div class="divider"></div>
+      <p>每个工程决策都有代价。以下是当前版本的已知限制，以及有价值的改进方向。</p>
+    </div>
+
+    <div class="limit-card">
+      <div class="limit-icon">&#128257;</div>
+      <div class="limit-content">
+        <h4>Google Scholar 反爬机制持续演进</h4>
+        <p>当前三层重试机制基于已观察到的规律，但 Scholar 的反爬策略随时可能更新。若 Scholar 引入新型检测机制（如行为分析、更复杂的 CAPTCHA），现有重试逻辑可能需要相应调整。<strong>改进方向：</strong>引入本地浏览器驱动（Playwright）作为终极 fallback，绕过网络层检测。</p>
+      </div>
+    </div>
+
+    <div class="limit-card">
+      <div class="limit-icon">&#128100;</div>
+      <div class="limit-content">
+        <h4>作者识别准确率依赖 LLM 和 Web Search 质量</h4>
+        <p>对于同名学者（如"Li Wei"在中国学术界有数百人），LLM 可能混淆人物。当前依赖 LLM 自身的推理能力消歧，无专门的实体链接（Entity Linking）模块。<strong>改进方向：</strong>集成 OpenAlex API 或 Semantic Scholar API 进行结构化作者消歧，降低 LLM 错误率。</p>
+      </div>
+    </div>
+
+    <div class="limit-card">
+      <div class="limit-icon">&#128200;</div>
+      <div class="limit-content">
+        <h4>Year-traverse 模式的时间开销</h4>
+        <p>对于超高引用论文（5000+ 篇），年份遍历模式需要对每年分别发送多页请求，总体耗时可能达到数小时。当前无法中断并恢复（断点续抓）。<strong>改进方向：</strong>实现 JSONL append 模式 + 年份级别的进度检查点，支持中断恢复。</p>
+      </div>
+    </div>
+
+    <div class="limit-card">
+      <div class="limit-icon">&#128274;</div>
+      <div class="limit-content">
+        <h4>单用户架构：无认证与多用户隔离</h4>
+        <p>当前系统设计为单用户本地工具，FastAPI 端点无认证保护，<code>data/</code> 目录为全局共享。若部署到多用户环境，数据存在互相污染的风险。<strong>改进方向：</strong>引入任务 ID（UUID）隔离每次运行的数据，并添加 API Key 认证中间件。</p>
+      </div>
+    </div>
+
+    <div class="limit-card">
+      <div class="limit-icon">&#127773;</div>
+      <div class="limit-content">
+        <h4>仪表盘 LLM 调用为同步阻塞</h4>
+        <p>Phase 5 的 4 次 LLM 调用使用 <code>openai.OpenAI</code>（同步客户端）按顺序执行，总等待时间约为 4 个 LLM 响应时间之和（可能 60-120 秒）。<strong>改进方向：</strong>迁移至 <code>asyncio.gather()</code> 并发执行，总时间缩减为最慢单次调用时间。</p>
+      </div>
+    </div>
+
+    <div class="limit-card">
+      <div class="limit-icon">&#128197;</div>
+      <div class="limit-content">
+        <h4>缓存无过期策略</h4>
+        <p>作者信息缓存一旦写入，永不自动过期。若作者获得新的学术头衔（如新当选院士），缓存中的旧数据不会自动更新。<strong>改进方向：</strong>为每个缓存条目添加 TTL（如 30 天），或提供 <code>--invalidate-cache-before YYYY-MM-DD</code> 参数。</p>
+      </div>
+    </div>
+
+    <!-- Roadmap -->
+    <h3 style="margin:40px 0 20px;">&#128507; 路线图展望</h3>
+    <div class="card-grid card-grid-3">
+      <div class="card">
+        <div style="font-size:1.5rem;margin-bottom:12px;">&#128997;</div>
+        <h4>短期（Near-term）</h4>
+        <ul class="feature-list check" style="gap:6px;margin-top:8px;">
+          <li>Phase 5 仪表盘异步并发</li>
+          <li>年份遍历断点续抓</li>
+          <li>缓存 TTL 策略</li>
+          <li>作者搜索错误率统计</li>
+        </ul>
+      </div>
+      <div class="card">
+        <div style="font-size:1.5rem;margin-bottom:12px;">&#128999;</div>
+        <h4>中期（Mid-term）</h4>
+        <ul class="feature-list check" style="gap:6px;margin-top:8px;">
+          <li>OpenAlex 作者消歧集成</li>
+          <li>多用户 UUID 任务隔离</li>
+          <li>Playwright 作为 fallback 抓取器</li>
+          <li>API Key 认证中间件</li>
+        </ul>
+      </div>
+      <div class="card">
+        <div style="font-size:1.5rem;margin-bottom:12px;">&#128998;</div>
+        <h4>长期（Long-term）</h4>
+        <ul class="feature-list check" style="gap:6px;margin-top:8px;">
+          <li>Semantic Scholar / OpenAlex 多源聚合</li>
+          <li>知识图谱引用网络可视化</li>
+          <li>定时监控（引用增量推送）</li>
+          <li>Windows 版本适配</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ===== APPENDIX ===== -->
+<section class="section">
+  <div class="container">
+    <div class="section-header">
+      <div class="section-number">附录 &mdash; 技术参考</div>
+      <h2>关键数据与参考</h2>
+      <div class="divider"></div>
+    </div>
+
+    <div class="card-grid card-grid-2">
+      <div class="card">
+        <h3 style="margin-bottom:16px;">&#128202; 系统性能基准</h3>
+        <div class="progress-bar-wrap">
+          <div class="progress-label"><span>Phase 1 抓取（100篇/分钟估算）</span><span>~3分钟/页</span></div>
+          <div class="progress-bar-track"><div class="progress-bar-fill" style="width:60%;"></div></div>
+        </div>
+        <div class="progress-bar-wrap">
+          <div class="progress-label"><span>Phase 2 作者搜索（并发=5）</span><span>~2分钟/100篇</span></div>
+          <div class="progress-bar-track"><div class="progress-bar-fill" style="width:75%;"></div></div>
+        </div>
+        <div class="progress-bar-wrap">
+          <div class="progress-label"><span>Phase 5 仪表盘生成</span><span>~90秒</span></div>
+          <div class="progress-bar-track"><div class="progress-bar-fill" style="width:40%;"></div></div>
+        </div>
+        <div class="progress-bar-wrap">
+          <div class="progress-label"><span>作者缓存命中率（二次运行）</span><span>~95%</span></div>
+          <div class="progress-bar-track"><div class="progress-bar-fill" style="width:95%;"></div></div>
+        </div>
+      </div>
+      <div class="card">
+        <h3 style="margin-bottom:16px;">&#128218; 核心依赖版本</h3>
+        <div class="table-wrap" style="margin:0;box-shadow:none;border:none;">
+          <table style="font-size:0.82rem;">
+            <thead>
+              <tr><th style="padding:8px 12px;">Package</th><th style="padding:8px 12px;">Version</th><th style="padding:8px 12px;">用途</th></tr>
+            </thead>
+            <tbody>
+              <tr><td>fastapi</td><td><code>latest</code></td><td>Web 框架</td></tr>
+              <tr><td>openai</td><td><code>≥1.x</code></td><td>LLM SDK</td></tr>
+              <tr><td>beautifulsoup4</td><td><code>4.x</code></td><td>HTML 解析</td></tr>
+              <tr><td>pandas</td><td><code>2.x</code></td><td>数据处理</td></tr>
+              <tr><td>pydantic</td><td><code>v2</code></td><td>数据校验</td></tr>
+              <tr><td>httpx</td><td><code>latest</code></td><td>HTTP 客户端</td></tr>
+              <tr><td>rumps</td><td><code>latest</code></td><td>macOS 菜单栏</td></tr>
+              <tr><td>openpyxl</td><td><code>3.x</code></td><td>Excel 写入</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <div style="margin-top:32px;">
+      <h3 style="margin-bottom:16px;">&#128260; 关键技术词汇表</h3>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>术语</th><th>含义</th></tr></thead>
+          <tbody>
+            <tr><td><code>cites=XXXXX</code></td><td>Google Scholar 引用关系 ID，用于构造"引用了这篇论文"的列表 URL</td></tr>
+            <tr><td><code>ScraperAPI</code></td><td>反爬 HTTP 代理服务，提供 IP 轮换、CAPTCHA 解决、地理节点选择等功能</td></tr>
+            <tr><td><code>extra_body</code></td><td>OpenAI SDK 的扩展字段，用于传递非标准参数（如 web_search_options）给兼容 API</td></tr>
+            <tr><td><code>asyncio.Semaphore</code></td><td>Python 异步信号量，用于限制并发协程数量，避免超出 API 速率限制</td></tr>
+            <tr><td><code>JSONL</code></td><td>JSON Lines 格式，每行一个 JSON 对象，便于流式写入和逐行读取大文件</td></tr>
+            <tr><td><code>rumps</code></td><td>Ridiculously Uncomplicated macOS Python Statusbar apps，macOS 菜单栏应用框架</td></tr>
+            <tr><td><code>year_traverse</code></td><td>年份遍历模式，将整体查询按年份分解，绕过 Google Scholar 1000 篇硬限制</td></tr>
+            <tr><td><code>dc_inconsistency</code></td><td>数据中心不一致，Google Scholar 不同地理节点的缓存不同步导致的短页面现象</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ===== FOOTER ===== -->
+<footer class="footer">
+  <div class="logo">CitationAgent</div>
+  <p>
+    技术架构报告 &nbsp;·&nbsp; 面向开发者 &nbsp;·&nbsp; 2026年3月
+  </p>
+  <p style="margin-top:8px;font-size:0.78rem;opacity:0.6;">
+    Python 3.12 &nbsp;·&nbsp; FastAPI &nbsp;·&nbsp; OpenAI-compatible LLM &nbsp;·&nbsp; BeautifulSoup4 &nbsp;·&nbsp; Pandas &nbsp;·&nbsp; rumps &nbsp;·&nbsp; ScraperAPI
+  </p>
+  <p style="margin-top:24px;font-size:0.75rem;opacity:0.4;">
+    本报告基于实际代码库生成，所有架构描述与实现细节均与源码对应。
+  </p>
+</footer>
+
+</body>
+</html>
