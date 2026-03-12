@@ -7,6 +7,7 @@
 <em>Turning Every Citation into Explainable Impact</em>
 
   [![🌐 项目主页](https://img.shields.io/badge/🌐-项目主页-blue?style=flat-square)](https://visionxlab.github.io/CitationClaw/)
+  [![PyPI](https://img.shields.io/pypi/v/citationclaw?style=flat-square&logo=pypi&logoColor=white&color=0073b7)](https://pypi.org/project/citationclaw/)
   ![Python](https://img.shields.io/badge/Python-3.10%2B-3776AB?style=flat-square&logo=python&logoColor=white)
   ![Version](https://img.shields.io/badge/版本-1.0-brightgreen?style=flat-square)
   ![Platform](https://img.shields.io/badge/平台-macOS%20%7C%20Linux%20%7C%20Windows-lightgrey?style=flat-square)
@@ -24,6 +25,7 @@
 
 | 日期 | 版本 | 更新内容 |
 |------|------|---------|
+| 2026-03-12 | v1.0.2 | 📦 发布 PyPI 包：`pip install citationclaw` 一行安装，支持跨平台（macOS / Linux / Windows）；修复 openpyxl 版本兼容性问题 |
 | 2026-03-12 | v1.0 | 🎉 首次公开发布：支持论文题目输入与 Google Scholar 批量导入、五种分析层级、著名学者自动识别、可视化 HTML 画像报告、断点续爬与缓存复用 |
 
 ---
