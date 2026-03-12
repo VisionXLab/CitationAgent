@@ -13,7 +13,7 @@ httpx>=0.25.0,<0.28.0
 tqdm==4.66.1
 # pandas 2.2.3+ 起提供 Python 3.13 预编译 wheel（2.2.0 无 3.13 wheel）
 pandas>=2.2.3
-openpyxl==3.1.2
+openpyxl>=3.1.5
 beautifulsoup4==4.12.3
 
 # LLM 调用
