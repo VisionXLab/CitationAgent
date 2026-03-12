@@ -28,25 +28,7 @@ class ResultExporter:
                             df.at[i, '两院院士/其他院士/Fellow'] = 'Fellow'
             return df
 
-        ## 高亮学者
-        def highlight_cell(x, row, color):
-            df_style = pd.DataFrame('', index=x.index, columns=x.columns)
-            df_style.loc[row, :] = f'background-color: {color}'  # ← 只改这一点更稳
-            return df_style
-        def highlight_dataframe_fn(df):
-            styler = df.style  # 先拿到 styler
-
-            for i in range(len(df)):
-                tag = df.loc[i, '两院院士/其他院士/Fellow']
-                if tag == '院士':
-                    styler = styler.apply(highlight_cell, axis=None, row=i, color='red')
-                elif tag == '其他院士':
-                    styler = styler.apply(highlight_cell, axis=None, row=i, color='green')
-                elif tag == 'Fellow':
-                    styler = styler.apply(highlight_cell, axis=None, row=i, color='yellow')
-            return styler
-
-        ## 转换df，找到大佬级别，然后高亮
+        ## 转换df，找到大佬级别
         scholar_df = []
         for d in flattened:
             # 自引论文不纳入知名学者统计
@@ -75,19 +57,12 @@ class ResultExporter:
                     })
 
         scholar_df = pd.DataFrame(scholar_df)
-        scholar_df = tag_scholar(scholar_df) ## 标记大佬级别学者
-        style1 = highlight_dataframe_fn(scholar_df)  ## 高亮大佬级别学者
+        scholar_df = tag_scholar(scholar_df)
 
         selected_df = scholar_df[scholar_df['两院院士/其他院士/Fellow'] != ''].reset_index(drop=True)
-        style2 = highlight_dataframe_fn(selected_df)
 
-        style1.to_excel(renowned_scholar_excel_outputs[0], sheet_name='All Renowned scholars', index=False)
-        style2.to_excel(renowned_scholar_excel_outputs[1], sheet_name='Top-tier scholars', index=False)
-
-        # out_df = pd.ExcelWriter(renowned_scholar_excel_output)
-        # style2.to_excel(out_df, sheet_name='Top-tier scholars',index=False)
-        # style1.to_excel(out_df, sheet_name='All Renowned scholars',index=False)
-        # out_df._save()
+        scholar_df.to_excel(renowned_scholar_excel_outputs[0], sheet_name='All Renowned scholars', index=False)
+        selected_df.to_excel(renowned_scholar_excel_outputs[1], sheet_name='Top-tier scholars', index=False)
 
     def export(
         self,
