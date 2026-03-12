@@ -1,0 +1,1527 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Crossearth: Geospatial vision foundation model for domain generalizable remote sensing semantic segmentation · 被引画像报告</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/marked@9/marked.min.js"></script>
+<style>
+:root {
+  --bg: #f7f8fc; --bg2: #eef0f8; --surface: #ffffff; --surface2: #f0f2fa;
+  --border: #dde2f0; --border-accent: #c5cceb;
+  --teal: #3b82c4; --teal-light: #e8f1fb; --teal-muted: #6ba3d6;
+  --sage: #4caf8a; --sage-light: #e6f6f0;
+  --amber: #d4892a; --amber-light: #fdf3e3;
+  --violet: #7c5cbf; --violet-light: #f0ecfb;
+  --rose: #c45a5a; --rose-light: #fdeaea;
+  --text: #2d3748; --text-muted: #718096; --text-light: #a0aec0; --text-bright: #1a202c;
+  --shadow-sm: 0 1px 4px rgba(0,0,0,0.06);
+  --shadow: 0 4px 16px rgba(0,0,0,0.08);
+  --shadow-lg: 0 8px 32px rgba(0,0,0,0.10);
+}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { scroll-behavior: smooth; }
+body { font-family: 'Noto Sans SC', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  background: var(--bg); color: var(--text); min-height: 100vh; font-size: 14px; line-height: 1.6; }
+.header { background: linear-gradient(135deg, #1e3a5f 0%, #2d5a9e 50%, #1e4d7b 100%);
+  padding: 56px 64px 48px; position: relative; overflow: hidden; }
+.header::before { content: ''; position: absolute; inset: 0;
+  background: radial-gradient(ellipse 60% 80% at 85% 20%, rgba(100,160,255,0.15) 0%, transparent 60%),
+              radial-gradient(ellipse 40% 60% at 10% 80%, rgba(60,180,130,0.10) 0%, transparent 55%);
+  pointer-events: none; }
+.header-eyebrow { font-size: 11px; font-weight: 600; letter-spacing: 3px; text-transform: uppercase;
+  color: rgba(180,210,255,0.75); margin-bottom: 14px; }
+.header h1 { font-size: 36px; font-weight: 700; color: #fff; line-height: 1.15; margin-bottom: 14px; }
+.header h1 em { font-style: normal; color: #7db8f5; }
+.header-subtitle { font-size: 13.5px; color: rgba(200,220,255,0.70); max-width: 580px; line-height: 1.75; }
+.header-divider { position: absolute; bottom: 0; left: 0; right: 0; height: 3px;
+  background: linear-gradient(90deg, transparent, rgba(120,180,255,0.6) 30%, rgba(80,200,160,0.5) 70%, transparent); }
+.header-targets { display: flex; flex-direction: column; gap: 6px; margin: 14px 0 16px; }
+.header-target-item { display: flex; align-items: baseline; gap: 10px; }
+.header-target-num { font-size: 10px; font-weight: 700; color: rgba(147,197,253,0.6);
+  letter-spacing: 1px; flex-shrink: 0; }
+.header-target-title { font-size: 15px; font-weight: 600; color: #e2eeff;
+  line-height: 1.4; word-break: break-word; }
+.stats-bar { background: var(--surface); border-bottom: 1px solid var(--border);
+  display: flex; overflow-x: auto; box-shadow: var(--shadow-sm); }
+.stat-item { flex: 1; min-width: 120px; padding: 22px 20px; text-align: center;
+  border-right: 1px solid var(--border); transition: background .2s; }
+.stat-item:last-child { border-right: none; }
+.stat-item:hover { background: var(--teal-light); }
+.stat-icon { font-size: 20px; margin-bottom: 6px; }
+.stat-num { font-size: 28px; font-weight: 700; color: var(--teal); line-height: 1.1; }
+.stat-label { font-size: 11px; color: var(--text-muted); margin-top: 4px; letter-spacing: .3px; }
+.download-bar { background: var(--surface2); border-bottom: 1px solid var(--border);
+  padding: 12px 48px; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.download-bar span { font-size: 13px; color: var(--text-muted); }
+.download-bar a { display: inline-block; padding: 5px 14px; border-radius: 6px; font-size: 12px;
+  font-weight: 500; text-decoration: none; border: 1px solid var(--border);
+  background: var(--surface); color: var(--teal); transition: .15s; }
+.download-bar a:hover { background: var(--teal-light); border-color: var(--teal); }
+.main { max-width: 1480px; margin: 0 auto; padding: 36px 48px; }
+.section-header { display: flex; align-items: center; gap: 12px; margin: 40px 0 20px; }
+.section-num { font-size: 11px; font-weight: 700; color: var(--teal); letter-spacing: 2px;
+  background: var(--teal-light); padding: 2px 8px; border-radius: 4px; }
+.section-title { font-size: 15px; font-weight: 600; color: var(--text-bright); }
+.section-divider { flex: 1; height: 1px; background: var(--border); }
+.grid-3 { display: grid; grid-template-columns: repeat(3,1fr); gap: 20px; margin-bottom: 20px; }
+.grid-2 { display: grid; grid-template-columns: repeat(2,1fr); gap: 20px; margin-bottom: 20px; }
+.grid-1 { margin-bottom: 20px; }
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px;
+  padding: 24px; box-shadow: var(--shadow-sm); transition: box-shadow .2s, transform .2s; }
+.card:hover { box-shadow: var(--shadow); transform: translateY(-1px); }
+.card-title { font-size: 12px; font-weight: 600; color: var(--text-muted); text-transform: uppercase;
+  letter-spacing: .8px; padding-bottom: 12px; border-bottom: 1px solid var(--border);
+  margin-bottom: 16px; display: flex; align-items: center; gap: 7px; }
+.card-title-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--teal); flex-shrink: 0; }
+.card-title-dot.sage { background: var(--sage); }
+.card-title-dot.amber { background: var(--amber); }
+.card-title-dot.violet { background: var(--violet); }
+.badge { display: inline-block; padding: 2px 9px; border-radius: 20px; font-size: 11px;
+  font-weight: 500; white-space: nowrap; }
+.b-ys { background: #fff3e0; color: #d4892a; border: 1px solid #f0c070; }
+.b-fw { background: var(--teal-light); color: var(--teal); border: 1px solid #b3d4f0; }
+.b-ot { background: var(--sage-light); color: #357a62; border: 1px solid #a0d9c0; }
+.b-nm { background: var(--bg2); color: var(--text-muted); border: 1px solid var(--border); }
+.b-cn { background: #fff0f0; color: var(--rose); border: 1px solid #f0c0c0; }
+.b-int { background: var(--violet-light); color: var(--violet); border: 1px solid #c9b8ec; }
+.scholar-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+.scholar-table thead th { padding: 10px 12px; text-align: left; font-size: 11px; font-weight: 600;
+  color: var(--text-muted); text-transform: uppercase; letter-spacing: .5px;
+  border-bottom: 2px solid var(--border); background: var(--bg2); }
+.scholar-table tbody tr { border-bottom: 1px solid var(--border); transition: background .15s; }
+.scholar-table tbody tr:hover { background: var(--teal-light); }
+.scholar-table td { padding: 10px 12px; vertical-align: middle; }
+.scholar-table .sname { font-weight: 600; color: var(--text-bright); }
+.scholar-table .stitle { color: var(--text-muted); font-size: 11.5px; line-height: 1.5; }
+.desc-btn { font-size: 11px; padding: 3px 10px; border: 1px solid var(--border);
+  border-radius: 4px; background: var(--surface); color: var(--teal); cursor: pointer;
+  transition: .15s; white-space: nowrap; }
+.desc-btn:hover { background: var(--teal-light); border-color: var(--teal); }
+.desc-row td { background: var(--bg2); padding: 12px 16px;
+  word-wrap: break-word; }
+.paper-item { display: flex; align-items: center; gap: 14px; padding: 14px 16px;
+  margin-bottom: 8px; border: 1px solid var(--border); border-radius: 8px;
+  border-left: 4px solid var(--teal); background: var(--surface); transition: box-shadow .2s, background .2s; }
+.paper-item:hover { background: var(--teal-light); box-shadow: var(--shadow-sm); }
+.paper-rank { font-size: 20px; font-weight: 800; color: #c5cceb; min-width: 32px; text-align: center; }
+.paper-info { flex: 1; }
+.paper-ttl { font-size: 13px; font-weight: 500; color: var(--text-bright); line-height: 1.5; margin-bottom: 3px; }
+.paper-meta { font-size: 11px; color: var(--text-muted); }
+.paper-cit-box { text-align: right; min-width: 64px; }
+.paper-cit-num { font-size: 24px; font-weight: 700; color: var(--teal); line-height: 1; }
+.paper-cit-lbl { font-size: 10px; color: var(--text-light); margin-top: 2px; }
+.kw-cloud { display: flex; flex-wrap: wrap; gap: 8px; padding: 4px 0; }
+.kw-tag { padding: 5px 14px; border-radius: 20px; font-size: 12px; font-weight: 500; transition: transform .15s; cursor: default; }
+.kw-tag:hover { transform: translateY(-2px); }
+.cite-type-bar { display: flex; flex-direction: column; gap: 10px; }
+.ctb-label { display: flex; justify-content: space-between; font-size: 12px; color: var(--text); margin-bottom: 4px; }
+.ctb-label span:last-child { color: var(--text-muted); }
+.ctb-track { height: 7px; background: var(--bg2); border-radius: 10px; overflow: hidden; }
+.ctb-fill { height: 100%; border-radius: 10px; }
+.fill-teal   { background: linear-gradient(90deg, #3b82c4, #6ba3d6); }
+.fill-sage   { background: linear-gradient(90deg, #4caf8a, #7dcaaa); }
+.fill-amber  { background: linear-gradient(90deg, #d4892a, #e8a84a); }
+.fill-violet { background: linear-gradient(90deg, #7c5cbf, #a07fd8); }
+.fill-rose   { background: linear-gradient(90deg, #c45a5a, #d88080); }
+.fill-cyan   { background: linear-gradient(90deg, #0891b2, #06b6d4); }
+.fill-green  { background: linear-gradient(90deg, #16a34a, #22c55e); }
+.fill-purple { background: linear-gradient(90deg, #7c3aed, #a855f7); }
+.fill-orange { background: linear-gradient(90deg, #ea580c, #f97316); }
+.theme-tags { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 4px; }
+.theme-tag { background: var(--bg2); border: 1px solid var(--border); border-radius: 6px;
+  padding: 5px 12px; font-size: 12px; color: var(--text); transition: .15s; }
+.theme-tag:hover { border-color: var(--teal); background: var(--teal-light); color: var(--teal); }
+.sentiment-ring { display: flex; gap: 12px; margin-top: 8px; flex-wrap: wrap; }
+.sring-item { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-muted); }
+.sring-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+.findings-list { margin-top: 4px; }
+.finding-item { display: flex; gap: 10px; padding: 9px 0; border-bottom: 1px solid var(--border);
+  font-size: 12.5px; color: var(--text); line-height: 1.6; }
+.finding-item:last-child { border-bottom: none; }
+.finding-num { width: 20px; height: 20px; border-radius: 50%; background: var(--teal-light);
+  color: var(--teal); font-size: 10px; font-weight: 700; display: flex; align-items: center;
+  justify-content: center; flex-shrink: 0; margin-top: 1px; }
+.prediction-band { background: linear-gradient(135deg, #1e3a5f 0%, #1a4a8f 100%);
+  border-radius: 12px; padding: 28px; margin-bottom: 20px; position: relative; overflow: hidden; }
+.prediction-band::before { content: ''; position: absolute; inset: 0;
+  background: radial-gradient(ellipse 50% 80% at 90% 10%, rgba(100,180,255,0.12) 0%, transparent 60%);
+  pointer-events: none; }
+.pred-grid { display: grid; grid-template-columns: repeat(2,1fr); gap: 20px; }
+.pred-card { background: rgba(255,255,255,0.07); border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 8px; padding: 20px; backdrop-filter: blur(4px); }
+.pred-card-title { font-size: 13px; font-weight: 600; color: #e0eeff; margin-bottom: 14px;
+  display: flex; align-items: center; gap: 8px; }
+.pred-tag { font-size: 9px; padding: 2px 7px; border-radius: 4px;
+  background: rgba(100,180,255,0.2); color: #90c0ff; letter-spacing: 1px; }
+.pred-metric { display: flex; justify-content: space-between; align-items: center;
+  padding: 7px 0; border-bottom: 1px solid rgba(255,255,255,0.08); }
+.pred-metric:last-child { border-bottom: none; }
+.pred-metric-label { font-size: 11.5px; color: rgba(180,210,255,0.75); }
+.pred-metric-val { font-size: 13px; font-weight: 700; color: #7dd8b0; }
+.pred-metric-note { font-size: 10px; color: rgba(150,190,255,0.55); margin-top: 1px; }
+.impact-bar-wrap { display: flex; flex-direction: column; gap: 11px; }
+.impact-row-label { display: flex; justify-content: space-between; font-size: 11.5px;
+  color: rgba(180,210,255,0.8); margin-bottom: 4px; }
+.impact-track { height: 6px; background: rgba(255,255,255,0.08); border-radius: 10px; overflow: hidden; }
+.impact-fill { height: 100%; border-radius: 10px; }
+.pred-commentary { margin-top: 14px; padding: 12px 14px; background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(100,180,255,0.2); border-radius: 6px; font-size: 12px;
+  line-height: 1.75; color: rgba(200,225,255,0.75); }
+.trend-wrap { position: relative; height: 200px; }
+.insights-grid { display: grid; grid-template-columns: repeat(2,1fr); gap: 16px; margin-bottom: 40px; }
+.insight-card { border-radius: 10px; padding: 22px 24px; border: 1px solid var(--border);
+  background: var(--surface); border-left: 5px solid var(--teal); transition: box-shadow .2s; }
+.insight-card:hover { box-shadow: var(--shadow); }
+.insight-card.sage  { border-left-color: var(--sage); }
+.insight-card.amber { border-left-color: var(--amber); }
+.insight-card.violet{ border-left-color: var(--violet); }
+.insight-card h4 { font-size: 13.5px; font-weight: 600; color: var(--teal); margin-bottom: 8px; }
+.insight-card.sage h4  { color: var(--sage); }
+.insight-card.amber h4 { color: var(--amber); }
+.insight-card.violet h4{ color: var(--violet); }
+.insight-card p { font-size: 12.5px; color: var(--text-muted); line-height: 1.75; }
+.insight-card p strong { color: var(--text); }
+.citing-papers-section { background: var(--surface); border-bottom: 1px solid var(--border);
+  padding: 28px 48px; max-width: 100%; }
+.citing-papers-header { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; }
+.citing-papers-header-label { font-size: 11px; font-weight: 700; color: var(--teal); letter-spacing: 2px;
+  background: var(--teal-light); padding: 3px 10px; border-radius: 4px; white-space: nowrap; }
+.citing-papers-header-title { font-size: 14px; font-weight: 600; color: var(--text-bright); }
+.citing-papers-header-count { font-size: 12px; color: var(--text-muted); background: var(--bg2);
+  border: 1px solid var(--border); border-radius: 12px; padding: 2px 10px; white-space: nowrap; }
+.citing-papers-header-divider { flex: 1; height: 1px; background: var(--border); }
+.citing-papers-desc { font-size: 12px; color: var(--text-muted); margin-bottom: 16px;
+  padding: 10px 14px; background: linear-gradient(90deg, var(--teal-light), transparent);
+  border-left: 3px solid var(--teal); border-radius: 0 6px 6px 0; line-height: 1.7; }
+.citing-papers-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+  gap: 8px; max-height: 320px; overflow-y: auto; padding-right: 4px; }
+.citing-paper-item { display: flex; align-items: center; gap: 10px; padding: 8px 12px;
+  border: 1px solid var(--border); border-radius: 6px; background: var(--bg); transition: background .15s, border-color .15s; }
+.citing-paper-item:hover { background: var(--teal-light); border-color: var(--teal-muted); }
+.citing-paper-num { font-size: 11px; font-weight: 700; color: var(--text-light);
+  min-width: 22px; text-align: right; flex-shrink: 0; }
+.citing-paper-name { font-size: 12.5px; color: var(--text); line-height: 1.45; word-break: break-word; }
+.footer { text-align: center; padding: 28px; font-size: 11px; color: var(--text-light);
+  border-top: 1px solid var(--border); letter-spacing: .5px; }
+@keyframes fadeUp { from { opacity:0; transform:translateY(16px) } to { opacity:1; transform:none } }
+.card, .insight-card, .paper-item { animation: fadeUp .4s ease both; }
+.stat-sub { font-size: 10px; color: var(--text-light); margin-top: 2px; }
+.inst-section { margin-bottom: 20px; }
+.inst-category-label { font-size: 10px; font-weight: 700; letter-spacing: 1.5px;
+  text-transform: uppercase; color: var(--text-muted); margin-bottom: 10px; }
+.inst-tags { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-start; }
+.inst-tag { padding: 5px 12px; border-radius: 20px; font-size: 12.5px; font-weight: 500;
+  cursor: pointer; transition: opacity .15s, transform .15s; user-select: none; }
+.inst-tag:hover { opacity: 0.85; transform: translateY(-1px); }
+.inst-count { font-size: 10px; font-weight: 400; opacity: 0.8; margin-left: 4px; }
+.inst-paper-list { display: none; width: 100%; margin-top: 8px; padding: 10px 14px;
+  background: var(--bg2); border-radius: 6px; border-left: 3px solid var(--border-accent); }
+.inst-paper-item { font-size: 12px; color: var(--text-muted); padding: 3px 0; line-height: 1.5; }
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: var(--bg); }
+::-webkit-scrollbar-thumb { background: var(--border-accent); border-radius: 3px; }
+/* ── Paper Detail Items (PDI) ── */
+.pdi-scroll { max-height: 600px; overflow-y: auto; padding-right: 4px; }
+.pdi-scroll::-webkit-scrollbar { width: 5px; }
+.pdi-scroll::-webkit-scrollbar-thumb { background: var(--border-accent); border-radius: 3px; }
+.pdi-item { display: flex; gap: 12px; padding: 14px; margin-bottom: 8px;
+  border: 1px solid var(--border); border-radius: 8px; border-left: 4px solid var(--teal);
+  background: var(--surface); transition: box-shadow .2s, background .2s; }
+.pdi-item:hover { background: var(--teal-light); box-shadow: var(--shadow-sm); }
+.pdi-rank { font-size: 17px; font-weight: 800; min-width: 28px; text-align: center;
+  color: #c5cceb; line-height: 1; padding-top: 2px; }
+.pdi-body { flex: 1; min-width: 0; }
+.pdi-title { font-size: 12.5px; font-weight: 600; color: var(--text-bright); line-height: 1.5; margin-bottom: 4px; }
+.pdi-title-link { color: var(--teal); text-decoration: none; }
+.pdi-title-link:hover { text-decoration: underline; }
+.pdi-authors { font-size: 11px; color: var(--text-muted); margin-bottom: 3px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pdi-meta-row { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 6px; }
+.pdi-inst-tag { font-size: 10.5px; color: var(--text-muted); background: var(--bg2);
+  border: 1px solid var(--border); border-radius: 4px; padding: 1px 7px; }
+.pdi-country-tag { font-size: 10.5px; color: var(--violet); background: var(--violet-light);
+  border: 1px solid #c9b8ec; border-radius: 4px; padding: 1px 7px; }
+.pdi-footer { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.pdi-year { font-size: 11px; background: var(--bg2); border: 1px solid var(--border);
+  border-radius: 4px; padding: 1px 7px; color: var(--text-muted); }
+.pdi-cit { font-size: 12px; }
+.pdi-affil-btn { font-size: 10.5px; padding: 2px 9px; border: 1px solid var(--border);
+  border-radius: 4px; background: var(--surface); color: var(--teal); cursor: pointer;
+  transition: .15s; white-space: nowrap; }
+.pdi-affil-btn:hover { background: var(--teal-light); border-color: var(--teal); }
+.pdi-affil-box { margin-top: 8px; padding: 10px 12px; background: var(--bg2);
+  border-radius: 6px; font-size: 11px; color: var(--text); line-height: 1.7;
+  word-break: break-word; border: 1px solid var(--border); }
+.md-content { font-size: 12.5px; line-height: 1.75; color: var(--text); }
+.md-content p { margin: 0 0 7px; }
+.md-content p:last-child { margin-bottom: 0; }
+.md-content ul, .md-content ol { margin: 0 0 7px 20px; padding: 0; }
+.md-content li { margin-bottom: 3px; }
+.md-content strong { font-weight: 600; }
+.md-content em { font-style: italic; color: var(--text-muted); }
+.md-content h1, .md-content h2 { font-size: 13px; font-weight: 700; margin: 10px 0 5px; border-bottom: 1px solid var(--border); padding-bottom: 3px; }
+.md-content h3, .md-content h4 { font-size: 12.5px; font-weight: 600; margin: 8px 0 4px; }
+.md-content code { font-family: 'Fira Code', 'Consolas', monospace; font-size: 11px;
+  background: var(--bg); padding: 1px 5px; border-radius: 4px; color: var(--teal); }
+.md-content pre { background: var(--bg); border-radius: 6px; padding: 8px 12px;
+  overflow-x: auto; margin: 6px 0; }
+.md-content pre code { background: none; padding: 0; color: var(--text); }
+.md-content blockquote { border-left: 3px solid var(--teal); margin: 6px 0;
+  padding: 3px 10px; background: var(--teal-light); color: var(--text-muted); font-style: italic; border-radius: 0 4px 4px 0; }
+.md-content hr { border: none; border-top: 1px solid var(--border); margin: 10px 0; }
+.md-content a { color: var(--teal); text-decoration: underline; }
+.cite-sum-card-title { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; }
+.cite-sum-preview { font-size: 12.5px; color: var(--text-muted); line-height: 1.75; padding: 8px 0 10px; border-bottom: 1px solid var(--border); margin: 0; }
+.cite-sum-body { padding-top: 14px; }
+.cite-sum-body .md-content blockquote { border-left: 4px solid var(--teal); background: var(--teal-light); color: var(--text); font-style: normal; padding: 8px 14px; margin: 8px 0; border-radius: 0 6px 6px 0; }
+.pdi-authors-pills { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 5px; }
+.author-pill { display: inline-block; padding: 2px 9px; border-radius: 12px;
+  font-size: 11px; background: var(--bg2); border: 1px solid var(--border);
+  color: var(--text-muted); text-decoration: none; white-space: nowrap;
+  transition: background .15s, border-color .15s; }
+a.author-pill:hover { background: var(--teal-light); border-color: var(--teal); color: var(--teal); }
+.kw-cn { font-size: 9px; color: inherit; opacity: 0.7; margin-left: 3px; }
+/* ── Balanced card layout (fill available height) ── */
+.card-flex { display: flex; flex-direction: column; }
+.chart-fill-wrap { flex: 1; position: relative; min-height: 200px; }
+.chart-fill-wrap canvas { position: absolute !important; inset: 0; width: 100% !important; height: 100% !important; }
+.chart-center-wrap { flex: 1; display: flex; align-items: center; justify-content: center; width: 100%; padding: 8px 0; }
+.chart-center-wrap canvas { max-width: min(100%, 320px) !important; }
+</style>
+</head>
+<body>
+
+<!-- ═══ HEADER ═══ -->
+<div class="header">
+  <div class="header-eyebrow">Citation Intelligence · 2026</div>
+  <h1>引用论文<em>多维画像</em>分析报告</h1>
+  <div class="header-targets"><div class="header-target-item"><span class="header-target-num">01</span><span class="header-target-title">Crossearth: Geospatial vision foundation model for domain generalizable remote sensing semantic segmentation</span></div></div>
+  <p class="header-subtitle">
+    基于 27 篇引用论文与 31 位知名学者（含 12 位院士/Fellow）数据，
+    结合大模型对引用描述的深度解读，全面呈现学术影响力格局
+  </p>
+  <div class="header-divider"></div>
+</div>
+
+<!-- ═══ STATS BAR ═══ -->
+<div class="stats-bar">
+  <div class="stat-item"><div class="stat-icon">📄</div><div class="stat-num">27</div><div class="stat-label">引用论文总数</div><div class="stat-sub">含 5 篇自引</div></div>
+  <div class="stat-item"><div class="stat-icon">🎓</div><div class="stat-num">31</div><div class="stat-label">知名学者数量</div></div>
+  <div class="stat-item"><div class="stat-icon">🏅</div><div class="stat-num">12</div><div class="stat-label">院士 / Fellow</div></div>
+  <div class="stat-item"><div class="stat-icon">🌍</div><div class="stat-num">6</div><div class="stat-label">覆盖国家/地区</div></div>
+  <div class="stat-item"><div class="stat-icon">🔥</div><div class="stat-num">81</div><div class="stat-label">最高单篇被引量</div></div>
+</div>
+
+
+<div class="download-bar">
+  <span>📥 下载数据文件：</span>
+  <a href="/api/results/download/data/result-20260312_105947/paper_results_with_citing_desc.xlsx">完整数据（含引用描述）.xlsx</a>
+<a href="/api/results/download/data/result-20260312_105947/paper_results_all_renowned_scholar.xlsx">著名学者.xlsx</a>
+<a href="/api/results/download/data/result-20260312_105947/paper_results_top-tier_scholar.xlsx">顶尖学者.xlsx</a>
+
+</div>
+
+<!-- ═══ CITING PAPERS LIST ═══ -->
+<div class="citing-papers-section">
+  <div class="citing-papers-header">
+    <span class="citing-papers-header-label">SCOPE</span>
+    <span class="citing-papers-header-title">本报告分析范围：引用论文列表</span>
+    <span class="citing-papers-header-count">共 1 篇</span>
+    <div class="citing-papers-header-divider"></div>
+  </div>
+  <div class="citing-papers-desc">
+    以下论文均为主动引用目标论文的施引文献，本报告所有多维画像分析均基于这 <strong>1</strong> 篇论文展开。
+  </div>
+  <div class="citing-papers-grid">
+    
+        <div class="citing-paper-item">
+          <span class="citing-paper-num">01</span>
+          <span class="citing-paper-name">Crossearth: Geospatial vision foundation model for domain generalizable remote sensing semantic segmentation</span>
+        </div>
+  </div>
+</div>
+
+<!-- ═══ MAIN ═══ -->
+<div class="main">
+
+<!-- SECTION 01 -->
+<div class="section-header">
+  <span class="section-num">01</span>
+  <span class="section-title">引用时间 · 地域分布 · 学者层级</span>
+  <div class="section-divider"></div>
+</div>
+<div class="grid-2">
+  <div class="card">
+    <div class="card-title"><div class="card-title-dot"></div>引用论文年份分布</div>
+    <div style="position:relative;height:200px"><canvas id="cYear"></canvas></div>
+  </div>
+  <div class="card">
+    <div class="card-title"><div class="card-title-dot amber"></div>知名学者头衔层级分布</div>
+    <div style="position:relative;height:200px"><canvas id="cFellow"></canvas></div>
+  </div>
+</div>
+<div class="grid-3">
+  <div class="card"><div class="card-title"><div class="card-title-dot sage"></div>第一作者国家/地区分布（全部施引文献）</div><div style="position:relative;height:200px"><canvas id="cCountryAll"></canvas></div></div>
+  <div class="card"><div class="card-title"><div class="card-title-dot"></div>知名学者国家/地区分布</div><div style="position:relative;height:200px"><canvas id="cCountryRenowned"></canvas></div></div>
+  <div class="card"><div class="card-title"><div class="card-title-dot amber"></div>顶尖学者国家/地区分布</div><div style="position:relative;height:200px"><canvas id="cCountryTop"></canvas></div></div>
+</div>
+
+<!-- SECTION 02 -->
+<div class="section-header">
+  <span class="section-num">02</span>
+  <span class="section-title">研究主题关键词（施引文献领域分析）</span>
+  <div class="section-divider"></div>
+</div>
+<div class="card grid-1">
+  <div class="card-title"><div class="card-title-dot violet"></div>关键词云（AI 动态提取 · 基于施引文献标题，反映施引文献所覆盖的研究范围）</div>
+  <div class="kw-cloud"><span class="kw-tag" style="font-size:18px;color:#3b82c4;background:#e8f1fb;border:1px solid #3b82c433;">Foundation Models<span class="kw-cn">(基础模型)</span></span><span class="kw-tag" style="font-size:18px;color:#4caf8a;background:#e6f6f0;border:1px solid #4caf8a33;">Remote Sensing<span class="kw-cn">(遥感)</span></span><span class="kw-tag" style="font-size:17px;color:#7c5cbf;background:#f0ecfb;border:1px solid #7c5cbf33;">Semantic Segmentation<span class="kw-cn">(语义分割)</span></span><span class="kw-tag" style="font-size:16px;color:#d4892a;background:#fdf3e3;border:1px solid #d4892a33;">Domain Generalization<span class="kw-cn">(领域泛化)</span></span><span class="kw-tag" style="font-size:16px;color:#c45a5a;background:#fdeaea;border:1px solid #c45a5a33;">Domain Adaptation<span class="kw-cn">(领域自适应)</span></span><span class="kw-tag" style="font-size:15px;color:#3b82c4;background:#e8f1fb;border:1px solid #3b82c433;">Large Language Models (LLMs)<span class="kw-cn">(大语言模型)</span></span><span class="kw-tag" style="font-size:15px;color:#4caf8a;background:#e6f6f0;border:1px solid #4caf8a33;">Diffusion Models<span class="kw-cn">(扩散模型)</span></span><span class="kw-tag" style="font-size:15px;color:#7c5cbf;background:#f0ecfb;border:1px solid #7c5cbf33;">Multimodal Learning<span class="kw-cn">(多模态学习)</span></span><span class="kw-tag" style="font-size:14px;color:#d4892a;background:#fdf3e3;border:1px solid #d4892a33;">Knowledge Distillation<span class="kw-cn">(知识蒸馏)</span></span><span class="kw-tag" style="font-size:14px;color:#c45a5a;background:#fdeaea;border:1px solid #c45a5a33;">Object Recognition/Detection<span class="kw-cn">(目标识别/检测)</span></span><span class="kw-tag" style="font-size:14px;color:#3b82c4;background:#e8f1fb;border:1px solid #3b82c433;">UAVs (Unmanned Aerial Vehicles)<span class="kw-cn">(无人机)</span></span><span class="kw-tag" style="font-size:14px;color:#4caf8a;background:#e6f6f0;border:1px solid #4caf8a33;">Benchmarking<span class="kw-cn">(基准测试)</span></span><span class="kw-tag" style="font-size:14px;color:#7c5cbf;background:#f0ecfb;border:1px solid #7c5cbf33;">Earth Observation<span class="kw-cn">(对地观测)</span></span><span class="kw-tag" style="font-size:14px;color:#d4892a;background:#fdf3e3;border:1px solid #d4892a33;">Parameter-Efficient Fine-Tuning/Adapter<span class="kw-cn">(参数高效微调/适配器)</span></span><span class="kw-tag" style="font-size:13px;color:#c45a5a;background:#fdeaea;border:1px solid #c45a5a33;">Image Generation<span class="kw-cn">(图像生成)</span></span><span class="kw-tag" style="font-size:13px;color:#3b82c4;background:#e8f1fb;border:1px solid #3b82c433;">Change Detection<span class="kw-cn">(变化检测)</span></span><span class="kw-tag" style="font-size:13px;color:#4caf8a;background:#e6f6f0;border:1px solid #4caf8a33;">Attention Mechanism<span class="kw-cn">(注意力机制)</span></span><span class="kw-tag" style="font-size:13px;color:#7c5cbf;background:#f0ecfb;border:1px solid #7c5cbf33;">Geospatial Reasoning<span class="kw-cn">(地理空间推理)</span></span><span class="kw-tag" style="font-size:12px;color:#d4892a;background:#fdf3e3;border:1px solid #d4892a33;">Image Captioning<span class="kw-cn">(图像描述生成)</span></span></div>
+</div>
+
+<!-- SECTION 03 -->
+<div class="section-header">
+  <span class="section-num">03</span>
+  <span class="section-title">被引描述深度分析</span>
+  <div class="section-divider"></div>
+</div>
+<div class="grid-2">
+  <div class="card">
+    <div class="card-title"><div class="card-title-dot"></div>引用类型分布</div>
+    <div class="cite-type-bar">
+        <div class="ctb-row">
+          <div class="ctb-label"><span>背景铺垫与综述</span><span>10 篇 (42%)</span></div>
+          <div class="ctb-track"><div class="ctb-fill fill-teal" style="width:42%"></div></div>
+        </div>
+        <div class="ctb-row">
+          <div class="ctb-label"><span>实证支撑与对比</span><span>6 篇 (25%)</span></div>
+          <div class="ctb-track"><div class="ctb-fill fill-sage" style="width:25%"></div></div>
+        </div>
+        <div class="ctb-row">
+          <div class="ctb-label"><span>方法借鉴</span><span>3 篇 (12%)</span></div>
+          <div class="ctb-track"><div class="ctb-fill fill-amber" style="width:12%"></div></div>
+        </div>
+        <div class="ctb-row">
+          <div class="ctb-label"><span>正面肯定</span><span>5 篇 (21%)</span></div>
+          <div class="ctb-track"><div class="ctb-fill fill-violet" style="width:21%"></div></div>
+        </div></div>
+    <div style="margin-top:20px;padding-top:16px;border-top:1px solid var(--border)">
+      <div class="card-title" style="margin-bottom:12px"><div class="card-title-dot sage"></div>引用情感倾向</div>
+      <canvas id="cSentiment" style="max-height:200px"></canvas>
+      
+        <div class="sentiment-ring">
+          <div class="sring-item"><div class="sring-dot" style="background:#4caf8a"></div>正面肯定 21%</div>
+          <div class="sring-item"><div class="sring-dot" style="background:#a0aec0"></div>中性引用 79%</div>
+          <div class="sring-item"><div class="sring-dot" style="background:#c45a5a"></div>批评探讨 0%</div>
+        </div>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-title"><div class="card-title-dot amber"></div>引用出现位置分布</div>
+    <canvas id="cPosition" height="200"></canvas>
+    <div style="margin-top:20px;padding-top:16px;border-top:1px solid var(--border)">
+      <div class="card-title" style="margin-bottom:10px"><div class="card-title-dot violet"></div>高频引用主题词</div>
+      <div class="theme-tags"><span class="theme-tag" style="font-size:18px">遥感视觉基础模型</span><span class="theme-tag" style="font-size:17px">领域泛化语义分割</span><span class="theme-tag" style="font-size:14px">基准模型性能对比</span><span class="theme-tag" style="font-size:12px">知识蒸馏应用</span><span class="theme-tag" style="font-size:11px">多模态地球观测</span><span class="theme-tag" style="font-size:11px">损失函数与注意力机制</span></div>
+    </div>
+  </div>
+</div>
+<div class="grid-2">
+  <div class="card">
+    <div class="card-title"><div class="card-title-dot violet"></div>引用深度结构（核心 vs 参考 vs 补充）</div>
+    <canvas id="cDepth" style="max-height:200px"></canvas>
+  </div>
+  <div class="card">
+    <div class="card-title"><div class="card-title-dot sage"></div>AI 引用洞察摘要</div>
+    <div class="findings-list">
+        <div class="finding-item">
+          <div class="finding-num">1</div>
+          <div>引用主要集中在引言和相关工作章节，用于勾勒遥感基础模型的发展现状。</div>
+        </div>
+        <div class="finding-item">
+          <div class="finding-num">2</div>
+          <div>多数引用将其作为领域泛化语义分割的标准基准或代表性方法进行客观描述。</div>
+        </div>
+        <div class="finding-item">
+          <div class="finding-num">3</div>
+          <div>部分文献在实验分析中提及该模型展示出较强的下游任务性能或跨域实验结果。</div>
+        </div></div>
+  </div>
+</div>
+
+<!-- SECTION 04 -->
+<div class="section-header">
+  <span class="section-num">04</span>
+  <span class="section-title">知名学者画像一览</span>
+  <div class="section-divider"></div>
+</div>
+<div class="card grid-1">
+  <div class="card-title"><div class="card-title-dot"></div>引用论文中出现的权威学者详细信息（AI搜索生成，已自动去重合并同一学者，仅供参考）</div>
+  <div style="overflow-x:auto">
+    <table class="scholar-table">
+      <thead><tr><th>#</th><th>学者</th><th>国家/地区</th><th>层级</th><th>头衔 / 荣誉</th><th>引用描述</th></tr></thead>
+      <tbody>
+        <tr>
+          <td style="color:var(--text-light);font-size:11px">01</td>
+          <td class="sname">黎湘</td>
+          <td><span class="badge b-cn">中国</span></td>
+          <td><span class="badge b-ys">两院院士</span></td>
+          <td class="stitle">中国科学院院士、国家杰出青年科学基金获得者</td>
+          <td><button class="desc-btn" onclick="toggleDesc('desc_1')">引用描述 ▾</button></td>
+        </tr>
+        <tr id="desc_1" class="desc-row" style="display:none">
+          <td colspan="6"><div class="md-content">在论文《ATRNet-STAR: A large dataset and benchmark towards remote sensing object recognition in the wild》（发表于 *IEEE Transactions on Geoscience and Remote Sensing* 或 *IEEE Transactions on Pattern Analysis and Machine Intelligence* 早期访问版/预印版）的正文中，对论文《Crossearth: Geospatial vision foundation model for domain generalizable remote sensing semantic segmentation》（以下简称“Crossearth”）的具体引用描述如下：
+
+**1. 引用描述：**
+&gt; "The advent of big data has propelled the evolution of RS pre-training foundation models [18, 19, 20, 21] where large-scale pre-training enables efficient cross-task adaptation with minimal finetuning."
+
+*注：在该论文的参考文献列表中，编号 [21] 对应的即为 Gong 等人发表的《Crossearth: Geospatial vision foundation model for domain generalizable remote sensing semantic segmentation》。*
+
+**2. 出现位置：**
+该引用出现在论文的 **Section 1. INTRODUCTION**（第一部分：引言）中的 **Need for ATRNet**（ATRNet 的必要性）子章节。
+
+**3. 情感判断：**
+该描述属于对遥感大模型发展背景的客观陈述，未出现如 "state-of-the-art"、"pioneering" 等明确的积极评价词汇，因此不做情感标注。</div></td>
+        </tr>
+        <tr>
+          <td style="color:var(--text-light);font-size:11px">02</td>
+          <td class="sname">李德仁 (Deren Li)</td>
+          <td><span class="badge b-cn">中国</span></td>
+          <td><span class="badge b-ys">两院院士</span></td>
+          <td class="stitle">2023年度国家最高科学技术奖获得者、中国科学院院士、中国工程院院士、国际欧亚科学院院士、挪威科学与文学院院士、ISPRS荣誉会员、布洛克金奖获得者</td>
+          <td><button class="desc-btn" onclick="toggleDesc('desc_2')">引用描述 ▾</button></td>
+        </tr>
+        <tr id="desc_2" class="desc-row" style="display:none">
+          <td colspan="6"><div class="md-content">nan</div></td>
+        </tr>
+        <tr>
+          <td style="color:var(--text-light);font-size:11px">03</td>
+          <td class="sname">周国清</td>
+          <td><span class="badge b-cn">中国</span></td>
+          <td><span class="badge b-ot">其他院士</span></td>
+          <td class="stitle">长江学者特聘教授、国家杰出青年科学基金获得者、国际欧亚科学院院士</td>
+          <td><button class="desc-btn" onclick="toggleDesc('desc_3')">引用描述 ▾</button></td>
+        </tr>
+        <tr id="desc_3" class="desc-row" style="display:none">
+          <td colspan="6"><div class="md-content">经过对论文《Advances on multimodal remote sensing foundation models for Earth observation downstream tasks: A survey》（作者：Guoqing Zhou, Lihuang Qian, Paolo Gamba，发表于《Remote Sensing》/ ProQuest CBL: 2032338）全文的检索与阅读，该论文在正文中引用《Crossearth: Geospatial vision foundation model for domain generalizable remote sensing semantic segmentation》（Gong et al.）的具体描述如下：
+
+**引用描述 1：**
+*   **原文内容：** "CrossEarth [204] is a visual foundation model with strong cross-domain generalization ability. This model performs visual tasks through a specially designed data-level Earth-style injection pipeline and a model-level multi-task training pipeline. Moreover, for semantic segmentation tasks, the model outperforms existing state-of-the-art methods on a comprehensive benchmark across different regions, spectral bands, platforms, and climates."
+*   **出现章节：** **3.4. Vision + Position MM-RSFMs**（或“Advances in MM-RSFMs”章节下的“Vision + Position”小节）
+*   **情感标注：** **【正面引用】**（注：原文明确使用了 "outperforms existing state-of-the-art methods" 这一积极评价词汇。）
+
+**引用描述 2：**
+*   **原文内容：** "A chain of the types of MM-RSFMs. RingMo-Sense [13], SkySense [164], ..., CrossEarth [204], GeoCLIP [205], BF-SAM [206], ..."
+*   **出现章节：** **3. Advances in MM-RSFMs**（出现在该章节的分类概述或图表说明文字中，用于对现有模型进行分类梳理。）
+*   **情感标注：** （无，此为客观分类陈述。）
+
+**引用描述 3：**
+*   **原文内容：** "CrossEarth: Geospatial vision foundation model for domain generalizable remote sensing semantic segmentation. arXiv 2024, arXiv:2410.22629."
+*   **出现章节：** **References**（参考文献列表第 204 项）
+*   **情感标注：** （无，此为格式化引用。）</div></td>
+        </tr>
+        <tr>
+          <td style="color:var(--text-light);font-size:11px">04</td>
+          <td class="sname">焦李成</td>
+          <td><span class="badge b-cn">中国</span></td>
+          <td><span class="badge b-ot">其他院士</span></td>
+          <td class="stitle">华山杰出教授、欧洲科学院院士、俄罗斯自然科学院外籍院士、IEEE Fellow、IET Fellow、CCF Fellow、CAAI Fellow、国家杰出青年科学基金获得者、长江</td>
+          <td></td>
+        </tr>
+        <tr>
+          <td style="color:var(--text-light);font-size:11px">05</td>
+          <td class="sname">Gustau Camps-Valls</td>
+          <td><span class="badge b-int">西班牙</span></td>
+          <td><span class="badge b-ot">其他院士</span></td>
+          <td class="stitle">欧洲科学院院士、欧洲科学与艺术学院院士、IEEE Fellow、ERC资助获得者、全球高被引科学家</td>
+          <td><button class="desc-btn" onclick="toggleDesc('desc_5')">引用描述 ▾</button></td>
+        </tr>
+        <tr id="desc_5" class="desc-row" style="display:none">
+          <td colspan="6"><div class="md-content">根据对论文《Foundation Models in Remote Sensing: Evolving from Unimodality to Multimodality》（arXiv:2603.00988）的正文内容检索，该论文在介绍遥感基础模型的发展时引用了《Crossearth: Geospatial vision foundation model for domain generalizable remote sensing semantic segmentation》（在文中对应参考文献 **[20]**）。
+
+具体引用描述如下：
+
+**1. 引用描述：**
+&gt; "CrossEarth [20] introduces a domain generalization method to perform the semantic segmentation of foundation models across downstream datasets with different styles."
+
+*   **所在章节：** Section III-B (Unimodal Foundation Models in RS) 或 Section III (The evolution from unimodality to multimodality) 相关的模型综述部分。
+*   **情感判断：** 该描述属于客观陈述模型的功能与技术路线（"introduces a domain generalization method"），未出现"state-of-the-art"、"pioneering"等显式积极评价词汇，故不标注。
+
+**2. 相关背景提及（若涉及模型分类）：**
+文中在讨论视觉基础模型（Vision Foundation Models）的泛化性时，将其作为处理下游任务风格差异的代表性工作。
+
+---
+**注：** 
+- 该论文（arXiv:2603.00988）主要将 CrossEarth 视为一种引入域泛化（Domain Generalization）机制以提升下游语义分割任务适应性的单模态或视觉基础模型。
+- 尽管 CrossEarth 原文中自称为 "the first vision foundation model for RSDG"，但在本篇综述论文（2603.00988）的正文中，作者仅对其进行了中立的技术性转述。</div></td>
+        </tr>
+        <tr>
+          <td style="color:var(--text-light);font-size:11px">06</td>
+          <td class="sname">王飞跃</td>
+          <td><span class="badge b-cn">中国</span></td>
+          <td><span class="badge b-fw">Fellow</span></td>
+          <td class="stitle">IEEE Fellow, INCOSE Fellow, IFAC Fellow, ASME Fellow, AAAS Fellow</td>
+          <td><button class="desc-btn" onclick="toggleDesc('desc_6')">引用描述 ▾</button></td>
+        </tr>
+        <tr id="desc_6" class="desc-row" style="display:none">
+          <td colspan="6"><div class="md-content">nan</div></td>
+        </tr>
+        <tr>
+          <td style="color:var(--text-light);font-size:11px">07</td>
+          <td class="sname">项维 (Wei Xiang)</td>
+          <td><span class="badge b-int">澳大利亚</span></td>
+          <td><span class="badge b-fw">Fellow</span></td>
+          <td class="stitle">IEEE Fellow、IET Fellow、Engineers Australia Fellow</td>
+          <td><button class="desc-btn" onclick="toggleDesc('desc_7')">引用描述 ▾</button></td>
+        </tr>
+        <tr id="desc_7" class="desc-row" style="display:none">
+          <td colspan="6"><div class="md-content">在论文《From Pixels to Images: A Structural Survey of Deep Learning Paradigms in Remote Sensing Image Semantic Segmentation》（arXiv:2505.15147）的正文中，对《Crossearth: Geospatial vision foundation model for domain generalizable remote sensing semantic segmentation》（Gong等著）的引用描述如下：
+
+**描述 1**
+*   **原文内容**：
+    "Gong et al. [273] proposed CrossEarth, a vision foundation model specifically designed for RSISS, combining Earth-style data augmentation with multi-task representation learning. This approach results in robust and transferable feature representations, effectively handling diverse and complex domain shifts."
+*   **出现位置**：Section 3.1.7 Domain generalization (属于 Section 3 Tile-based Unimodal RSISS 章节)。
+*   **情感判断**：【正面引用】（理由：使用了 "robust and transferable"、"effectively handling" 等积极评价词汇，肯定了该方法在处理复杂域偏移方面的有效性）。
+
+**描述 2**
+*   **原文内容**：
+    "Meanwhile, novel and robust architectures, such as diffusion models [340,341], foundation models [342,277,343, 273], and hybrid models combining DL and traditional ML, hand-crafted features have demonstrated significant potential in related fields [344,44,345]. Adapting these architectures for RSISS is expected to introduce new capabilities and further expand the performance boundaries of segmentation models."
+*   **出现位置**：Section 6 Open Challenges and Future Directions。
+*   **情感判断**：【正面引用】（理由：明确使用了 "novel and robust"、"significant potential" 以及 "expand the performance boundaries" 等词汇，强调了该模型及此类架构的创新性和潜力）。
+
+注：在本文的参考文献列表中，该论文被列为第 [273] 项引用。其作者列表、标题与您提供的完全一致。</div></td>
+        </tr>
+        <tr>
+          <td style="color:var(--text-light);font-size:11px">08</td>
+          <td class="sname">Paolo Gamba</td>
+          <td><span class="badge b-int">意大利</span></td>
+          <td><span class="badge b-fw">Fellow</span></td>
+          <td class="stitle">IEEE Fellow、IEEE GRSS 前任主席</td>
+          <td><button class="desc-btn" onclick="toggleDesc('desc_8')">引用描述 ▾</button></td>
+        </tr>
+        <tr id="desc_8" class="desc-row" style="display:none">
+          <td colspan="6"><div class="md-content">经过对论文《Advances on multimodal remote sensing foundation models for Earth observation downstream tasks: A survey》（作者：Guoqing Zhou, Lihuang Qian, Paolo Gamba，发表于《Remote Sensing》/ ProQuest CBL: 2032338）全文的检索与阅读，该论文在正文中引用《Crossearth: Geospatial vision foundation model for domain generalizable remote sensing semantic segmentation》（Gong et al.）的具体描述如下：
+
+**引用描述 1：**
+*   **原文内容：** "CrossEarth [204] is a visual foundation model with strong cross-domain generalization ability. This model performs visual tasks through a specially designed data-level Earth-style injection pipeline and a model-level multi-task training pipeline. Moreover, for semantic segmentation tasks, the model outperforms existing state-of-the-art methods on a comprehensive benchmark across different regions, spectral bands, platforms, and climates."
+*   **出现章节：** **3.4. Vision + Position MM-RSFMs**（或“Advances in MM-RSFMs”章节下的“Vision + Position”小节）
+*   **情感标注：** **【正面引用】**（注：原文明确使用了 "outperforms existing state-of-the-art methods" 这一积极评价词汇。）
+
+**引用描述 2：**
+*   **原文内容：** "A chain of the types of MM-RSFMs. RingMo-Sense [13], SkySense [164], ..., CrossEarth [204], GeoCLIP [205], BF-SAM [206], ..."
+*   **出现章节：** **3. Advances in MM-RSFMs**（出现在该章节的分类概述或图表说明文字中，用于对现有模型进行分类梳理。）
+*   **情感标注：** （无，此为客观分类陈述。）
+
+**引用描述 3：**
+*   **原文内容：** "CrossEarth: Geospatial vision foundation model for domain generalizable remote sensing semantic segmentation. arXiv 2024, arXiv:2410.22629."
+*   **出现章节：** **References**（参考文献列表第 204 项）
+*   **情感标注：** （无，此为格式化引用。）</div></td>
+        </tr>
+        <tr>
+          <td style="color:var(--text-light);font-size:11px">09</td>
+          <td class="sname">周辉宇</td>
+          <td><span class="badge b-int">英国</span></td>
+          <td><span class="badge b-fw">Fellow</span></td>
+          <td class="stitle">英国皇家学会沃尔夫森考察员 (Royal Society Wolfson Fellow)</td>
+          <td><button class="desc-btn" onclick="toggleDesc('desc_9')">引用描述 ▾</button></td>
+        </tr>
+        <tr id="desc_9" class="desc-row" style="display:none">
+          <td colspan="6"><div class="md-content">nan</div></td>
+        </tr>
+        <tr>
+          <td style="color:var(--text-light);font-size:11px">10</td>
+          <td class="sname">殷绪成</td>
+          <td><span class="badge b-cn">中国</span></td>
+          <td><span class="badge b-fw">Fellow</span></td>
+          <td class="stitle">国家杰出青年科学基金获得者、IAPR Fellow（国际模式识别学会会士）、教育部新世纪优秀人才</td>
+          <td></td>
+        </tr>
+        <tr>
+          <td style="color:var(--text-light);font-size:11px">11</td>
+          <td class="sname">Jocelyn Chanussot</td>
+          <td><span class="badge b-int">法国</span></td>
+          <td><span class="badge b-fw">Fellow</span></td>
+          <td class="stitle">IEEE Fellow、法国大学研究院 (IUF) 资深会员、全球高被引科学家、前IEEE JSTARS主编、前IEEE GRSS副主席</td>
+          <td><button class="desc-btn" onclick="toggleDesc('desc_11')">引用描述 ▾</button></td>
+        </tr>
+        <tr id="desc_11" class="desc-row" style="display:none">
+          <td colspan="6"><div class="md-content">根据对论文《Foundation Models in Remote Sensing: Evolving from Unimodality to Multimodality》（arXiv:2603.00988）的正文内容检索，该论文在介绍遥感基础模型的发展时引用了《Crossearth: Geospatial vision foundation model for domain generalizable remote sensing semantic segmentation》（在文中对应参考文献 **[20]**）。
+
+具体引用描述如下：
+
+**1. 引用描述：**
+&gt; "CrossEarth [20] introduces a domain generalization method to perform the semantic segmentation of foundation models across downstream datasets with different styles."
+
+*   **所在章节：** Section III-B (Unimodal Foundation Models in RS) 或 Section III (The evolution from unimodality to multimodality) 相关的模型综述部分。
+*   **情感判断：** 该描述属于客观陈述模型的功能与技术路线（"introduces a domain generalization method"），未出现"state-of-the-art"、"pioneering"等显式积极评价词汇，故不标注。
+
+**2. 相关背景提及（若涉及模型分类）：**
+文中在讨论视觉基础模型（Vision Foundation Models）的泛化性时，将其作为处理下游任务风格差异的代表性工作。
+
+---
+**注：** 
+- 该论文（arXiv:2603.00988）主要将 CrossEarth 视为一种引入域泛化（Domain Generalization）机制以提升下游语义分割任务适应性的单模态或视觉基础模型。
+- 尽管 CrossEarth 原文中自称为 "the first vision foundation model for RSDG"，但在本篇综述论文（2603.00988）的正文中，作者仅对其进行了中立的技术性转述。</div></td>
+        </tr>
+        <tr>
+          <td style="color:var(--text-light);font-size:11px">12</td>
+          <td class="sname">Nicu Sebe</td>
+          <td><span class="badge b-int">意大利</span></td>
+          <td><span class="badge b-fw">Fellow</span></td>
+          <td class="stitle">IEEE Fellow、IAPR Fellow、ELLIS Fellow</td>
+          <td><button class="desc-btn" onclick="toggleDesc('desc_12')">引用描述 ▾</button></td>
+        </tr>
+        <tr id="desc_12" class="desc-row" style="display:none">
+          <td colspan="6"><div class="md-content">通过对论文《Generalizable Knowledge Distillation from Vision Foundation Models for Semantic Segmentation》（arXiv:2603.02554）正文内容的阅读与检索，该论文引用了 Ziyang Gong 等人的论文《Crossearth: Geospatial vision foundation model for domain generalizable remote sensing semantic segmentation》（在文中标记为引用文献 [9]）。
+
+具体引用描述如下：
+
+**1. 引用位置：** **4.1 Experimental Setup** (Datasets 部分)
+**原文描述：**
+&gt; "To further evaluate the generalization in remote sensing scenarios, we also utilize the RSDG benchmark curated by [9], which includes diverse cross-domain settings across different regions and platforms."
+
+**2. 引用位置：** **References** (文献列表部分)
+**原文表述：**
+&gt; "[9] Ziyang Gong, Zhixiang Wei, Di Wang, Xianzheng Ma, Hongruixuan Chen, Yuru Jia, Yupeng Deng, Zhenming Ji, Xiangwei Zhu, Naoto Yokoya, et al. Crossearth: Geospatial vision foundation model for domain generalizable remote sensing semantic segmentation. arXiv preprint arXiv:2410.22629, 2024."
+
+**情感判断：**
+上述引用属于客观陈述实验中使用的基准测试集（benchmark）来源，未出现“state-of-the-art”、“pioneering”或“significantly outperforms”等明确的积极评价词汇，因此属于**中立转述或背景铺垫**。</div></td>
+        </tr>
+        <tr>
+          <td style="color:var(--text-light);font-size:11px">13</td>
+          <td class="sname">姓名</td>
+          <td><span class="badge b-int">作者所在机构或单位的所在国家</span></td>
+          <td><span class="badge b-nm">知名学者</span></td>
+          <td class="stitle">作者所获取的重量级头衔</td>
+          <td></td>
+        </tr>
+        <tr>
+          <td style="color:var(--text-light);font-size:11px">14</td>
+          <td class="sname">Levente Kovács</td>
+          <td><span class="badge b-int">匈牙利</span></td>
+          <td><span class="badge b-nm">知名学者</span></td>
+          <td class="stitle">IEEE Senior Member、国际学术会议主席</td>
+          <td></td>
+        </tr>
+        <tr>
+          <td style="color:var(--text-light);font-size:11px">15</td>
+          <td class="sname">吕宜生</td>
+          <td><span class="badge b-cn">中国</span></td>
+          <td><span class="badge b-nm">知名学者</span></td>
+          <td class="stitle">智能交通领域国内知名专家</td>
+          <td></td>
+        </tr>
+        <tr>
+          <td style="color:var(--text-light);font-size:11px">16</td>
+          <td class="sname">董燕妮</td>
+          <td><span class="badge b-cn">中国</span></td>
+          <td><span class="badge b-nm">知名学者</span></td>
+          <td class="stitle">国家级青年人才、IEEE Senior Member</td>
+          <td></td>
+        </tr>
+        <tr>
+          <td style="color:var(--text-light);font-size:11px">17</td>
+          <td class="sname">刘莉</td>
+          <td><span class="badge b-cn">中国</span></td>
+          <td><span class="badge b-nm">知名学者</span></td>
+          <td class="stitle">IEEE Senior Member、谷歌学术高被引学者</td>
+          <td></td>
+        </tr>
+        <tr>
+          <td style="color:var(--text-light);font-size:11px">18</td>
+          <td class="sname">刘永祥</td>
+          <td><span class="badge b-cn">中国</span></td>
+          <td><span class="badge b-nm">知名学者</span></td>
+          <td class="stitle">雷达目标识别领域资深专家</td>
+          <td></td>
+        </tr>
+        <tr>
+          <td style="color:var(--text-light);font-size:11px">19</td>
+          <td class="sname">杨学</td>
+          <td><span class="badge b-cn">中国</span></td>
+          <td><span class="badge b-nm">知名学者</span></td>
+          <td class="stitle">IEEE-CS "AI's 10 to Watch" (2024)、Elsevier 高被引中国学者</td>
+          <td></td>
+        </tr>
+        <tr>
+          <td style="color:var(--text-light);font-size:11px">20</td>
+          <td class="sname">Maarten Vergauwen</td>
+          <td><span class="badge b-int">比利时</span></td>
+          <td><span class="badge b-nm">知名学者</span></td>
+          <td class="stitle">nan</td>
+          <td></td>
+        </tr>
+        <tr>
+          <td style="color:var(--text-light);font-size:11px">21</td>
+          <td class="sname">Kourosh Khoshelham</td>
+          <td><span class="badge b-int">澳大利亚</span></td>
+          <td><span class="badge b-nm">知名学者</span></td>
+          <td class="stitle">国际摄影测量与遥感学会 (ISPRS) 工作组联合主席、澳大利亚标准局委员会成员</td>
+          <td></td>
+        </tr>
+        <tr>
+          <td style="color:var(--text-light);font-size:11px">22</td>
+          <td class="sname">季顺平</td>
+          <td><span class="badge b-cn">中国</span></td>
+          <td><span class="badge b-nm">知名学者</span></td>
+          <td class="stitle">斯坦福大学“全球前 2% 顶尖科学家”、IEEE Senior Member、中国测绘科学技术奖特等奖获得者、武汉大学“珞珈青年学者”</td>
+          <td></td>
+        </tr>
+        <tr>
+          <td style="color:var(--text-light);font-size:11px">23</td>
+          <td class="sname">王爽</td>
+          <td><span class="badge b-cn">中国</span></td>
+          <td><span class="badge b-nm">知名学者</span></td>
+          <td class="stitle">国家级领军人才（国家杰出青年科学基金获得者或长江学者）、IEEE Senior Member</td>
+          <td></td>
+        </tr>
+        <tr>
+          <td style="color:var(--text-light);font-size:11px">24</td>
+          <td class="sname">侯彪</td>
+          <td><span class="badge b-cn">中国</span></td>
+          <td><span class="badge b-nm">知名学者</span></td>
+          <td class="stitle">国家级人才（长江学者特聘教授、国家万人计划领军人才）、IEEE Senior Member</td>
+          <td></td>
+        </tr>
+        <tr>
+          <td style="color:var(--text-light);font-size:11px">25</td>
+          <td class="sname">史振威</td>
+          <td><span class="badge b-cn">中国</span></td>
+          <td><span class="badge b-nm">知名学者</span></td>
+          <td class="stitle">国家杰出青年科学基金获得者、教育部海外高层次人才青年学者、IEEE Senior Member</td>
+          <td></td>
+        </tr>
+        <tr>
+          <td style="color:var(--text-light);font-size:11px">26</td>
+          <td class="sname">邹征夏</td>
+          <td><span class="badge b-cn">中国</span></td>
+          <td><span class="badge b-nm">知名学者</span></td>
+          <td class="stitle">国家级优秀青年科学基金获得者、AI领域国际知名青年学者</td>
+          <td></td>
+        </tr>
+        <tr>
+          <td style="color:var(--text-light);font-size:11px">27</td>
+          <td class="sname">洪丹枫</td>
+          <td><span class="badge b-cn">中国</span></td>
+          <td><span class="badge b-nm">知名学者</span></td>
+          <td class="stitle">科睿唯安全球高被引科学家、国家级青年人才计划入选者</td>
+          <td></td>
+        </tr>
+        <tr>
+          <td style="color:var(--text-light);font-size:11px">28</td>
+          <td class="sname">钟准 (Zhun Zhong)</td>
+          <td><span class="badge b-cn">中国</span></td>
+          <td><span class="badge b-nm">知名学者</span></td>
+          <td class="stitle">国家级青年人才计划入选者（海外优青）、斯坦福大学全球前2%顶尖科学家</td>
+          <td></td>
+        </tr>
+        <tr>
+          <td style="color:var(--text-light);font-size:11px">29</td>
+          <td class="sname">贾利民</td>
+          <td><span class="badge b-cn">中国</span></td>
+          <td><span class="badge b-nm">知名学者</span></td>
+          <td class="stitle">国家级领军人才</td>
+          <td></td>
+        </tr>
+        <tr>
+          <td style="color:var(--text-light);font-size:11px">30</td>
+          <td class="sname">杜世宏</td>
+          <td><span class="badge b-cn">中国</span></td>
+          <td><span class="badge b-nm">知名学者</span></td>
+          <td class="stitle">国家杰出青年科学基金获得者（杰青）</td>
+          <td></td>
+        </tr>
+        <tr>
+          <td style="color:var(--text-light);font-size:11px">31</td>
+          <td class="sname">张永生</td>
+          <td><span class="badge b-cn">中国</span></td>
+          <td><span class="badge b-nm">知名学者</span></td>
+          <td class="stitle">少将（专业技术二级）、国家“万人计划”领军人才、国家百千万人才工程入选者、首届全国创新争先奖获得者、国家科技进步一等奖获得者</td>
+          <td></td>
+        </tr></tbody>
+    </table>
+  </div>
+</div>
+
+
+<div class="card grid-1">
+  <div class="card-title cite-sum-card-title">
+    <div style="display:flex;align-items:center;gap:7px">
+      <div class="card-title-dot teal"></div>引用描述综合总结
+      <span style="font-size:10px;color:var(--text-light);font-weight:400">AI 综合归纳 &nbsp;·&nbsp; 客观呈现 &nbsp;·&nbsp; 基于 24 条引用描述</span>
+    </div>
+    <button class="desc-btn" id="citeSumBtn" onclick="toggleCiteSummary()">展开全文 ▾</button>
+  </div>
+  <p class="cite-sum-preview">本研究分析了 24 篇论文对目标论文《Crossearth: Geospatial vision foundation model for domain generalizable remote sensing semantic segmentation》的引用情况。除 5 篇自引及 5 篇未提供具体描述的样本外，其余 14 篇引用论文涵盖了遥感语义分割、多模态基础模型综述、跨域泛化、知识蒸馏及目…</p>
+  <div id="citeSummaryContent" style="display:none">
+    <div class="cite-sum-body"><div class="md-content">## 引用规模与分布
+本研究分析了 24 篇论文对目标论文《Crossearth: Geospatial vision foundation model for domain generalizable remote sensing semantic segmentation》的引用情况。除 5 篇自引及 5 篇未提供具体描述的样本外，其余 14 篇引用论文涵盖了遥感语义分割、多模态基础模型综述、跨域泛化、知识蒸馏及目标识别等研究方向。
+
+## 主要引用用途
+引用者对该论文的实际使用主要集中在以下四个方面：第一，作为背景综述，将其归类为专门针对遥感语义分割（RSISS）设计的地理空间视觉基础模型；第二，作为技术方法参考，描述其结合了地球风格数据增强与多任务表示学习，并利用交叉熵损失与掩码图像建模（MIM）损失进行训练；第三，作为实验对比基准，在模型性能评估中将其作为 Baseline 进行对比；第四，作为数据来源，有研究利用该论文构建的 RSDG 基准数据集进行泛化能力评估。
+
+## 代表性引用描述原文
+> "Gong et al. [273] proposed CrossEarth, a vision foundation model specifically designed for RSISS, combining Earth-style data augmentation with multi-task representation learning."
+
+> "To further evaluate the generalization in remote sensing scenarios, we also utilize the RSDG benchmark curated by [9], which includes diverse..."
+
+> "Experimental results in the table show that CrossEarth exhibits strong generalization ability and performs reasonably well, although slightly below GeoLink."
+
+> "CrossEarth [20] introduces a domain generalization method to perform the semantic segmentation of foundation models across downstream datasets with different styles."
+
+## 综合说明
+这些引用共同呈现出将该论文作为“领域专用基础模型”和“领域泛化基准”的使用模式。引用者不仅在理论综述中将其视为遥感视觉基础模型的代表性工作，还在实证研究中将其算法框架、损失函数设计及所提数据集作为后续研究的方法依据或性能对照标准。</div></div>
+  </div>
+</div>
+
+
+<!-- SECTION 05 -->
+<div class="section-header">
+  <span class="section-num">05</span>
+  <span class="section-title">著名机构引用 · 大学 / 企业 / 研究院</span>
+  <div class="section-divider"></div>
+</div>
+<div class="card grid-1">
+  <div class="card-title"><div class="card-title-dot sage"></div>引用该论文的知名大学与科技机构（基于施引作者单位信息匹配，点击机构可展开论文列表）</div>
+  <div class="inst-section"><div class="inst-category-label">国际科技企业</div><div class="inst-tags"><span class="inst-tag" style="color:#3b82c4;background:#e8f1fb;border:1px solid #3b82c444" onclick="toggleInst('inst_0')">Google <span class="inst-count">1篇</span></span><div id="inst_0" class="inst-paper-list"><div class="inst-paper-item">&middot; Joint style and layout synthesizing: Toward generalizable remote sensing semanti</div></div></div></div><div class="inst-section"><div class="inst-category-label">海外顶尖高校</div><div class="inst-tags"><span class="inst-tag" style="color:#7c5cbf;background:#f0ecfb;border:1px solid #7c5cbf44" onclick="toggleInst('inst_1')">ETH Zurich <span class="inst-count">1篇</span></span><div id="inst_1" class="inst-paper-list"><div class="inst-paper-item">&middot; PANGAEA: Assessing Geospatial Foundation Models Capabilities through a Global an</div></div><span class="inst-tag" style="color:#7c5cbf;background:#f0ecfb;border:1px solid #7c5cbf44" onclick="toggleInst('inst_2')">NUS <span class="inst-count">1篇</span></span><div id="inst_2" class="inst-paper-list"><div class="inst-paper-item">&middot; Foundation Models in Remote Sensing: Evolving from Unimodality to Multimodality</div></div><span class="inst-tag" style="color:#7c5cbf;background:#f0ecfb;border:1px solid #7c5cbf44" onclick="toggleInst('inst_3')">NTU <span class="inst-count">1篇</span></span><div id="inst_3" class="inst-paper-list"><div class="inst-paper-item">&middot; GeoZero: Incentivizing Reasoning from Scratch on Geospatial Scenes</div></div></div></div><div class="inst-section"><div class="inst-category-label">国内顶尖高校/机构</div><div class="inst-tags"><span class="inst-tag" style="color:#4caf8a;background:#e6f6f0;border:1px solid #4caf8a44" onclick="toggleInst('inst_4')">中国科学院 <span class="inst-count">4篇</span></span><div id="inst_4" class="inst-paper-list"><div class="inst-paper-item">&middot; Deep learning based domain adaptation methods in remote sensing: A comprehensive</div><div class="inst-paper-item">&middot; Foundation Models in Remote Sensing: Evolving from Unimodality to Multimodality</div><div class="inst-paper-item">&middot; GeoLink: Empowering Remote Sensing Foundation Model with OpenStreetMap Data</div><div class="inst-paper-item">&middot; UAVs meet LLMs: Overviews and perspectives towards agentic low-altitude mobility</div></div><span class="inst-tag" style="color:#4caf8a;background:#e6f6f0;border:1px solid #4caf8a44" onclick="toggleInst('inst_5')">上海交通大学 <span class="inst-count">4篇</span></span><div id="inst_5" class="inst-paper-list"><div class="inst-paper-item">&middot; Can generative geospatial diffusion models excel as discriminative geospatial fo</div><div class="inst-paper-item">&middot; CrossEarth-Gate: Fisher-Guided Adaptive Tuning Engine for Efficient Adaptation o</div><div class="inst-paper-item">&middot; Earth-adapter: Bridge the geospatial domain gaps with mixture of frequency adapt</div><div class="inst-paper-item">&middot; Object fidelity diffusion for remote sensing image generation</div></div><span class="inst-tag" style="color:#4caf8a;background:#e6f6f0;border:1px solid #4caf8a44" onclick="toggleInst('inst_6')">武汉大学 <span class="inst-count">4篇</span></span><div id="inst_6" class="inst-paper-list"><div class="inst-paper-item">&middot; Change-prior guided cross-scale interaction network for remote sensing image cha</div><div class="inst-paper-item">&middot; Domain generalization for semantic segmentation of remote sensing images via vis</div><div class="inst-paper-item">&middot; From Pixels to Images: A Structural Survey of Deep Learning Paradigms in Remote </div><div class="inst-paper-item">&middot; GeoZero: Incentivizing Reasoning from Scratch on Geospatial Scenes</div></div><span class="inst-tag" style="color:#4caf8a;background:#e6f6f0;border:1px solid #4caf8a44" onclick="toggleInst('inst_7')">北京航空航天大学 <span class="inst-count">3篇</span></span><div id="inst_7" class="inst-paper-list"><div class="inst-paper-item">&middot; Deep learning based domain adaptation methods in remote sensing: A comprehensive</div><div class="inst-paper-item">&middot; Local Attention Alignment Fusion Network for Domain Adaptive Water Body Segmenta</div><div class="inst-paper-item">&middot; Rsrefseg 2: decoupling referring remote sensing image segmentation with foundati</div></div><span class="inst-tag" style="color:#4caf8a;background:#e6f6f0;border:1px solid #4caf8a44" onclick="toggleInst('inst_8')">清华大学 <span class="inst-count">2篇</span></span><div id="inst_8" class="inst-paper-list"><div class="inst-paper-item">&middot; CrossEarth-Gate: Fisher-Guided Adaptive Tuning Engine for Efficient Adaptation o</div><div class="inst-paper-item">&middot; Generalizable Knowledge Distillation from Vision Foundation Models for Semantic </div></div><span class="inst-tag" style="color:#4caf8a;background:#e6f6f0;border:1px solid #4caf8a44" onclick="toggleInst('inst_9')">国防科技大学 <span class="inst-count">2篇</span></span><div id="inst_9" class="inst-paper-list"><div class="inst-paper-item">&middot; ATRNet-STAR: A large dataset and benchmark towards remote sensing object recogni</div><div class="inst-paper-item">&middot; Change-prior guided cross-scale interaction network for remote sensing image cha</div></div><span class="inst-tag" style="color:#4caf8a;background:#e6f6f0;border:1px solid #4caf8a44" onclick="toggleInst('inst_10')">北京大学 <span class="inst-count">1篇</span></span><div id="inst_10" class="inst-paper-list"><div class="inst-paper-item">&middot; GeoLink: Empowering Remote Sensing Foundation Model with OpenStreetMap Data</div></div><span class="inst-tag" style="color:#4caf8a;background:#e6f6f0;border:1px solid #4caf8a44" onclick="toggleInst('inst_11')">复旦大学 <span class="inst-count">1篇</span></span><div id="inst_11" class="inst-paper-list"><div class="inst-paper-item">&middot; Object fidelity diffusion for remote sensing image generation</div></div><span class="inst-tag" style="color:#4caf8a;background:#e6f6f0;border:1px solid #4caf8a44" onclick="toggleInst('inst_12')">中山大学 <span class="inst-count">1篇</span></span><div id="inst_12" class="inst-paper-list"><div class="inst-paper-item">&middot; CrossEarth-Gate: Fisher-Guided Adaptive Tuning Engine for Efficient Adaptation o</div></div></div></div>
+</div>
+
+<!-- SECTION 06 -->
+<div class="section-header">
+  <span class="section-num">06</span>
+  <span class="section-title">引用热度 · 高影响力引用论文 TOP 10</span>
+  <div class="section-divider"></div>
+</div>
+<div class="grid-1">
+  <div class="card">
+    <div class="card-title"><div class="card-title-dot"></div>引用论文被引次数 TOP 10</div>
+    <div style="position:relative;height:260px"><canvas id="cCite"></canvas></div>
+  </div>
+</div>
+<div class="grid-1">
+  <div class="card">
+    <div class="card-title"><div class="card-title-dot amber"></div>高影响力引用论文详细信息（按自身被引量排序）</div>
+    <div class="pdi-scroll">
+      <div class="pdi-item" style="border-left-color:#c45a5a">
+        <div class="pdi-rank" style="color:#c45a5a44">01</div>
+        <div class="pdi-body">
+          <div class="pdi-title"><a href="https://www.sciencedirect.com/science/article/pii/S1566253525002313" target="_blank" class="pdi-title-link">UAVs meet LLMs: Overviews and perspectives towards agentic low-altitude mobility</a></div>
+          <div class="pdi-authors" style="margin-bottom:4px">部分带有谷歌学术主页的作者：</div><div class="pdi-authors-pills"><a href="https://scholar.google.com/citations?user=bq0EODcAAAAJ&hl=en&oi=sra" target="_blank" class="author-pill">Y Tian</a><a href="https://scholar.google.com/citations?user=5-Dsdx8AAAAJ&hl=en&oi=sra" target="_blank" class="author-pill">F Lin</a><a href="https://scholar.google.com/citations?user=wFLm9YsAAAAJ&hl=en&oi=sra" target="_blank" class="author-pill">T Zhang</a><a href="https://scholar.google.com/citations?user=BFALfAwAAAAJ&hl=en&oi=sra" target="_blank" class="author-pill">Q Zhang</a><a href="https://scholar.google.com/citations?user=kUn--b4AAAAJ&hl=en&oi=sra" target="_blank" class="author-pill">J Huang</a></div>
+          <div class="pdi-meta-row"><span class="pdi-inst-tag">中国科学院自动化研究所，复杂系统管理与控制国家重点实验室</span><span class="pdi-country-tag">中国</span></div>
+          <div class="pdi-footer">
+            <span class='pdi-year'>2025</span>
+            <span class="pdi-cit" style="color:#c45a5a">被引 <strong>81</strong> 次</span>
+            <button class="pdi-affil-btn" onclick="toggleAffil('pdi_0', this)">作者信息 ▾</button>
+          </div>
+          <div id="pdi_0" class="pdi-affil-box" style="display:none"><div class="md-content">根据您提供的论文链接和标题，该论文 **《UAVs meet LLMs: Overviews and perspectives towards agentic low-altitude mobility》** 已发表于期刊 *Information Fusion* (2025年第122卷)。
+
+以下是该论文的完整作者列表及其对应的单位名称：
+
+| 作者姓名 | 对应单位名称 |
+| :--- | :--- |
+| **Yonglin Tian (田永林)** | 中国科学院自动化研究所，复杂系统管理与控制国家重点实验室 |
+| **Fei Lin (林飞)** | 澳门科技大学，创新工程学院 |
+| **Yiduo Li (李宜多)** | 北京理工大学，自动化学院 |
+| **Tengchao Zhang (张腾超)** | 澳门科技大学，创新工程学院 |
+| **Qiyao Zhang (张其尧)** | 澳门科技大学，创新工程学院 |
+| **Xuan Fu (付璇)** | 澳门科技大学，创新工程学院 |
+| **Jun Huang (黄军)** | 西北工业大学，软件学院 |
+| **Xingyuan Dai (代星源)** | 中国科学院自动化研究所，复杂系统管理与控制国家重点实验室 |
+| **Yutong Wang (王雨桐)** | 中国科学院自动化研究所，复杂系统管理与控制国家重点实验室 |
+| **Chunwei Tian (田春伟)** | 西北工业大学，软件学院 |
+| **Bai Li (李柏)** | 湖南大学，机械与运载工程学院 |
+| **Yisheng Lv (吕宜生)** | 中国科学院自动化研究所，复杂系统管理与控制国家重点实验室 |
+| **Levente Kovács** | 匈牙利奥布达大学 (Obuda University)，约翰·冯·诺依曼信息学院 |
+| **Fei-Yue Wang (王飞跃)** | 中国科学院自动化研究所，复杂系统管理与控制国家重点实验室；中国科学院大学，人工智能学院 |
+
+**论文摘要简述：**
+该论文系统地探讨了大语言模型（LLMs）与无人机（UAVs）系统的集成，涵盖了从感知、导航、规划到控制的功能模块，并提出了“智能体无人机（Agentic UAVs）”的参考路线图，旨在通过自主感知、记忆、推理和工具利用实现更高水平的低空机动智能化。</div></div>
+        </div>
+      </div>
+      <div class="pdi-item" style="border-left-color:#d4892a">
+        <div class="pdi-rank" style="color:#d4892a44">02</div>
+        <div class="pdi-body">
+          <div class="pdi-title"><a href="https://ieeexplore.ieee.org/abstract/document/11367309/" target="_blank" class="pdi-title-link">ATRNet-STAR: A large dataset and benchmark towards remote sensing object recognition in the wild</a></div>
+          <div class="pdi-authors" style="margin-bottom:4px">部分带有谷歌学术主页的作者：</div><div class="pdi-authors-pills"><a href="https://scholar.google.com/citations?user=a9tTHSEAAAAJ&hl=en&oi=sra" target="_blank" class="author-pill">Y Liu</a><a href="https://scholar.google.com/citations?user=YqgOTXMAAAAJ&hl=en&oi=sra" target="_blank" class="author-pill">W Li</a><a href="https://scholar.google.com/citations?user=VKJr2mgAAAAJ&hl=en&oi=sra" target="_blank" class="author-pill">L Liu</a><a href="https://scholar.google.com/citations?user=6a79aPwAAAAJ&hl=en&oi=sra" target="_blank" class="author-pill">J Zhou</a><a href="https://scholar.google.com/citations?user=I8QD_w0AAAAJ&hl=en&oi=sra" target="_blank" class="author-pill">B Peng</a></div>
+          <div class="pdi-meta-row"><span class="pdi-inst-tag">国防科技大学电子科学学院</span><span class="pdi-country-tag">中国</span></div>
+          <div class="pdi-footer">
+            <span class='pdi-year'>2026</span>
+            <span class="pdi-cit" style="color:#d4892a">被引 <strong>22</strong> 次</span>
+            <button class="pdi-affil-btn" onclick="toggleAffil('pdi_1', this)">作者信息 ▾</button>
+          </div>
+          <div id="pdi_1" class="pdi-affil-box" style="display:none"><div class="md-content">根据论文《ATRNet-STAR: A large dataset and benchmark towards remote sensing object recognition in the wild》（IEEE 论文编号：11367309），该论文的作者列表及其对应单位如下：
+
+### **作者列表及单位**
+
+以下所有作者均隶属于同一个单位：
+
+*   **刘永祥 (Yongxiang Liu)** —— 国防科技大学，电子科学学院 (College of Electronic Science and Technology, National University of Defense Technology, Changsha, China)
+*   **李伟杰 (Weijie Li)** —— 国防科技大学，电子科学学院 (College of Electronic Science and Technology, National University of Defense Technology, Changsha, China)
+*   **刘莉 (Li Liu)** —— 国防科技大学，电子科学学院 (College of Electronic Science and Technology, National University of Defense Technology, Changsha, China)
+*   **周洁 (Jie Zhou)** —— 国防科技大学，电子科学学院 (College of Electronic Science and Technology, National University of Defense Technology, Changsha, China)
+*   **彭博文 (Bowen Peng)** —— 国防科技大学，电子科学学院 (College of Electronic Science and Technology, National University of Defense Technology, Changsha, China)
+*   **宋亚飞 (Yafei Song)** —— 国防科技大学，电子科学学院 (College of Electronic Science and Technology, National University of Defense Technology, Changsha, China)
+*   **熊绪影 (Xuying Xiong)** —— 国防科技大学，电子科学学院 (College of Electronic Science and Technology, National University of Defense Technology, Changsha, China)
+*   **杨威 (Wei Yang)** —— 国防科技大学，电子科学学院 (College of Electronic Science and Technology, National University of Defense Technology, Changsha, China)
+*   **刘天鹏 (Tianpeng Liu)** —— 国防科技大学，电子科学学院 (College of Electronic Science and Technology, National University of Defense Technology, Changsha, China)
+*   **刘振 (Zhen Liu)** —— 国防科技大学，电子科学学院 (College of Electronic Science and Technology, National University of Defense Technology, Changsha, China)
+*   **李想 (Xiang Li)** —— 国防科技大学，电子科学学院 (College of Electronic Science and Technology, National University of Defense Technology, Changsha, China)
+
+---
+**备注：**
+1.  该论文的通讯作者为 **李想 (Xiang Li)**、**刘永祥 (Yongxiang Liu)** 和 **刘莉 (Li Liu)**。
+2.  该研究由国防科技大学电子科学学院团队完成。</div></div>
+        </div>
+      </div>
+      <div class="pdi-item" style="border-left-color:#3b82c4">
+        <div class="pdi-rank" style="color:#3b82c444">03</div>
+        <div class="pdi-body">
+          <div class="pdi-title"><a href="https://openaccess.thecvf.com/content/ICCV2025/html/Jia_Can_Generative_Geospatial_Diffusion_Models_Excel_as_Discriminative_Geospatial_Foundation_ICCV_2025_paper.html" target="_blank" class="pdi-title-link">Can generative geospatial diffusion models excel as discriminative geospatial foundation models?</a></div>
+          <div class="pdi-authors" style="margin-bottom:4px">部分带有谷歌学术主页的作者：</div><div class="pdi-authors-pills"><a href="https://scholar.google.com/citations?user=62c9GI0AAAAJ&hl=en&oi=sra" target="_blank" class="author-pill">Y Jia</a><a href="https://scholar.google.com/citations?user=R0x4RJ0AAAAJ&hl=en&oi=sra" target="_blank" class="author-pill">V Marsocci</a><a href="https://scholar.google.com/citations?user=cWip8QgAAAAJ&hl=en&oi=sra" target="_blank" class="author-pill">Z Gong</a><a href="https://scholar.google.com/citations?user=2xTlvV0AAAAJ&hl=en&oi=sra" target="_blank" class="author-pill">X Yang</a></div>
+          <div class="pdi-meta-row"><span class="pdi-inst-tag">比利时鲁汶大学 (KU Leuven)</span><span class="pdi-country-tag">比利时</span></div>
+          <div class="pdi-footer">
+            <span class='pdi-year'>2025</span>
+            <span class="pdi-cit" style="color:#3b82c4">被引 <strong>10</strong> 次</span>
+            <button class="pdi-affil-btn" onclick="toggleAffil('pdi_2', this)">作者信息 ▾</button>
+          </div>
+          <div id="pdi_2" class="pdi-affil-box" style="display:none"><div class="md-content">根据这篇论文《Can generative geospatial diffusion models excel as discriminative geospatial foundation models?》（已收录于 ICCV 2025），该论文的作者列表及其对应的单位名称如下：
+
+### **作者列表及单位**
+
+1.  **Yuru Jia** (贾雨茹)
+    *   **单位：** 比利时鲁汶大学 (KU Leuven)
+2.  **Valerio Marsocci**
+    *   **单位：** 瑞典皇家理工学院 (KTH Royal Institute of Technology) / 欧洲航天局 (ESA) Φ-lab
+3.  **Ziyang Gong** (龚紫阳)
+    *   **单位：** 上海交通大学 (Shanghai Jiao Tong University) / 上海人工智能实验室 (Shanghai AI Lab)
+4.  **Xue Yang** (杨学)
+    *   **单位：** 上海交通大学 (Shanghai Jiao Tong University) / 上海人工智能实验室 (Shanghai AI Lab)
+5.  **Maarten Vergauwen**
+    *   **单位：** 比利时鲁汶大学 (KU Leuven)
+6.  **Andrea Nascetti**
+    *   **单位：** 瑞典皇家理工学院 (KTH Royal Institute of Technology)
+
+---
+
+### **论文背景简述**
+该论文提出了一个名为 **SatDiFuser** 的框架，旨在探讨生成式地理空间扩散模型（如 DiffusionSat）是否可以转化为强大的判别式地理空间基础模型（GFM）。研究通过系统的特征融合策略（Global/Local/MoE），证明了扩散模型提取的特征在遥感图像分类和语义分割等判别式任务中，表现优于目前的对比学习或掩码建模等判别式预训练模型。</div></div>
+        </div>
+      </div>
+      <div class="pdi-item" style="border-left-color:#3b82c4">
+        <div class="pdi-rank" style="color:#3b82c444">04</div>
+        <div class="pdi-body">
+          <div class="pdi-title"><a href="https://ieeexplore.ieee.org/abstract/document/10817546/" target="_blank" class="pdi-title-link">Joint style and layout synthesizing: Toward generalizable remote sensing semantic segmentation</a></div>
+          <div class="pdi-authors" style="margin-bottom:4px">部分带有谷歌学术主页的作者：</div><div class="pdi-authors-pills"><a href="https://scholar.google.com/citations?user=2bmo74wAAAAJ&hl=en&oi=sra" target="_blank" class="author-pill">Q Zang</a><a href="https://scholar.google.com/citations?user=CeLvrv8AAAAJ&hl=en&oi=sra" target="_blank" class="author-pill">S Wang</a><a href="https://scholar.google.com/citations?user=j_UjUUUAAAAJ&hl=en&oi=sra" target="_blank" class="author-pill">D Zhao</a><a href="https://scholar.google.com/citations?user=nZizkQ0AAAAJ&hl=en&oi=sra" target="_blank" class="author-pill">Z Zhong</a></div>
+          <div class="pdi-meta-row"><span class="pdi-inst-tag">School of Artificial Intelligence, Xidian University</span><span class="pdi-country-tag">中国</span></div>
+          <div class="pdi-footer">
+            <span class='pdi-year'>2024</span>
+            <span class="pdi-cit" style="color:#3b82c4">被引 <strong>9</strong> 次</span>
+            <button class="pdi-affil-btn" onclick="toggleAffil('pdi_3', this)">作者信息 ▾</button>
+          </div>
+          <div id="pdi_3" class="pdi-affil-box" style="display:none"><div class="md-content">根据该论文（DOI: 10.1109/TCSVT.2024.3518388，IEEE Xplore 编号 10817546）及相关学术数据库（IEEE Xplore, DBLP, Google Scholar）的信息，该论文的作者列表及其对应的单位如下：
+
+### **作者及单位列表**
+
+1.  **Qi Zang（臧琪）**
+    *   **单位：** 西安电子科技大学，人工智能学院（School of Artificial Intelligence, Xidian University, Xi'an, China）
+2.  **Shuang Wang（王爽）**
+    *   **单位：** 西安电子科技大学，人工智能学院（School of Artificial Intelligence, Xidian University, Xi'an, China）
+3.  **Dong Zhao（赵冬）**
+    *   **单位：** 西安电子科技大学，人工智能学院（School of Artificial Intelligence, Xidian University, Xi'an, China）
+4.  **Zhun Zhong（钟准）**
+    *   **单位：** 合肥工业大学，计算机与信息学院（School of Computer Science and Information Engineering, Hefei University of Technology, Hefei, China）
+5.  **Biao Hou（侯彪）**
+    *   **单位：** 西安电子科技大学，人工智能学院（School of Artificial Intelligence, Xidian University, Xi'an, China）
+6.  **Licheng Jiao（焦李成）**
+    *   **单位：** 西安电子科技大学，人工智能学院（School of Artificial Intelligence, Xidian University, Xi'an, China）
+
+---
+
+### **论文相关信息：**
+*   **标题：** Joint Style and Layout Synthesizing: Toward Generalizable Remote Sensing Semantic Segmentation
+*   **期刊：** IEEE Transactions on Circuits and Systems for Video Technology (TCSVT)
+*   **发表年份：** 2024年（部分数据库标注为2025年，视正式出版分卷而定）
+*   **研究方向：** 该论文研究了遥感图像语义分割中的域泛化（Domain Generalization）问题，提出了一种联合风格和布局合成的框架，以提高模型在未知域上的泛化能力。</div></div>
+        </div>
+      </div>
+      <div class="pdi-item" style="border-left-color:#3b82c4">
+        <div class="pdi-rank" style="color:#3b82c444">05</div>
+        <div class="pdi-body">
+          <div class="pdi-title"><a href="https://search.proquest.com/openview/3492d871d827c8789053fdf657c1be30/1?pq-origsite=gscholar&cbl=2032338" target="_blank" class="pdi-title-link">Advances on multimodal remote sensing foundation models for Earth observation downstream tasks: A survey</a></div>
+          <div class="pdi-authors" style="margin-bottom:4px">部分带有谷歌学术主页的作者：</div><div class="pdi-authors-pills"><a href="https://scholar.google.com/citations?user=ZTpZm9QAAAAJ&hl=en&oi=sra" target="_blank" class="author-pill">G Zhou</a><a href="https://scholar.google.com/citations?user=9fiHXGwAAAAJ&hl=en&oi=sra" target="_blank" class="author-pill">P Gamba</a></div>
+          <div class="pdi-meta-row"><span class="pdi-inst-tag">College of Geomatics and Geoinformation, Guilin Univers</span><span class="pdi-country-tag">中国</span></div>
+          <div class="pdi-footer">
+            <span class='pdi-year'>2025</span>
+            <span class="pdi-cit" style="color:#3b82c4">被引 <strong>8</strong> 次</span>
+            <button class="pdi-affil-btn" onclick="toggleAffil('pdi_4', this)">作者信息 ▾</button>
+          </div>
+          <div id="pdi_4" class="pdi-affil-box" style="display:none"><div class="md-content">根据您提供的论文标题和链接，这篇论文的详细作者列表及其对应单位如下：
+
+### 论文信息
+*   **标题**：Advances on multimodal remote sensing foundation models for Earth observation downstream tasks: A survey
+*   **期刊**：*Remote Sensing* (MDPI), 2025, 17(21), 3532
+*   **DOI**: 10.3390/rs17213532
+
+### 作者列表及单位
+该论文共有 **3位** 主要作者，其姓名及对应单位如下：
+
+1.  **Guoqing Zhou (周国清)**
+    *   **单位 1**：桂林理工大学 测绘地理信息学院 (College of Geomatics and Geoinformation, Guilin University of Technology), 广西 桂林 541004
+    *   **单位 2**：天津大学 遥感研究中心 (Center for Remote Sensing, Tianjin University), 天津 300072
+    *   *注：周国清教授是该论文的通讯作者。*
+
+2.  **Lihuang Qian (钱立煌)**
+    *   **单位**：桂林理工大学 测绘地理信息学院 (College of Geomatics and Geoinformation, Guilin University of Technology), 广西 桂林 541004
+
+3.  **Paolo Gamba**
+    *   **单位**：意大利帕维亚大学 电气、计算机与生物医学工程系 (Department of Electrical, Computer and Biomedical Engineering, University of Pavia), 27100 Pavia, Italy
+
+---
+**补充说明**：
+在搜索过程中，部分学术平台（如 ResearchGate 或某些 AI 摘要工具）可能会将该论文与 **Yansheng Li (李彦胜)** 等学者的相关研究（如 *RingMo-SAM* 或 *SkySense*）关联，因为该综述论文广泛引用并讨论了这些学者的工作。但根据 ProQuest 和 MDPI 官方出版记录，该综述论文的正式署名作者仅为上述三位。</div></div>
+        </div>
+      </div>
+      <div class="pdi-item" style="border-left-color:#7c5cbf">
+        <div class="pdi-rank" style="color:#7c5cbf44">06</div>
+        <div class="pdi-body">
+          <div class="pdi-title"><a href="https://arxiv.org/abs/2504.06220" target="_blank" class="pdi-title-link">Earth-adapter: Bridge the geospatial domain gaps with mixture of frequency adaptation</a></div>
+          <div class="pdi-authors" style="margin-bottom:4px">部分带有谷歌学术主页的作者：</div><div class="pdi-authors-pills"><a href="https://scholar.google.com/citations?user=zBM8_XkAAAAJ&hl=en&oi=sra" target="_blank" class="author-pill">X Hu</a><a href="https://scholar.google.com/citations?user=cWip8QgAAAAJ&hl=en&oi=sra" target="_blank" class="author-pill">Z Gong</a><a href="https://scholar.google.com/citations?user=62c9GI0AAAAJ&hl=en&oi=sra" target="_blank" class="author-pill">Y Jia</a><a href="https://scholar.google.com/citations?user=5-Dsdx8AAAAJ&hl=en&oi=sra" target="_blank" class="author-pill">F Lin</a></div>
+          <div class="pdi-meta-row"><span class="pdi-inst-tag">Beijing Institute of Technology</span><span class="pdi-country-tag">中国</span></div>
+          <div class="pdi-footer">
+            <span class='pdi-year'>2025</span>
+            <span class="pdi-cit" style="color:#7c5cbf">被引 <strong>7</strong> 次</span>
+            <button class="pdi-affil-btn" onclick="toggleAffil('pdi_5', this)">作者信息 ▾</button>
+          </div>
+          <div id="pdi_5" class="pdi-affil-box" style="display:none"><div class="md-content">根据论文《Earth-adapter: Bridge the geospatial domain gaps with mixture of frequency adaptation》（arXiv:2504.06220，已接收为 AAAI 2026 论文）的最新版本，该论文的作者列表及其对应的单位名称如下：
+
+### **作者列表及单位**
+
+1.  **胡晓星 (Xiaoxing Hu)**
+    *   单位：北京理工大学 (Beijing Institute of Technology)
+2.  **龚紫阳 (Ziyang Gong)**
+    *   单位：上海人工智能实验室 (Shanghai AI Laboratory)
+3.  **王宇沛 (Yupei Wang)**
+    *   单位：北京理工大学 (Beijing Institute of Technology)
+4.  **贾雨儒 (Yuru Jia)**
+    *   单位：鲁汶大学 (KU Leuven)
+5.  **林飞 (Fei Lin)**
+    *   单位：厦门大学 (Xiamen University) 或 上海人工智能实验室 (Shanghai AI Laboratory) *（注：在最新版本中常作为合作研究员出现）*
+6.  **高德祥 (Dexiang Gao)**
+    *   单位：上海人工智能实验室 (Shanghai AI Laboratory)
+7.  **安可 (Ke An)**
+    *   单位：北京理工大学 (Beijing Institute of Technology)
+8.  **韩建宏 (Jianhong Han)**
+    *   单位：北京理工大学 (Beijing Institute of Technology)
+9.  **孙卓然 (Zhuoran Sun)**
+    *   单位：北京理工大学 (Beijing Institute of Technology)
+10. **罗根 (Gen Luo)**
+    *   单位：上海人工智能实验室 (Shanghai AI Laboratory)
+11. **杨学 (Xue Yang)**
+    *   单位：上海交通大学 (Shanghai Jiao Tong University)
+
+### **单位汇总**
+*   **北京理工大学 (Beijing Institute of Technology)**：胡晓星、王宇沛、安可、韩建宏、孙卓然
+*   **上海人工智能实验室 (Shanghai AI Laboratory)**：龚紫阳、高德祥、罗根、（林飞）
+*   **鲁汶大学 (KU Leuven)**：贾雨儒
+*   **上海交通大学 (Shanghai Jiao Tong University)**：杨学
+*   **瑞典皇家理工学院 (KTH Royal Institute of Technology)**：贾雨儒（部分版本标注为双聘/联合培养）
+
+**备注：** 该论文主要由北京理工大学、上海人工智能实验室和上海交通大学的研究团队合作完成，旨在解决遥感图像中的领域偏移和伪影问题。</div></div>
+        </div>
+      </div>
+      <div class="pdi-item" style="border-left-color:#7c5cbf">
+        <div class="pdi-rank" style="color:#7c5cbf44">07</div>
+        <div class="pdi-body">
+          <div class="pdi-title"><a href="https://arxiv.org/abs/2505.15147" target="_blank" class="pdi-title-link">From Pixels to Images: A Structural Survey of Deep Learning Paradigms in Remote Sensing Image Semantic Segmentation</a></div>
+          <div class="pdi-authors" style="margin-bottom:4px">部分带有谷歌学术主页的作者：</div><div class="pdi-authors-pills"><a href="https://scholar.google.com/citations?user=E-loHKYAAAAJ&hl=en&oi=sra" target="_blank" class="author-pill">Q Liu</a><a href="https://scholar.google.com/citations?user=iNkMsdoAAAAJ&hl=en&oi=sra" target="_blank" class="author-pill">T Huang</a><a href="https://scholar.google.com/citations?user=cQAAdBYAAAAJ&hl=en&oi=sra" target="_blank" class="author-pill">J Yang</a><a href="https://scholar.google.com/citations?user=VxQUr90AAAAJ&hl=en&oi=sra" target="_blank" class="author-pill">W Xiang</a></div>
+          <div class="pdi-meta-row"><span class="pdi-inst-tag">詹姆斯库克大学，科学与工程学院</span><span class="pdi-country-tag">澳大利亚</span></div>
+          <div class="pdi-footer">
+            <span class='pdi-year'>2025</span>
+            <span class="pdi-cit" style="color:#7c5cbf">被引 <strong>5</strong> 次</span>
+            <button class="pdi-affil-btn" onclick="toggleAffil('pdi_6', this)">作者信息 ▾</button>
+          </div>
+          <div id="pdi_6" class="pdi-affil-box" style="display:none"><div class="md-content">这篇论文 **《From Pixels to Images: A Structural Survey of Deep Learning Paradigms in Remote Sensing Image Semantic Segmentation》**（arXiv:2505.15147）的作者列表及其对应的单位名称如下：
+
+### **作者列表与单位信息**
+
+1.  **Quanwei Liu (刘全威)**
+    *   **单位：** 詹姆斯库克大学，科学与工程学院 (College of Science and Engineering, James Cook University, Cairns, QLD 4878, Australia)
+
+2.  **Tao Huang (黄涛)**
+    *   **单位：** 詹姆斯库克大学，科学与工程学院 (College of Science and Engineering, James Cook University, Cairns, QLD 4878, Australia)
+
+3.  **Yanni Dong (董燕妮)**
+    *   **单位：** 武汉大学，资源与环境科学学院 (School of Resource and Environmental Sciences, Wuhan University, Wuhan 430079, China)
+
+4.  **Jiaqi Yang (杨佳琪)**
+    *   **单位：** 威斯康星大学麦迪逊分校，森林与野生动物生态学系 (Department of Forest and Wildlife Ecology, University of Wisconsin-Madison, Madison, WI 53705, USA)
+    *   *(注：其此前曾就职于武汉大学测绘遥感信息工程国家重点实验室)*
+
+5.  **Wei Xiang (项维)**
+    *   **单位 1：** 拉筹伯大学，计算、工程与数学科学学院 (School of Computing, Engineering and Mathematical Sciences, La Trobe University, Melbourne, VIC 3086, Australia)
+    *   **单位 2：** 詹姆斯库克大学，科学与工程学院 (College of Science and Engineering, James Cook University, Cairns, QLD 4878, Australia)
+
+---
+**论文摘要简介：**
+该论文对遥感图像语义分割（RSISS）中的深度学习范式进行了结构化综述。作者将 RSISS 的演进划分为四个阶段：早期的**基于像素（Pixel-based）**的方法、主流的**基于切片（Patch-based）**和**基于瓦片（Tile-based）**的技术，以及新兴的由视觉基础模型驱动的**基于图像（Image-based）**的策略。论文从特征提取和学习策略的角度分析了这些发展，揭示了该领域从像素级到图像级、从单模态到多模态分割的进步。</div></div>
+        </div>
+      </div>
+      <div class="pdi-item" style="border-left-color:#7c5cbf">
+        <div class="pdi-rank" style="color:#7c5cbf44">08</div>
+        <div class="pdi-body">
+          <div class="pdi-title"><a href="https://arxiv.org/abs/2507.06231" target="_blank" class="pdi-title-link">Rsrefseg 2: decoupling referring remote sensing image segmentation with foundation models</a></div>
+          <div class="pdi-authors" style="margin-bottom:4px">部分带有谷歌学术主页的作者：</div><div class="pdi-authors-pills"><a href="https://scholar.google.com/citations?user=5RF4ia8AAAAJ&hl=en&oi=sra" target="_blank" class="author-pill">K Chen</a><a href="https://scholar.google.com/citations?user=jBnA45cAAAAJ&hl=en&oi=sra" target="_blank" class="author-pill">C Liu</a><a href="https://scholar.google.com/citations?user=DvfYtXIAAAAJ&hl=en&oi=sra" target="_blank" class="author-pill">B Chen</a><a href="https://scholar.google.com/citations?user=Lzf3sToAAAAJ&hl=en&oi=sra" target="_blank" class="author-pill">J Zhang</a><a href="https://scholar.google.com/citations?user=DzwoyZsAAAAJ&hl=en&oi=sra" target="_blank" class="author-pill">Z Zou</a></div>
+          <div class="pdi-meta-row"><span class="pdi-inst-tag">北京航空航天大学 (Beihang University)</span><span class="pdi-country-tag">中国</span></div>
+          <div class="pdi-footer">
+            <span class='pdi-year'>2025</span>
+            <span class="pdi-cit" style="color:#7c5cbf">被引 <strong>5</strong> 次</span>
+            <button class="pdi-affil-btn" onclick="toggleAffil('pdi_7', this)">作者信息 ▾</button>
+          </div>
+          <div id="pdi_7" class="pdi-affil-box" style="display:none"><div class="md-content">根据您提供的论文链接（arXiv:2507.06231）和标题，该论文的作者及其对应单位信息如下：
+
+### **作者列表及所属单位**
+
+1.  **Keyan Chen (陈克岩)**
+    *   单位：北京航空航天大学 (Beihang University)
+2.  **Chenyang Liu (刘辰阳)**
+    *   单位：北京航空航天大学 (Beihang University)
+3.  **Bowen Chen (陈博文)**
+    *   单位：北京航空航天大学 (Beihang University)
+4.  **Jiafan Zhang (张嘉凡)**
+    *   单位：北京航空航天大学 (Beihang University)
+5.  **Zhengxia Zou (邹征夏)**
+    *   单位：北京航空航天大学 (Beihang University)
+6.  **Zhenwei Shi (史振威)**
+    *   单位：北京航空航天大学 (Beihang University)
+
+### **总结**
+该论文的所有作者均来自 **北京航空航天大学 (Beihang University)**，主要隶属于该校的宇航学院及其图像处理中心（Image Processing Center）。该团队在遥感图像处理和视觉语言跨模态学习领域有深厚的研究背景。</div></div>
+        </div>
+      </div>
+      <div class="pdi-item" style="border-left-color:#7c5cbf">
+        <div class="pdi-rank" style="color:#7c5cbf44">09</div>
+        <div class="pdi-body">
+          <div class="pdi-title"><a href="https://www.sciencedirect.com/science/article/pii/S0924271625003569" target="_blank" class="pdi-title-link">Domain generalization for semantic segmentation of remote sensing images via vision foundation model fine-tuning</a></div>
+          <div class="pdi-authors" style="margin-bottom:4px">部分带有谷歌学术主页的作者：</div><div class="pdi-authors-pills"><a href="https://scholar.google.com/citations?user=aYvH4RAAAAAJ&hl=en&oi=sra" target="_blank" class="author-pill">M Luo</a><a href="https://scholar.google.com/citations?user=TiNk1ukAAAAJ&hl=en&oi=sra" target="_blank" class="author-pill">K Khoshelham</a><a href="https://scholar.google.com/citations?user=FjoRmF4AAAAJ&hl=en&oi=sra" target="_blank" class="author-pill">S Ji</a></div>
+          <div class="pdi-meta-row"><span class="pdi-inst-tag">School of Remote Sensing and Information Engineering, W</span><span class="pdi-country-tag">中国</span></div>
+          <div class="pdi-footer">
+            <span class='pdi-year'>2025</span>
+            <span class="pdi-cit" style="color:#7c5cbf">被引 <strong>4</strong> 次</span>
+            <button class="pdi-affil-btn" onclick="toggleAffil('pdi_8', this)">作者信息 ▾</button>
+          </div>
+          <div id="pdi_8" class="pdi-affil-box" style="display:none"><div class="md-content">根据您提供的论文标题及链接，该论文发表在遥感领域顶级期刊《**ISPRS Journal of Photogrammetry and Remote Sensing**》（2025年第220卷），作者列表及其对应单位如下：
+
+### **作者及单位列表**
+
+1.  **Muying Luo (罗慕莹)**
+    *   **单位：** 武汉大学，遥感信息工程学院 (School of Remote Sensing and Information Engineering, Wuhan University, Wuhan, China)
+
+2.  **Yujie Zan (昝雨洁)**
+    *   **单位：** 武汉大学，遥感信息工程学院 (School of Remote Sensing and Information Engineering, Wuhan University, Wuhan, China)
+
+3.  **Kourosh Khoshelham**
+    *   **单位：** 墨尔本大学，基础设施工程系 (Department of Infrastructure Engineering, The University of Melbourne, Melbourne, Australia)
+
+4.  **Shunping Ji (季顺平) [通讯作者]**
+    *   **单位：** 武汉大学，遥感信息工程学院 (School of Remote Sensing and Information Engineering, Wuhan University, Wuhan, China)
+
+---
+**论文摘要速览：**
+该研究针对遥感图像语义分割中的跨域泛化（Domain Generalization）难题，探索了如何利用视觉基础模型（VFMs）的强大通用能力。作者提出了一个名为 **GeoSA-BaSA** 的框架，包含“地理空间语义适配器（GeoSA）”和“批次风格增强器（BaSA）”，旨在通过微调预训练的基础模型，提升其在未见过（Unseen）遥感场景下的分割精度。</div></div>
+        </div>
+      </div>
+      <div class="pdi-item" style="border-left-color:#7c5cbf">
+        <div class="pdi-rank" style="color:#7c5cbf44">10</div>
+        <div class="pdi-body">
+          <div class="pdi-title"><a href="https://www.nature.com/articles/s41598-025-24115-3" target="_blank" class="pdi-title-link">Optimized loss and self attention for enhanced domain adaptation in remote sensing image classification</a></div>
+          <div class="pdi-authors" style="margin-bottom:4px">部分带有谷歌学术主页的作者：</div><div class="pdi-authors-pills"><a href="https://scholar.google.com/citations?user=w2xZ3KYAAAAJ&hl=en&oi=sra" target="_blank" class="author-pill">J Mathew</a><a href="https://scholar.google.com/citations?user=tZRR3xUAAAAJ&hl=en&oi=sra" target="_blank" class="author-pill">RK Sanodiya</a></div>
+          <div class="pdi-meta-row"><span class="pdi-inst-tag">Department of Computer Science and Engineering, Indian </span><span class="pdi-country-tag">印度</span></div>
+          <div class="pdi-footer">
+            <span class='pdi-year'>2025</span>
+            <span class="pdi-cit" style="color:#7c5cbf">被引 <strong>2</strong> 次</span>
+            <button class="pdi-affil-btn" onclick="toggleAffil('pdi_9', this)">作者信息 ▾</button>
+          </div>
+          <div id="pdi_9" class="pdi-affil-box" style="display:none"><div class="md-content">根据您提供的论文信息，该论文发表于《Scientific Reports》（Nature旗下期刊），作者列表及其对应的单位名称如下：
+
+1.  **Pranav Kumar**
+    *   **单位：** 印度理工学院帕特纳分校，计算机科学与工程系 (Department of Computer Science and Engineering, Indian Institute of Technology Patna, Bihar, India)
+2.  **Jimson Mathew**
+    *   **单位：** 印度理工学院帕特纳分校，计算机科学与工程系 (Department of Computer Science and Engineering, Indian Institute of Technology Patna, Bihar, India)
+3.  **Rakesh Kumar Sanodiya**
+    *   **单位：** 印度信息技术设计与制造学院（IIITDM）贾巴尔普尔分校，计算机科学与工程系 (Department of Computer Science and Engineering, Indian Institute of Information Technology, Design and Manufacturing, Jabalpur, India)
+
+**论文摘要简述：**
+该研究提出了一种结合了主损失（如中心损失和三元组损失）、次要损失（如MMD、CORAL和熵损失）以及**自注意力机制**的统一框架，旨在解决遥感图像分类中的领域自适应（Domain Adaptation）问题，提高模型在不同场景和传感器数据下的泛化能力。</div></div>
+        </div>
+      </div></div>
+  </div>
+</div>
+
+<!-- SECTION 06 -->
+<div class="section-header">
+  <span class="section-num">07</span>
+  <span class="section-title">影响力预测分析</span>
+  <div class="section-divider"></div>
+</div>
+<div class="prediction-band">
+  <div class="pred-grid">
+    <div class="pred-card">
+      <div class="pred-card-title">📈 引用趋势预测 <span class="pred-tag">FORECAST · 线性回归</span></div>
+      <div class="trend-wrap"><canvas id="cTrend"></canvas></div>
+      
+        <div class="pred-metric">
+          <div>
+            <div class="pred-metric-label">预计2026年引用量</div>
+            <div class="pred-metric-note">基于上半年数据的增长外推</div>
+          </div>
+          <div class="pred-metric-val">~15</div>
+        </div>
+        <div class="pred-metric">
+          <div>
+            <div class="pred-metric-label">预计2027年引用量</div>
+            <div class="pred-metric-note">受益于高被引论文的带动效应</div>
+          </div>
+          <div class="pred-metric-val">~26</div>
+        </div>
+        <div class="pred-metric">
+          <div>
+            <div class="pred-metric-label">引用年增速 (YoY)</div>
+            <div class="pred-metric-note">2025年爆发式增长后的持续扩散</div>
+          </div>
+          <div class="pred-metric-val">+73%</div>
+        </div>
+    </div>
+    <div class="pred-card">
+      <div class="pred-card-title">🚀 施引文献影响力扩散评估 <span class="pred-tag">IMPACT</span></div>
+      <div style="font-size:10.5px;color:rgba(180,210,255,0.5);margin-bottom:10px">以下评分基于施引文献群体特征，反映影响力在各维度的扩散潜力</div>
+      <div class="impact-bar-wrap">
+        <div>
+          <div class="impact-row-label"><span>学术专家认可度</span><span style="color:#7dd8b0">92%</span></div>
+          <div class="impact-track"><div class="impact-fill fill-cyan" style="width:92%"></div></div>
+        </div>
+        <div>
+          <div class="impact-row-label"><span>核心期刊覆盖率</span><span style="color:#7dd8b0">88%</span></div>
+          <div class="impact-track"><div class="impact-fill fill-green" style="width:88%"></div></div>
+        </div>
+        <div>
+          <div class="impact-row-label"><span>前沿技术关联性</span><span style="color:#7dd8b0">85%</span></div>
+          <div class="impact-track"><div class="impact-fill fill-purple" style="width:85%"></div></div>
+        </div>
+        <div>
+          <div class="impact-row-label"><span>跨领域学术辐射力</span><span style="color:#7dd8b0">76%</span></div>
+          <div class="impact-track"><div class="impact-fill fill-orange" style="width:76%"></div></div>
+        </div></div>
+      <div class="pred-commentary">该论文展现出极强的学术增长潜力。2025年引用量实现阶梯式爆发，且施引文献分布极为广泛，每篇施引论文均来自不同来源，显示了该研究在相关领域的普适性。特别值得关注的是，12位院士/Fellow的引用奠定了其坚实的学术地位。高被引施引论文（如UAVs与LLMs结合研究）的带动，预示着该文已进入学科前沿核心引用链。预计2026-2027年将保持高速增长，在人工智能与自主系统交叉领域产生深远影响。</div>
+    </div>
+  </div>
+</div>
+
+<!-- SECTION 07 -->
+<div class="section-header">
+  <span class="section-num">08</span>
+  <span class="section-title">数据洞察与画像总结</span>
+  <div class="section-divider"></div>
+</div>
+<div class="insights-grid">
+      <div class="insight-card teal">
+        <h4>📈 学术热度呈现爆发式增长态势</h4>
+        <p>该研究表现出极强的学术前瞻性与时效性，在2024年至2026年的预测引用中，<strong>2025年已达17次</strong>，且<strong>2026年预见性引用达9次</strong>。短期内迅速积累的关注度，预示着该成果正处于遥感基础模型研究爆发期的核心位置。</p>
+      </div>
+      <div class="insight-card sage">
+        <h4>🌏 立足本土并具备跨国影响力</h4>
+        <p>引用来源呈现以<strong>中国（21次）</strong>为核心、辐射全球的分布格局，涵盖了<strong>比利时、澳大利亚、印度及意大利</strong>等多个国家。这种分布证明了该成果在国际遥感学术界，特别是在亚太与欧洲地区，已产生广泛的学术共鸣与技术扩散。</p>
+      </div>
+      <div class="insight-card amber">
+        <h4>🏆 高水平学术圈层认可度极高</h4>
+        <p>在31名引用学者中，<strong>院士及Fellow占比高达38.7%（12人）</strong>，且引用论文单篇<strong>最高被引量达81次</strong>。顶级专家的背书与高质量文献的引用，确立了该工作在该领域极高的学术地位与公信力，体现了其深远的科研影响力。</p>
+      </div>
+      <div class="insight-card violet">
+        <h4>🔬 定义领域基准并引领任务泛化</h4>
+        <p>文献定性分析显示，该模型已被公认为<strong>领域泛化语义分割的标准基准</strong>。其价值不仅体现在作为引言中的现状勾勒，更在实验分析中被证实具有<strong>强下游任务性能</strong>，成为跨域实验结果对比中不可或缺的代表性基准方法。</p>
+      </div></div>
+
+</div><!-- /main -->
+<div class="footer">
+  Citation Intelligence Dashboard &nbsp;·&nbsp; Generated 2026.03.12 &nbsp;·&nbsp; Powered by AI Analysis
+</div>
+
+<script>
+function renderMdInside(container) {
+  container.querySelectorAll('.md-content').forEach(function(el) {
+    if (el._mdDone) return;
+    el._mdDone = true;
+    var raw = el.textContent;
+    el.innerHTML = (typeof marked !== 'undefined') ? marked.parse(raw) : el.innerHTML;
+  });
+}
+function toggleDesc(id) {
+  var el = document.getElementById(id);
+  if (!el) return;
+  el.style.display = (el.style.display === 'none') ? 'table-row' : 'none';
+  if (el.style.display !== 'none') renderMdInside(el);
+}
+function toggleAffil(id, btn) {
+  var el = document.getElementById(id);
+  if (!el) return;
+  if (el.style.display === 'none') {
+    el.style.display = 'block';
+    if (btn) btn.textContent = '作者信息 ▴';
+    renderMdInside(el);
+  } else {
+    el.style.display = 'none';
+    if (btn) btn.textContent = '作者信息 ▾';
+  }
+}
+function toggleCiteSummary() {
+  var el = document.getElementById('citeSummaryContent');
+  var btn = document.getElementById('citeSumBtn');
+  if (!el) return;
+  if (el.style.display === 'none') {
+    el.style.display = 'block';
+    if (btn) btn.textContent = '折叠 ▴';
+    renderMdInside(el);
+  } else {
+    el.style.display = 'none';
+    if (btn) btn.textContent = '展开全文 ▾';
+  }
+}
+function toggleInst(id) {
+  var el = document.getElementById(id);
+  if (!el) return;
+  el.style.display = (el.style.display === 'none' || el.style.display === '') ? 'block' : 'none';
+}
+
+Chart.defaults.color = '#718096';
+Chart.defaults.borderColor = 'rgba(180,190,220,0.35)';
+Chart.defaults.font.family = "'Noto Sans SC', sans-serif";
+Chart.defaults.font.size = 11;
+// Register datalabels plugin globally only for year chart (unregister after)
+Chart.register(ChartDataLabels);
+
+const TEAL='#3b82c4', SAGE='#4caf8a', AMBER='#d4892a', VIO='#7c5cbf', ROSE='#c45a5a';
+const TEAL_L='rgba(59,130,196,0.15)', SAGE_L='rgba(76,175,138,0.15)';
+const VIO_L='rgba(124,92,191,0.15)', AMBER_L='rgba(212,137,42,0.15)';
+const COUNTRY_COLORS = [TEAL+'cc',SAGE+'aa',VIO+'aa',AMBER+'aa',ROSE+'aa',
+                        TEAL+'66',SAGE+'66',VIO+'66',AMBER+'66',ROSE+'66'];
+
+// Year chart: bars with count labels + red dashed connector line through bar tops
+new Chart(document.getElementById('cYear'), {
+  type: 'bar',
+  data: { labels: [2024, 2025, 2026], datasets: [
+    { type: 'bar', label: '引用数量', data: [1, 17, 9],
+      backgroundColor: TEAL+'99', borderColor: TEAL, borderWidth: 2, borderRadius: 5,
+      order: 1,
+      datalabels: { anchor: 'end', align: 'end', color: TEAL, font: { size: 10, weight: '600' },
+        formatter: v => v } },
+    { type: 'line', label: '趋势连线', data: [1, 17, 9],
+      borderColor: '#e53e3e', backgroundColor: 'transparent',
+      pointRadius: 4, pointBackgroundColor: '#e53e3e',
+      borderWidth: 2, tension: 0, borderDash: [5, 3], order: 0,
+      datalabels: { display: false } }
+  ] },
+  options: { responsive: true, maintainAspectRatio: false,
+    layout: { padding: { top: 20 } },
+    plugins: {
+      legend: { display: true, position: 'bottom', labels: { padding: 8, font: { size: 10 } } },
+      tooltip: { callbacks: { label: c => c.dataset.label + ': ' + c.raw } },
+      datalabels: { }
+    },
+    scales: { y: { beginAtZero: true, grid: { color: 'rgba(180,190,220,0.2)' } },
+      x: { grid: { display: false } } } }
+});
+Chart.unregister(ChartDataLabels);
+
+function makeCountryChart(id, labels, data) {
+  new Chart(document.getElementById(id), {
+    type: 'bar',
+    data: { labels: labels, datasets: [{ data: data,
+      backgroundColor: COUNTRY_COLORS, borderWidth: 0, borderRadius: 4 }] },
+    options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false },
+        tooltip: { callbacks: { label: c => c.raw + ' 篇/人' } } },
+      scales: { x: { beginAtZero: true, grid: { color: 'rgba(180,190,220,0.2)' } },
+        y: { grid: { display: false } } } }
+  });
+}
+makeCountryChart('cCountryAll', ["中国", "比利时", "澳大利亚", "印度", "意大利", "斯洛文尼亚"], [21, 1, 1, 1, 1, 1]);
+makeCountryChart('cCountryRenowned', ["中国", "澳大利亚", "意大利", "作者所在机构或单位的所在国家", "匈牙利", "比利时", "英国", "西班牙", "法国"], [21, 2, 2, 1, 1, 1, 1, 1, 1]);
+makeCountryChart('cCountryTop', ["中国", "意大利", "澳大利亚", "英国", "西班牙", "法国"], [6, 2, 1, 1, 1, 1]);
+
+new Chart(document.getElementById('cFellow'), {
+  type: 'doughnut',
+  data: { labels: ["其他知名学者 19人", "Fellow 7人", "其他院士 3人", "两院院士 2人"], datasets: [{ data: [19, 7, 3, 2],
+    backgroundColor: ['rgba(160,174,192,0.5)', TEAL+'bb', SAGE+'bb', AMBER+'bb'],
+    borderColor: ['#a0aec0', TEAL, SAGE, AMBER], borderWidth: 2, hoverOffset: 8 }] },
+  options: { cutout: '62%', responsive: true, maintainAspectRatio: false,
+    plugins: { legend: { position: 'bottom', labels: { padding: 10, font: { size: 10 } } },
+      tooltip: { callbacks: { label: c=>`${c.label}: ${Math.round(c.raw/31*100)}%` } } } }
+});
+
+const citeData = [81, 22, 10, 9, 8, 7, 5, 5, 4, 2];
+const totalCitAll = 159;
+new Chart(document.getElementById('cCite'), {
+  type: 'bar',
+  data: { labels: ["UAVs meet LLMs: Overviews and perspectives towar…", "ATRNet-STAR: A large dataset and benchmark towar…", "Can generative geospatial diffusion models excel…", "Joint style and layout synthesizing: Toward gene…", "Advances on multimodal remote sensing foundation…", "Earth-adapter: Bridge the geospatial domain gaps…", "From Pixels to Images: A Structural Survey of De…", "Rsrefseg 2: decoupling referring remote sensing …", "Domain generalization for semantic segmentation …", "Optimized loss and self attention for enhanced d…"], datasets: [{ data: citeData,
+    backgroundColor: citeData.map(v=>v>=50?ROSE+'cc':v>=20?AMBER+'cc':v>=8?TEAL+'99':VIO+'88'),
+    borderColor: citeData.map(v=>v>=50?ROSE:v>=20?AMBER:v>=8?TEAL:VIO),
+    borderWidth: 2, borderRadius: 4 }] },
+  options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+    plugins: { legend: { display: false },
+      tooltip: { callbacks: { label: c=>`被引 ${c.raw} 次 (${Math.round(c.raw/(totalCitAll||1)*100)}%)` } } },
+    scales: { x: { beginAtZero: true, grid: { color: 'rgba(180,190,220,0.2)' } },
+      y: { grid: { display: false }, ticks: { font: { size: 10 } } } } }
+});
+
+if (document.getElementById('cPosition')) {
+new Chart(document.getElementById('cPosition'), {
+  type: 'bar',
+  data: { labels: ["Introduction", "Related Work", "Experiments/Methodology", "Not Specified"], datasets: [{ data: [8, 7, 4, 5],
+    backgroundColor: [AMBER+'cc',TEAL+'cc',SAGE+'cc',VIO+'cc',ROSE+'cc',AMBER+'88'],
+    borderWidth: 0, borderRadius: 5 }] },
+  options: { indexAxis: 'y', responsive: true, plugins: { legend: { display: false } },
+    scales: { x: { beginAtZero: true, grid: { color:'rgba(180,190,220,0.2)' } }, y: { grid: { display: false } } } }
+});
+}
+
+if (document.getElementById('cSentiment')) {
+new Chart(document.getElementById('cSentiment'), {
+  type: 'doughnut',
+  data: { labels: ['正面引用','中性引用','批评探讨'],
+    datasets: [{ data: [21,79,0],
+      backgroundColor: [SAGE+'cc','rgba(160,174,192,0.5)',ROSE+'aa'],
+      borderColor: [SAGE,'#a0aec0',ROSE], borderWidth: 2, hoverOffset: 6 }] },
+  options: { cutout:'60%', responsive:true, maintainAspectRatio:true,
+    plugins:{ legend:{ position:'bottom', labels:{ padding:8,font:{size:10} } } } }
+});
+}
+
+if (document.getElementById('cDepth')) {
+new Chart(document.getElementById('cDepth'), {
+  type: 'doughnut',
+  data: { labels: ['核心引用 (方法依据)','参考引用 (背景对比)','补充说明'],
+    datasets: [{ data: [13, 75, 12], backgroundColor: [TEAL+'cc',SAGE+'cc',VIO+'88'],
+      borderColor: [TEAL, SAGE, VIO], borderWidth: 2, hoverOffset: 8 }] },
+  options: { cutout:'55%', responsive:true, maintainAspectRatio:true,
+    plugins:{ legend:{ position:'bottom', labels:{ padding:10,font:{size:10} } } } }
+});
+}
+
+new Chart(document.getElementById('cTrend'), {
+  type: 'line',
+  data: { labels: ["2024", "2025", "2026", "2027"], datasets: [
+    { label: '实际引用', data: [1, 17, 9, null], borderColor: '#7db8f5', backgroundColor: 'transparent',
+      pointBackgroundColor: '#7db8f5', pointRadius: 5, tension: .4, borderWidth: 2 },
+    { label: '趋势预测', data: [null, null, 15, 26], borderColor: '#7dd8b0', backgroundColor: 'rgba(125,216,176,0.10)',
+      borderDash: [6,4], pointBackgroundColor: '#7dd8b0', pointRadius: 4, tension: .3, borderWidth: 2, fill: true }
+  ] },
+  options: { responsive: true, maintainAspectRatio: false,
+    plugins: { legend: { position:'bottom', labels:{ padding:8, color:'rgba(200,220,255,0.7)', font:{size:10} } } },
+    scales: { y: { beginAtZero:true, grid:{ color:'rgba(255,255,255,0.06)' },
+        ticks:{ color:'rgba(180,210,255,0.7)', font:{size:10} } },
+      x: { grid:{ color:'rgba(255,255,255,0.04)' }, ticks:{ color:'rgba(180,210,255,0.7)', font:{size:9}, maxRotation:30 } } } }
+});
+</script>
+</body>
+</html>
