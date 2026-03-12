@@ -43,7 +43,20 @@
 
 需要 **Python 3.10 及以上版本（推荐Python 3.12）**。
 
+### 方式一：pip 安装（推荐）
+
 ```bash
+pip install citationclaw
+citationclaw
+```
+
+启动后浏览器自动打开 [http://127.0.0.1:8000](http://127.0.0.1:8000)。
+
+### 方式二：从源码运行（适合开发者/贡献者）
+
+```bash
+git clone https://github.com/VisionXLab/CitationClaw.git
+cd CitationClaw
 pip install -r requirements.txt
 python start.py
 ```
