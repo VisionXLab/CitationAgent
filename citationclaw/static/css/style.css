@@ -1044,7 +1044,7 @@ code {
   font-size: 16px;
   line-height: 1;
   transform: translateY(-50%) rotate(90deg);
-  animation: hb-crawl 5s linear infinite;
+  animation: hb-crawl 10s linear infinite;
   pointer-events: none;
 }
 
