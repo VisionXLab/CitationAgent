@@ -508,15 +508,8 @@ function initIndexPage() {
             el('idx-output-prefix').value = cfg.default_output_prefix || 'paper';
             el('idx-renowned-scholar').checked = cfg.enable_renowned_scholar_filter !== false;
             el('idx-author-verify').checked = cfg.enable_author_verification || false;
-            el('idx-citing-description').checked = cfg.enable_citing_description !== false;
             el('idx-dashboard').checked = cfg.enable_dashboard !== false;
-            el('idx-service-tier').value = cfg.service_tier || 'full';
-            el('idx-citing-scope').value = cfg.citing_description_scope || 'all';
-            el('idx-specified-scholars').value = cfg.specified_scholars || '';
-            // Show/hide specified scholars input
-            const tier = cfg.service_tier || 'full';
-            document.getElementById('idx-specified-scholars-row').style.display =
-                (tier === 'specified' || tier === 'verify') ? 'block' : 'none';
+            el('idx-service-tier').value = cfg.service_tier || 'basic';
             el('idx-dashboard-model').value = cfg.dashboard_model || 'gemini-3-flash-preview-nothinking';
             el('idx-api-access-token').value = cfg.api_access_token || '';
             el('idx-api-user-id').value = cfg.api_user_id || '';
@@ -541,13 +534,15 @@ function initIndexPage() {
             default_output_prefix: el('idx-output-prefix').value,
             enable_renowned_scholar_filter: el('idx-renowned-scholar').checked,
             enable_author_verification: el('idx-author-verify').checked,
-            enable_citing_description: el('idx-citing-description').checked,
             enable_dashboard: el('idx-dashboard').checked,
             service_tier: el('idx-service-tier').value,
-            citing_description_scope: el('idx-citing-scope').value,
-            skip_author_search: ['specified', 'verify'].includes(el('idx-service-tier').value),
-            specified_scholars: el('idx-specified-scholars').value,
-            dashboard_skip_citing_analysis: el('idx-service-tier').value === 'minimal',
+            skip_author_search: false,
+            // Derive citing-description settings directly from tier to ensure consistency
+            ...({
+                basic:    { enable_citing_description: false, citing_description_scope: 'all',           dashboard_skip_citing_analysis: true  },
+                advanced: { enable_citing_description: true,  citing_description_scope: 'renowned_only', dashboard_skip_citing_analysis: false },
+                full:     { enable_citing_description: true,  citing_description_scope: 'all',           dashboard_skip_citing_analysis: false },
+            }[el('idx-service-tier').value]),
             dashboard_model: el('idx-dashboard-model').value,
             api_access_token: el('idx-api-access-token').value,
             api_user_id: el('idx-api-user-id').value,
@@ -587,27 +582,11 @@ function initIndexPage() {
 
     tierSelect.addEventListener('change', () => {
         const tier = tierSelect.value;
-        if (tier === 'custom') return;
         const preset = PRESETS[tier];
         if (!preset) return;
         const sw = preset.switches;
         document.getElementById('idx-renowned-scholar').checked = sw.enable_renowned_scholar_filter;
-        document.getElementById('idx-citing-description').checked = sw.enable_citing_description;
         document.getElementById('idx-dashboard').checked = sw.enable_dashboard;
-        document.getElementById('idx-citing-scope').value = sw.citing_description_scope;
-        // Show/hide specified scholars
-        document.getElementById('idx-specified-scholars-row').style.display =
-            (tier === 'specified' || tier === 'verify') ? 'block' : 'none';
-    });
-
-    // Manual toggle → switch to custom
-    ['idx-renowned-scholar', 'idx-author-verify', 'idx-citing-description', 'idx-dashboard'].forEach(id => {
-        document.getElementById(id).addEventListener('change', () => {
-            tierSelect.value = 'custom';
-        });
-    });
-    document.getElementById('idx-citing-scope').addEventListener('change', () => {
-        tierSelect.value = 'custom';
     });
 
     // WebSocket 事件监听
