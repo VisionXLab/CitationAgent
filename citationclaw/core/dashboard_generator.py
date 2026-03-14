@@ -1561,7 +1561,7 @@ a.author-pill:hover { background: var(--teal-light); border-color: var(--teal); 
                 kg_links.append({"source": f"c{_ci}", "target": f"c{_cj}",
                                  "center_edge": True})
         kg_data_json = json.dumps({"nodes": kg_nodes, "links": kg_links},
-                                  ensure_ascii=False)
+                                  ensure_ascii=False).replace('</', r'<\/')
 
         # ── Compact report context for chat widget ──────────────────────────────
         _chat_ctx = {
@@ -1592,7 +1592,7 @@ a.author-pill:hover { background: var(--teal-light); border-color: var(--teal); 
             "insights": [{"title": i.get("title", ""), "body": i.get("body", "")}
                          for i in insights],
         }
-        _chat_ctx_json = json.dumps(_chat_ctx, ensure_ascii=False)
+        _chat_ctx_json = json.dumps(_chat_ctx, ensure_ascii=False).replace('</', r'<\/')
 
         kg_section_html = """
 <!-- SECTION 09 -->
@@ -2373,12 +2373,12 @@ new Chart(document.getElementById('cTrend'), {{
 
 <!-- ═══ CHAT WIDGET ═══ -->
 <style>
-#cc-fab{{position:fixed;right:24px;bottom:24px;width:54px;height:54px;border-radius:50%;
-  background:linear-gradient(135deg,#2563eb,#1e40af);border:none;cursor:pointer;
+#cc-fab{{position:fixed;right:24px;bottom:24px;width:70px;height:70px;border-radius:50%;
+  background:#fff;border:none;cursor:pointer;
   font-size:26px;display:flex;align-items:center;justify-content:center;
-  box-shadow:0 4px 20px rgba(37,99,235,0.5);z-index:10000;transition:transform .2s,box-shadow .2s;
-  color:#fff;line-height:1}}
-#cc-fab:hover{{transform:scale(1.1);box-shadow:0 6px 28px rgba(37,99,235,0.65)}}
+  box-shadow:0 4px 20px rgba(0,0,0,0.18);z-index:10000;transition:transform .2s,box-shadow .2s;
+  color:#333;line-height:1}}
+#cc-fab:hover{{transform:scale(1.1);box-shadow:0 6px 28px rgba(0,0,0,0.28)}}
 #cc-win{{position:fixed;right:24px;bottom:90px;width:400px;height:530px;
   background:#0d1421;border:1px solid rgba(66,153,225,0.35);border-radius:16px;
   display:flex;flex-direction:column;z-index:9999;
@@ -2434,14 +2434,14 @@ new Chart(document.getElementById('cTrend'), {{
 #cc-send:disabled{{opacity:0.4;cursor:default}}
 </style>
 
-<button id="cc-fab" onclick="ccToggle()" title="CitationClaw 智能助手">🦞</button>
+<button id="cc-fab" title="CitationClaw 智能助手"><img src="/static/citationclaw_icon.png" style="width:56px;height:56px;border-radius:50%;object-fit:cover;pointer-events:none"></button>
 <div id="cc-win" style="display:none">
   <div id="cc-header">
     <div>
       <div id="cc-header-title">🦞 CitationClaw 智能助手</div>
       <div id="cc-header-sub">基于本报告数据 · AI 驱动</div>
     </div>
-    <button id="cc-close" onclick="ccToggle()">✕</button>
+    <button id="cc-close">✕</button>
   </div>
   <div id="cc-msgs">
     <div class="cc-bubble ai">你好！我是 CitationClaw 智能助手🦞，已读取本报告所有数据。<br>你可以问我：引用趋势、知名学者、关键词分析、各类统计数据等任何问题。</div>
@@ -2449,42 +2449,40 @@ new Chart(document.getElementById('cTrend'), {{
   <div id="cc-offline">⚠️ 离线模式：请通过 CitationClaw 应用打开报告以启用 AI 问答功能。</div>
   <div id="cc-input-row">
     <textarea id="cc-input" rows="2" placeholder="问我关于这份报告的问题…（Enter 发送，Shift+Enter 换行）"></textarea>
-    <button id="cc-send" onclick="ccSend()">发送</button>
+    <button id="cc-send">发送</button>
   </div>
 </div>
 
 <script>
 (function(){{
+  try {{
   var CTX = {_chat_ctx_json};
   var history = [];
   var isOpen = false;
   var isStreaming = false;
 
   /* ── Toggle window ── */
-  window.ccToggle = function() {{
+  function ccToggle() {{
     isOpen = !isOpen;
     var win = document.getElementById('cc-win');
     var fab = document.getElementById('cc-fab');
     win.style.display = isOpen ? 'flex' : 'none';
-    fab.textContent = isOpen ? '✕' : '🦞';
-    fab.style.fontSize = isOpen ? '20px' : '26px';
+    fab.innerHTML = isOpen ? '✕' : '<img src="/static/citationclaw_icon.png" style="width:56px;height:56px;border-radius:50%;object-fit:cover;pointer-events:none">';
+    fab.style.fontSize = isOpen ? '20px' : '';
     if (isOpen) {{
-      // Check if running on server (not file://)
       var offline = window.location.protocol === 'file:';
       document.getElementById('cc-offline').style.display = offline ? 'block' : 'none';
       var input = document.getElementById('cc-input');
       if (input) input.focus();
     }}
-  }};
+  }}
 
-  /* ── Keyboard shortcut: Enter to send ── */
-  document.addEventListener('DOMContentLoaded', function() {{
-    var inp = document.getElementById('cc-input');
-    if (inp) {{
-      inp.addEventListener('keydown', function(e) {{
-        if (e.key === 'Enter' && !e.shiftKey) {{ e.preventDefault(); ccSend(); }}
-      }});
-    }}
+  /* ── Wire up buttons (script is at bottom of body — elements exist) ── */
+  document.getElementById('cc-fab').addEventListener('click', ccToggle);
+  document.getElementById('cc-close').addEventListener('click', ccToggle);
+  document.getElementById('cc-send').addEventListener('click', function() {{ ccSend(); }});
+  document.getElementById('cc-input').addEventListener('keydown', function(e) {{
+    if (e.key === 'Enter' && !e.shiftKey) {{ e.preventDefault(); ccSend(); }}
   }});
 
   /* ── Append message bubble ── */
@@ -2504,7 +2502,7 @@ new Chart(document.getElementById('cTrend'), {{
     el.innerHTML = (typeof marked !== 'undefined') ? marked.parse(text) : text;
   }}
 
-  window.ccSend = function() {{
+  function ccSend() {{
     if (isStreaming) return;
     if (window.location.protocol === 'file:') return;
     var inp = document.getElementById('cc-input');
@@ -2570,7 +2568,7 @@ new Chart(document.getElementById('cTrend'), {{
             if (buf.indexOf('__SEARCHING__') !== -1) {{
               searchHandled = true;
               ensureSearchIndicator();
-              var rest = buf.replace('__SEARCHING__\n', '').replace('__SEARCHING__', '');
+              var rest = buf.replace('__SEARCHING__\\n', '').replace('__SEARCHING__', '');
               if (rest) {{ fullText += rest; aiBubble.textContent = fullText; }}
             }} else if (buf.length > 30) {{
               searchHandled = true;
@@ -2586,7 +2584,7 @@ new Chart(document.getElementById('cTrend'), {{
         }}).catch(function(err) {{
           aiBubble.classList.remove('typing');
           removeSearchIndicator();
-          aiBubble.textContent = fullText + '\n[读取中断：' + err + ']';
+          aiBubble.textContent = fullText + '\\n[读取中断：' + err + ']';
           isStreaming = false;
           if (sendBtn) sendBtn.disabled = false;
         }});
@@ -2599,6 +2597,9 @@ new Chart(document.getElementById('cTrend'), {{
       if (sendBtn) sendBtn.disabled = false;
     }});
   }};
+  }} catch(e) {{
+    console.error('[CitationClaw] Chat widget error:', e);
+  }}
 }})();
 </script>
 </body>

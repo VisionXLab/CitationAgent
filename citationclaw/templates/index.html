@@ -157,7 +157,6 @@
           <option value="gpt-5-search-api">gpt-5-search-api</option>
           <option value="deepseek-r1-search">deepseek-r1-search</option>
           <option value="deepseek-v3-search">deepseek-v3-search</option>
-          <option value="qwen3.5-plus-search">qwen3.5-plus-search</option>
         </select>
       </div>
       <div class="col-md-3">
@@ -985,12 +984,12 @@ function escHtml(s) {
 
 <!-- ═══ CitationClaw UI Assistant Widget ═══ -->
 <style>
-#cc-ui-fab{position:fixed;right:24px;bottom:24px;width:52px;height:52px;border-radius:50%;
-  background:linear-gradient(135deg,#2563eb,#1e40af);border:none;cursor:pointer;
+#cc-ui-fab{position:fixed;right:24px;bottom:24px;width:70px;height:70px;border-radius:50%;
+  background:#fff;border:none;cursor:pointer;
   font-size:24px;display:flex;align-items:center;justify-content:center;
-  box-shadow:0 4px 20px rgba(37,99,235,0.45);z-index:10000;
-  transition:transform .2s,box-shadow .2s;color:#fff}
-#cc-ui-fab:hover{transform:scale(1.1);box-shadow:0 6px 28px rgba(37,99,235,0.65)}
+  box-shadow:0 4px 20px rgba(0,0,0,0.18);z-index:10000;
+  transition:transform .2s,box-shadow .2s;color:#333}
+#cc-ui-fab:hover{transform:scale(1.1);box-shadow:0 6px 28px rgba(0,0,0,0.28)}
 #cc-ui-win{position:fixed;right:24px;bottom:88px;width:380px;height:500px;
   background:#fff;border:1px solid #e2e8f0;border-radius:16px;
   display:flex;flex-direction:column;z-index:9999;
@@ -1044,7 +1043,7 @@ function escHtml(s) {
 #cc-ui-send:disabled{opacity:0.4;cursor:default}
 </style>
 
-<button id="cc-ui-fab" onclick="ccuiToggle()" title="CitationClaw 使用助手">🦞</button>
+<button id="cc-ui-fab" onclick="ccuiToggle()" title="CitationClaw 使用助手"><img src="/static/citationclaw_icon.png" style="width:56px;height:56px;border-radius:50%;object-fit:cover;pointer-events:none"></button>
 <div id="cc-ui-win" style="display:none">
   <div id="cc-ui-header">
     <div>
@@ -1082,8 +1081,8 @@ function escHtml(s) {
     var win = document.getElementById('cc-ui-win');
     var fab = document.getElementById('cc-ui-fab');
     win.style.display = isOpen ? 'flex' : 'none';
-    fab.textContent = isOpen ? '✕' : '🦞';
-    fab.style.fontSize = isOpen ? '18px' : '24px';
+    fab.innerHTML = isOpen ? '✕' : '<img src="/static/citationclaw_icon.png" style="width:56px;height:56px;border-radius:50%;object-fit:cover;pointer-events:none">';
+    fab.style.fontSize = isOpen ? '18px' : '';
     if (isOpen) { var inp = document.getElementById('cc-ui-input'); if(inp) inp.focus(); }
   };
 
