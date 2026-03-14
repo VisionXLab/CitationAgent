@@ -608,6 +608,37 @@ function initIndexPage() {
         setTimeout(() => { GlobalProgress.hide(); }, 3000);
     });
 
+    ws.on('year_traverse_prompt', data => {
+        document.getElementById('yt-citation-count').textContent =
+            (data.citation_count || 0).toLocaleString();
+        const ytModal = new bootstrap.Modal(document.getElementById('yearTraverseModal'));
+        ytModal.show();
+
+        document.getElementById('yt-btn-enable').onclick = async () => {
+            ytModal.hide();
+            const ytToggle = document.getElementById('enable-year-traverse');
+            if (ytToggle) ytToggle.checked = true;
+            try {
+                await fetch('/api/task/year-traverse-respond', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ enable: true })
+                });
+            } catch (e) { console.error('year-traverse-respond failed', e); }
+        };
+
+        document.getElementById('yt-btn-skip').onclick = async () => {
+            ytModal.hide();
+            try {
+                await fetch('/api/task/year-traverse-respond', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ enable: false })
+                });
+            } catch (e) { console.error('year-traverse-respond failed', e); }
+        };
+    });
+
     // 开始分析按钮
     runBtn.addEventListener('click', async () => {
         // 先把输入框里未提交的内容也加进列表

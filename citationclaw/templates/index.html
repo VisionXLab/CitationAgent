@@ -105,6 +105,18 @@
       <span style="font-size:11px;color:var(--light)">(Phase 5，需先启用著名学者筛选)</span>
     </label>
   </div>
+  <!-- 年份遍历开关（从高级选项提升到主配置区） -->
+  <div style="margin-top:12px;padding-top:10px;border-top:1px solid rgba(255,255,255,0.07)">
+    <label style="display:flex;align-items:center;gap:8px;cursor:pointer;flex-wrap:wrap">
+      <input class="form-check-input" type="checkbox" id="enable-year-traverse" role="switch">
+      <span style="font-size:12.5px;font-weight:600;color:var(--text)">按年份遍历</span>
+      <span class="badge bg-warning text-dark" style="font-size:0.68rem;font-weight:600">适合 &gt;1000 引</span>
+    </label>
+    <div style="font-size:11.5px;color:var(--muted);margin-top:4px;padding-left:26px">
+      逐年分段抓取，可突破 Google Scholar 1000 条限制。引用数超限时系统会自动提示。
+      <span style="color:#f0ad4e">⚠ 将额外消耗约数倍 API 额度。</span>
+    </div>
+  </div>
 </div>
 
 <!-- API Config Card -->
@@ -656,17 +668,6 @@
                     <h6 class="border-bottom pb-2 mb-3 mt-4">高级选项</h6>
                     <div class="mb-3">
                         <div class="form-check form-switch">
-                            <input class="form-check-input" type="checkbox" id="enable-year-traverse" role="switch">
-                            <label class="form-check-label" for="enable-year-traverse">
-                                启用按年份遍历 <span class="text-muted small">(突破Google Scholar 1000条限制)</span>
-                            </label>
-                        </div>
-                        <div class="form-text">
-                            开启后将按年份分别抓取，可突破单次最多1000条的限制，适用于引用数很多的论文
-                        </div>
-                    </div>
-                    <div class="mb-3">
-                        <div class="form-check form-switch">
                             <input class="form-check-input" type="checkbox" id="debug-mode" role="switch">
                             <label class="form-check-label" for="debug-mode">
                                 调试模式 <span class="text-muted small">(保存每页 HTML 和解析详情到 debug/ 目录)</span>
@@ -822,6 +823,39 @@
       <div class="modal-footer" style="padding:12px 20px;gap:8px">
         <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">关闭</button>
         <button type="button" class="btn btn-sm btn-primary" onclick="scrollToApiConfig()">前往填写</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ Year-Traverse Prompt Modal ═══ -->
+<div class="modal fade" id="yearTraverseModal" tabindex="-1" aria-labelledby="yearTraverseModalLabel" aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header border-0 pb-0">
+        <h5 class="modal-title" id="yearTraverseModalLabel">
+          <i class="bi bi-calendar-range text-warning"></i> 检测到超量引用
+        </h5>
+      </div>
+      <div class="modal-body">
+        <p>
+          该论文检测到 <strong id="yt-citation-count">—</strong> 篇引用，超过 Google Scholar 单次 1000 条的限制。
+        </p>
+        <div class="alert alert-warning py-2 mb-2" role="alert" style="font-size:0.88rem">
+          <i class="bi bi-exclamation-triangle-fill"></i>
+          <strong>按年份遍历</strong>将逐年分段抓取，可获取更完整数据，但会额外消耗约数倍 ScraperAPI 与 LLM 额度。
+        </div>
+        <p class="text-muted mb-0" style="font-size:0.85rem">
+          若不启用，本次将只抓取前 1000 条引用。
+        </p>
+      </div>
+      <div class="modal-footer border-0 pt-0">
+        <button type="button" class="btn btn-outline-secondary" id="yt-btn-skip">
+          直接开始（仅前 1000 条）
+        </button>
+        <button type="button" class="btn btn-warning" id="yt-btn-enable">
+          <i class="bi bi-calendar-check"></i> 开启年份遍历
+        </button>
       </div>
     </div>
   </div>
