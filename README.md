@@ -187,6 +187,3 @@ Useful links:
 
 </div>
 
-## ⚠️ Disclaimer
-
-This project is for academic research and personal learning. Please comply with Google Scholar terms and local regulations. Avoid abusive large-scale crawling. The authors are not responsible for consequences caused by misuse.
