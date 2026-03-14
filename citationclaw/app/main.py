@@ -129,6 +129,10 @@ class TaskStartRequest(BaseModel):
     resume_page: int = 0
 
 
+class YearTraverseResponse(BaseModel):
+    enable: bool
+
+
 @app.post("/api/task/start")
 async def start_task(request: TaskStartRequest):
     """启动任务（仅阶段1：抓取引用列表）"""
@@ -303,6 +307,19 @@ async def cancel_task():
     """取消任务"""
     task_executor.cancel()
     return {"status": "success", "message": "任务取消中..."}
+
+
+@app.post("/api/task/year-traverse-respond")
+async def year_traverse_respond(request: YearTraverseResponse):
+    """接收用户对年份遍历提示的响应"""
+    if task_executor._year_traverse_event is None:
+        return JSONResponse(
+            status_code=400,
+            content={"status": "error", "message": "当前无等待确认的年份遍历提示"}
+        )
+    task_executor._year_traverse_choice = request.enable
+    task_executor._year_traverse_event.set()
+    return {"status": "success", "enable": request.enable}
 
 
 class APITestRequest(BaseModel):

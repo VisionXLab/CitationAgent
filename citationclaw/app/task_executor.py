@@ -27,6 +27,11 @@ class TaskExecutor:
         # 保存阶段1的结果，供阶段2使用
         self.stage1_result: Optional[dict] = None
 
+        # 年份遍历用户确认状态
+        self._year_traverse_event: Optional[asyncio.Event] = None
+        self._year_traverse_choice: bool = False   # True = 用户同意开启
+        self._year_traverse_prompted: bool = False  # 本次运行已提示过，不再重复
+
     async def execute_full_pipeline(
         self,
         url: str,
@@ -408,6 +413,9 @@ class TaskExecutor:
 
         self.is_running = True
         self.should_cancel = False
+        self._year_traverse_event = None
+        self._year_traverse_choice = False
+        self._year_traverse_prompted = False
 
         # 初始化费用追踪器
         cost_tracker = CostTracker()
@@ -522,6 +530,35 @@ class TaskExecutor:
                         geo_rotate=config.scraper_geo_rotate,
                         cost_tracker=cost_tracker,
                     )
+
+                    # —— 预检测引用数，超1000时询问是否开启年份遍历 ——
+                    if not config.enable_year_traverse and not self._year_traverse_prompted:
+                        citation_count, _ = await scraper.detect_citation_count(url)
+                        if citation_count > 1000:
+                            self._year_traverse_prompted = True
+                            self._year_traverse_event = asyncio.Event()
+                            self.log_manager.broadcast_event("year_traverse_prompt", {
+                                "title": title,
+                                "citation_count": citation_count,
+                            })
+                            self.log_manager.warning(
+                                f"⚠️ 论文「{title}」检测到 {citation_count} 篇引用（超过 Google Scholar 1000 条限制）"
+                            )
+                            self.log_manager.warning(
+                                "⏸ 已暂停，等待用户选择是否启用按年份遍历（最多等待 60 秒）..."
+                            )
+                            try:
+                                await asyncio.wait_for(self._year_traverse_event.wait(), timeout=60.0)
+                                if self._year_traverse_choice:
+                                    config = config.model_copy(update={"enable_year_traverse": True})
+                                    self.log_manager.info("✅ 已启用按年份遍历，将逐年抓取完整数据")
+                                else:
+                                    self.log_manager.info("▶ 已跳过，继续普通模式（可能只抓取前 1000 条）")
+                            except asyncio.TimeoutError:
+                                self.log_manager.warning("⏰ 等待超时（60s），以普通模式继续")
+                            finally:
+                                self._year_traverse_event = None
+
                     citing_file = result_dir / f"{paper_slug}_citing.jsonl"
                     await scraper.scrape(
                         url=url,

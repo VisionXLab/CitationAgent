@@ -83,6 +83,13 @@ class LogManager:
         """记录ERROR级别日志"""
         self._log("ERROR", message)
 
+    def broadcast_event(self, event_type: str, payload: dict):
+        """向所有 WebSocket 连接广播自定义事件（非日志型消息）"""
+        asyncio.create_task(self._broadcast({
+            "type": event_type,
+            "data": payload
+        }))
+
     def update_progress(self, current: int, total: int):
         """
         更新进度
