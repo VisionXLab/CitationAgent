@@ -5,9 +5,9 @@
 </div>
 
 <div align="center">
-  <img src="docs/assets/icon.png" width="110" alt="CitationClaw Logo"><br>
+  <img src="docs/assets/logo.png" width="110" alt="CitationClaw Logo"><br>
 
-# CitationClaw — 论文被引画像分析🦞
+# CitationClaw — 从引用洞察知识网络
 
 让每一次引用都成为可解释的影响力  
 <em>Turning Every Citation into Explainable Impact</em>

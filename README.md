@@ -5,7 +5,7 @@ English | [中文](./README.zh-CN.md)
 </div>
 
 <div align="center">
-  <img src="docs/assets/icon.png" width="110" alt="CitationClaw Logo"><br>
+  <img src="docs/assets/logo.png" width="110" alt="CitationClaw Logo"><br>
 
 # CitationClaw: Ultra-Lightweight Citation Portrait Agent 🦞
 

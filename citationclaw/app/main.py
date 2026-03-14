@@ -17,7 +17,10 @@ app = FastAPI(title="论文被引画像智能体", version="1.0.0")
 
 # 静态文件和模板（使用包内路径，兼容 pip install 和本地开发）
 _PKG_DIR = Path(__file__).parent.parent
+_ROOT_DIR = _PKG_DIR.parent
 app.mount("/static", StaticFiles(directory=str(_PKG_DIR / "static")), name="static")
+if (_ROOT_DIR / "docs" / "assets").exists():
+    app.mount("/docs-assets", StaticFiles(directory=str(_ROOT_DIR / "docs" / "assets")), name="docs-assets")
 templates = Jinja2Templates(directory=str(_PKG_DIR / "templates"))
 
 # 全局对象
