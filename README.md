@@ -111,6 +111,7 @@ Each run creates a timestamped result folder under `data/result-{timestamp}/`, t
 
 | Date | Version | Notes |
 |---|---|---|
+| 2026-03-15 | v1.0.6 | Added default English README with Chinese switch, moved Chinese content to `README.zh-CN.md`, and linked usage flow to Guidelines Quick Start |
 | 2026-03-14 | v1.0.5 | Added AI assistant widgets for UI/report pages, fixed report assistant button issue, visual improvements |
 | 2026-03-14 | v1.0.4 | Improved UI and introduced basic/advanced/full service tiers |
 | 2026-03-12 | v1.0 | First public release |
