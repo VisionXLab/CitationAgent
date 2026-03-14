@@ -7,10 +7,7 @@ English | [中文](./README.zh-CN.md)
 <div align="center">
   <img src="docs/assets/icon.png" width="110" alt="CitationClaw Logo"><br>
 
-# CitationClaw — Paper Citation Portrait Analysis 🦞
-
-Turn Every Citation into Explainable Impact  
-<em>让每一次引用都成为可解释的影响力</em>
+# CitationClaw: Ultra-Lightweight Citation Portrait Agent 🦞
 
 [![Homepage](https://img.shields.io/badge/Homepage-CitationClaw-blue)](https://visionxlab.github.io/CitationClaw/)
 [![PyPI](https://img.shields.io/pypi/v/citationclaw?logo=pypi&logoColor=white&color=0073b7)](https://pypi.org/project/citationclaw/)
@@ -18,56 +15,81 @@ Turn Every Citation into Explainable Impact
 [![Visitors](https://visitor-badge.laobi.icu/badge?page_id=VisionXLab.CitationClaw)](https://github.com/VisionXLab/CitationClaw)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg?style=flat-square)](https://github.com/VisionXLab/CitationClaw/pulls)
 [![Issues](https://img.shields.io/github/issues/VisionXLab/CitationClaw)](https://github.com/VisionXLab/CitationClaw/issues)
+![Python](https://img.shields.io/badge/Python-3.10%2B-3776AB?logo=python&logoColor=white)
 ![Platform](https://img.shields.io/badge/Platform-macOS%20%7C%20Linux%20%7C%20Windows-lightgrey)
 ![LLM](https://img.shields.io/badge/LLM-OpenAI%20Compatible-412991?logo=openai&logoColor=white)
 ![ScraperAPI](https://img.shields.io/badge/Crawler-ScraperAPI-FF6B35)
 [![License: CC BY-NC 4.0](https://img.shields.io/badge/License-CC%20BY--NC%204.0-lightgrey)](https://creativecommons.org/licenses/by-nc/4.0/)
 
-**Input paper titles (or import from Google Scholar profile), and generate a full citation portrait report in one click.**
+**Turn Every Citation into Explainable Impact.**  
+Input paper titles (or import from Google Scholar profiles), and generate a full citation portrait report in minutes.
 
 </div>
 
-> ## 🚀 Community PRs Are Highly Welcome
-> We warmly welcome contributions from the open-source community.  
-> **Found a bug? Have an idea? Submit an Issue or a PR!**
+> ## 🚀 Contribute with PRs
+> CitationClaw is community-driven and PR-friendly.
 >
 > - Open an issue: <https://github.com/VisionXLab/CitationClaw/issues>
 > - Submit a PR: <https://github.com/VisionXLab/CitationClaw/pulls>
-> - Start from docs/UX improvements or model/pipeline optimizations
+> - Good first tasks: docs, UI polish, skill metadata, retry robustness
 
----
+## 📢 News
 
-## What is CitationClaw?
+- **2026-03-15**: Released **v1.0.6** — English README as default, Chinese switch at top, and usage flow linked to Guidelines Quick Start.
+- **2026-03-14**: Released **v1.0.5** — AI assistant widgets for UI/report pages and reliability fixes.
+- **2026-03-14**: Released **v1.0.4** — improved UI and introduced Basic/Advanced/Full service tiers.
+- **2026-03-12**: Released **v1.0** — first public release.
 
-CitationClaw crawls citing papers from Google Scholar, analyzes author backgrounds (including renowned scholars), and generates a standalone interactive HTML report with:
+## Key Features
 
-- keyword cloud
-- citation trend and prediction
-- country / institution distribution
-- renowned scholar portrait
-- citing sentence analysis (optional by service tier)
-- LLM-generated summary insights
+- 🧠 **Five-Phase Citation Pipeline**: crawl -> author intelligence -> export -> citing description -> dashboard.
+- 🎯 **Renowned Scholar Focus**: auto-identifies high-impact scholars and generates dedicated outputs.
+- ⚡ **Tiered Analysis Modes**: Basic / Advanced / Full for speed-cost-depth tradeoff.
+- 🔁 **Resumable + Cache-Aware**: supports resume-by-page, author cache, and citing-description cache.
+- 📊 **Shareable HTML Report**: standalone dashboard file, no extra server needed for viewing.
+- 🧩 **Skills Runtime Inside**: keeps five-phase logic while moving execution to modular skills.
 
----
+## 🏗️ Architecture
 
-## Quick Links
+CitationClaw keeps deterministic business phases while using a skills-style runtime for orchestration.
 
-| Link | Description |
-|---|---|
-| [📘 Guidelines](https://visionxlab.github.io/CitationClaw/guidelines.html) | Full documentation (installation, quick start, config, outputs, troubleshooting) |
-| [⚡ Quick Start (First-time users)](https://visionxlab.github.io/CitationClaw/guidelines.html#installation) | Recommended first-run path with screenshots |
-| [📊 Demo Report 1](https://visionxlab.github.io/CitationClaw/demo1.html) | Real report output example |
-| [📊 Demo Report 2](https://visionxlab.github.io/CitationClaw/demo2.html) | Another real report example |
-| [📖 User Story](https://visionxlab.github.io/CitationClaw/use-report.html) | End-to-end usage write-up |
-| [🔧 Technical Report](https://visionxlab.github.io/CitationClaw/technical-report.html) | Architecture and implementation details |
+```text
+UI/REST/WebSocket
+      │
+      ▼
+TaskExecutor (Orchestrator)
+      │
+      ▼
+Skills Runtime
+  ├─ phase1_citation_fetch
+  ├─ phase2_author_intel
+  ├─ phase3_export
+  ├─ phase4_citation_desc
+  └─ phase5_report_generate
+```
 
----
+More details: [Technical Report](https://visionxlab.github.io/CitationClaw/technical-report.html)
 
-## Installation
+## Table of Contents
+
+- [News](#-news)
+- [Key Features](#key-features)
+- [Architecture](#️-architecture)
+- [Install](#-install)
+- [Quick Start](#-quick-start)
+- [Configuration Highlights](#️-configuration-highlights)
+- [Project Structure](#-project-structure)
+- [Outputs](#-outputs)
+- [Contribute & Roadmap](#-contribute--roadmap)
+- [Community](#-community)
+- [Star History](#-star-history)
+- [Disclaimer](#️-disclaimer)
+
+## 📦 Install
 
 Requires **Python 3.10+** (Python 3.12 recommended).
 
-### Option 1: Install from PyPI (Recommended)
+### Install from PyPI (recommended)
 
 ```bash
 pip install citationclaw
@@ -75,7 +97,7 @@ citationclaw                  # default: 127.0.0.1:8000
 citationclaw --port 8080      # custom port
 ```
 
-### Option 2: Run from Source
+### Install from source
 
 ```bash
 git clone https://github.com/VisionXLab/CitationClaw.git
@@ -85,28 +107,43 @@ python start.py               # default: 127.0.0.1:8000
 python start.py --port 8080
 ```
 
----
+## 🚀 Quick Start
 
-## Usage Flow
-
-Please follow the first-time Quick Start in Guidelines:
+For first-time users, follow the complete guide with screenshots:
 
 - [Quick Start (online)](https://visionxlab.github.io/CitationClaw/guidelines.html#installation)
 - [Quick Start (local file)](./docs/guidelines.html#installation)
 
----
+## ⚙️ Configuration Highlights
 
-## Service Tiers
+- **Required keys**:
+  - `ScraperAPI Key(s)` for Google Scholar crawling
+  - `OpenAI-compatible API Key` for LLM-based analysis
+- **Recommended search model**:
+  - Keep `gemini-3-flash-preview-search` for search-capable stages
+- **Service tiers**:
+  - `Basic`: lower cost and faster for first runs
+  - `Advanced`: citing descriptions for renowned-scholar papers only
+  - `Full`: citing descriptions for all citing papers
+- **For papers with >1000 citations**:
+  - Enable year traverse mode
 
-- **Basic**: scholar search + renowned scholar filtering (lower cost, faster)
-- **Advanced**: adds citing sentence search only for renowned scholars
-- **Full**: citing sentence search for all citing papers
+## 📁 Project Structure
 
----
+```text
+citationclaw/
+├── app/                 # FastAPI app, task orchestration, config, logs
+├── core/                # scraping / search / export / dashboard engines
+├── skills/              # skills runtime and five phase skills
+├── static/              # frontend assets
+├── templates/           # Jinja2 pages
+docs/                    # docs and demos
+test/                    # tests
+```
 
-## Outputs
+## 📤 Outputs
 
-Each run creates a timestamped result folder under `data/result-{timestamp}/`, typically including:
+Each run creates a timestamped folder under `data/result-{timestamp}/`, usually including:
 
 - `paper_results.xlsx`
 - `paper_results_all_renowned_scholar.xlsx`
@@ -115,20 +152,25 @@ Each run creates a timestamped result folder under `data/result-{timestamp}/`, t
 - `paper_results.json`
 - `paper_dashboard.html`
 
----
+## 🤝 Contribute & Roadmap
 
-## Changelog
+PRs are welcome and appreciated.
 
-| Date | Version | Notes |
-|---|---|---|
-| 2026-03-15 | v1.0.6 | Added default English README with Chinese switch, moved Chinese content to `README.zh-CN.md`, and linked usage flow to Guidelines Quick Start |
-| 2026-03-14 | v1.0.5 | Added AI assistant widgets for UI/report pages, fixed report assistant button issue, visual improvements |
-| 2026-03-14 | v1.0.4 | Improved UI and introduced basic/advanced/full service tiers |
-| 2026-03-12 | v1.0 | First public release |
+Suggested directions:
 
----
+- richer skill metadata and registry conventions
+- stronger retry and network-failure resilience
+- dashboard readability and UX improvement
+- tests for pipeline contracts and compatibility
+- provider/model compatibility presets
 
-## Community
+Useful links:
+
+- Issues: <https://github.com/VisionXLab/CitationClaw/issues>
+- Pull Requests: <https://github.com/VisionXLab/CitationClaw/pulls>
+- Guidelines: <https://visionxlab.github.io/CitationClaw/guidelines.html>
+
+## 🌍 Community
 
 - Product update: [减论 reduct.cn](https://www.reduct.cn/)
 - User group (CN):
@@ -137,8 +179,14 @@ Each run creates a timestamped result folder under `data/result-{timestamp}/`, t
   <img src="docs/assets/group.jpg" width="200" alt="User Group QR">
 </div>
 
----
+## ⭐ Star History
 
-## Disclaimer
+<div align="center">
+
+[![Star History Chart](https://api.star-history.com/svg?repos=VisionXLab/CitationClaw&type=Date)](https://star-history.com/#VisionXLab/CitationClaw&Date)
+
+</div>
+
+## ⚠️ Disclaimer
 
 This project is for academic research and personal learning. Please comply with Google Scholar terms and local regulations. Avoid abusive large-scale crawling. The authors are not responsible for consequences caused by misuse.
