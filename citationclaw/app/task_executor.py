@@ -2,13 +2,11 @@ import asyncio
 from pathlib import Path
 from typing import Optional, List
 from datetime import datetime
-from citationclaw.core.scraper import GoogleScholarScraper
-from citationclaw.core.author_searcher import AuthorSearcher
 from citationclaw.core.author_cache import AuthorInfoCache
-from citationclaw.core.exporter import ResultExporter
 from citationclaw.app.log_manager import LogManager
 from citationclaw.app.config_manager import AppConfig
 from citationclaw.app.cost_tracker import CostTracker
+from citationclaw.skills.runtime import SkillsRuntime
 
 
 class TaskExecutor:
@@ -31,6 +29,18 @@ class TaskExecutor:
         self._year_traverse_event: Optional[asyncio.Event] = None
         self._year_traverse_choice: bool = False   # True = 用户同意开启
         self._year_traverse_prompted: bool = False  # 本次运行已提示过，不再重复
+        self.skills_runtime = SkillsRuntime()
+
+    async def _run_skill(self, skill_name: str, config: AppConfig, **kwargs):
+        """Execute one pipeline skill with shared runtime context."""
+        return await self.skills_runtime.run(
+            skill_name,
+            config=config,
+            log=self.log_manager.info,
+            progress=self.log_manager.update_progress,
+            cancel_check=lambda: self.should_cancel,
+            **kwargs,
+        )
 
     async def execute_full_pipeline(
         self,
@@ -63,29 +73,15 @@ class TaskExecutor:
             self.log_manager.info("阶段1: 开始抓取Google Scholar引用列表")
             self.log_manager.info("=" * 50)
 
-            scraper = GoogleScholarScraper(
-                api_keys=config.scraper_api_keys,
-                log_callback=self.log_manager.info,
-                progress_callback=self.log_manager.update_progress,
-                debug_mode=config.debug_mode,
-                premium=config.scraper_premium,
-                ultra_premium=config.scraper_ultra_premium,
-                retry_max_attempts=config.retry_max_attempts,
-                retry_intervals=config.retry_intervals,
-                session=config.scraper_session,
-                no_filter=config.scholar_no_filter,
-                geo_rotate=config.scraper_geo_rotate,
-                dc_retry_max_attempts=config.dc_retry_max_attempts,
-            )
-
             citing_papers_file = Path(f"data/jsonl/{file_prefix}_citing_papers.jsonl")
-            await scraper.scrape(
+            await self._run_skill(
+                "phase1_citation_fetch",
+                config,
                 url=url,
                 output_file=citing_papers_file,
                 start_page=resume_page,
                 sleep_seconds=config.sleep_between_pages,
-                cancel_check=lambda: self.should_cancel,
-                enable_year_traverse=config.enable_year_traverse
+                enable_year_traverse=config.enable_year_traverse,
             )
 
             if self.should_cancel:
@@ -99,30 +95,14 @@ class TaskExecutor:
             self.log_manager.info("阶段2: 开始搜索作者学术信息")
             self.log_manager.info("=" * 50)
 
-            searcher = AuthorSearcher(
-                api_key=config.openai_api_key,
-                base_url=config.openai_base_url,
-                model=config.openai_model,
-                log_callback=self.log_manager.info,
-                progress_callback=self.log_manager.update_progress,
-                prompt1=config.author_search_prompt1,
-                prompt2=config.author_search_prompt2,
-                enable_renowned_scholar=config.enable_renowned_scholar_filter,
-                renowned_scholar_model=config.renowned_scholar_model,
-                renowned_scholar_prompt=config.renowned_scholar_prompt,
-                enable_author_verification=config.enable_author_verification,
-                author_verify_model=config.author_verify_model,
-                author_verify_prompt=config.author_verify_prompt,
-                debug_mode=config.debug_mode
-            )
-
             author_info_file = Path(f"data/jsonl/{file_prefix}_author_information.jsonl")
-            await searcher.search(
+            await self._run_skill(
+                "phase2_author_intel",
+                config,
                 input_file=citing_papers_file,
                 output_file=author_info_file,
                 sleep_seconds=config.sleep_between_authors,
                 parallel_workers=config.parallel_author_search,
-                cancel_check=lambda: self.should_cancel
             )
 
             if self.should_cancel:
@@ -136,15 +116,15 @@ class TaskExecutor:
             self.log_manager.info("阶段3: 开始导出结果")
             self.log_manager.info("=" * 50)
 
-            exporter = ResultExporter(log_callback=self.log_manager.info)
-
             excel_file = Path(f"data/excel/{file_prefix}_author_information.xlsx")
             json_file = Path(f"data/json/{file_prefix}_author_information.json")
 
-            await exporter.export(
+            await self._run_skill(
+                "phase3_export",
+                config,
                 input_file=author_info_file,
                 excel_output=excel_file,
-                json_output=json_file
+                json_output=json_file,
             )
 
             self.log_manager.success("=" * 50)
@@ -192,29 +172,15 @@ class TaskExecutor:
             self.log_manager.info("阶段1: 开始抓取Google Scholar引用列表")
             self.log_manager.info("=" * 50)
 
-            scraper = GoogleScholarScraper(
-                api_keys=config.scraper_api_keys,
-                log_callback=self.log_manager.info,
-                progress_callback=self.log_manager.update_progress,
-                debug_mode=config.debug_mode,
-                premium=config.scraper_premium,
-                ultra_premium=config.scraper_ultra_premium,
-                retry_max_attempts=config.retry_max_attempts,
-                retry_intervals=config.retry_intervals,
-                session=config.scraper_session,
-                no_filter=config.scholar_no_filter,
-                geo_rotate=config.scraper_geo_rotate,
-                dc_retry_max_attempts=config.dc_retry_max_attempts,
-            )
-
             citing_papers_file = Path(f"data/jsonl/{file_prefix}_citing_papers.jsonl")
-            await scraper.scrape(
+            await self._run_skill(
+                "phase1_citation_fetch",
+                config,
                 url=url,
                 output_file=citing_papers_file,
                 start_page=resume_page,
                 sleep_seconds=config.sleep_between_pages,
-                cancel_check=lambda: self.should_cancel,
-                enable_year_traverse=config.enable_year_traverse
+                enable_year_traverse=config.enable_year_traverse,
             )
 
             if self.should_cancel:
@@ -330,30 +296,14 @@ class TaskExecutor:
             self.log_manager.info("阶段2: 开始搜索作者学术信息")
             self.log_manager.info("=" * 50)
 
-            searcher = AuthorSearcher(
-                api_key=config.openai_api_key,
-                base_url=config.openai_base_url,
-                model=config.openai_model,
-                log_callback=self.log_manager.info,
-                progress_callback=self.log_manager.update_progress,
-                prompt1=config.author_search_prompt1,
-                prompt2=config.author_search_prompt2,
-                enable_renowned_scholar=config.enable_renowned_scholar_filter,
-                renowned_scholar_model=config.renowned_scholar_model,
-                renowned_scholar_prompt=config.renowned_scholar_prompt,
-                enable_author_verification=config.enable_author_verification,
-                author_verify_model=config.author_verify_model,
-                author_verify_prompt=config.author_verify_prompt,
-                debug_mode=config.debug_mode
-            )
-
             author_info_file = Path(f"data/jsonl/{file_prefix}_author_information.jsonl")
-            await searcher.search(
+            await self._run_skill(
+                "phase2_author_intel",
+                config,
                 input_file=citing_papers_file,
                 output_file=author_info_file,
                 sleep_seconds=config.sleep_between_authors,
                 parallel_workers=config.parallel_author_search,
-                cancel_check=lambda: self.should_cancel
             )
 
             if self.should_cancel:
@@ -367,15 +317,15 @@ class TaskExecutor:
             self.log_manager.info("阶段3: 开始导出结果")
             self.log_manager.info("=" * 50)
 
-            exporter = ResultExporter(log_callback=self.log_manager.info)
-
             excel_file = Path(f"data/excel/{file_prefix}_author_information.xlsx")
             json_file = Path(f"data/json/{file_prefix}_author_information.json")
 
-            exporter.export(
+            await self._run_skill(
+                "phase3_export",
+                config,
                 input_file=author_info_file,
                 excel_output=excel_file,
-                json_output=json_file
+                json_output=json_file,
             )
 
             self.log_manager.success("=" * 50)
@@ -516,24 +466,17 @@ class TaskExecutor:
 
                     # —— Phase 1：爬取引用列表 ——
                     self.log_manager.info("▶ Phase 1: 爬取引用列表")
-                    scraper = GoogleScholarScraper(
-                        api_keys=config.scraper_api_keys,
-                        log_callback=self.log_manager.info,
-                        progress_callback=self.log_manager.update_progress,
-                        debug_mode=config.debug_mode,
-                        premium=config.scraper_premium,
-                        ultra_premium=config.scraper_ultra_premium,
-                        retry_max_attempts=config.retry_max_attempts,
-                        retry_intervals=config.retry_intervals,
-                        session=config.scraper_session,
-                        no_filter=config.scholar_no_filter,
-                        geo_rotate=config.scraper_geo_rotate,
-                        cost_tracker=cost_tracker,
-                    )
 
                     # —— 预检测引用数，超1000时询问是否开启年份遍历 ——
                     if not config.enable_year_traverse and not self._year_traverse_prompted:
-                        citation_count, _ = await scraper.detect_citation_count(url)
+                        probe_data = await self._run_skill(
+                            "phase1_citation_fetch",
+                            config,
+                            url=url,
+                            probe_only=True,
+                            cost_tracker=cost_tracker,
+                        )
+                        citation_count = int(probe_data.get("citation_count", 0))
                         if citation_count > 1000:
                             self._year_traverse_prompted = True
                             self._year_traverse_event = asyncio.Event()
@@ -560,13 +503,15 @@ class TaskExecutor:
                                 self._year_traverse_event = None
 
                     citing_file = result_dir / f"{paper_slug}_citing.jsonl"
-                    await scraper.scrape(
+                    await self._run_skill(
+                        "phase1_citation_fetch",
+                        config,
                         url=url,
                         output_file=citing_file,
                         start_page=0,
                         sleep_seconds=config.sleep_between_pages,
-                        cancel_check=lambda: self.should_cancel,
                         enable_year_traverse=config.enable_year_traverse,
+                        cost_tracker=cost_tracker,
                     )
                     if self.should_cancel:
                         break
@@ -587,32 +532,17 @@ class TaskExecutor:
 
                         # —— Phase 2：搜索作者信息（以 canonical 为 Citing_Paper 值）——
                         self.log_manager.info("▶ Phase 2: 搜索作者信息")
-                        searcher = AuthorSearcher(
-                            api_key=config.openai_api_key,
-                            base_url=config.openai_base_url,
-                            model=config.openai_model,
-                            log_callback=self.log_manager.info,
-                            progress_callback=self.log_manager.update_progress,
-                            prompt1=config.author_search_prompt1,
-                            prompt2=config.author_search_prompt2,
-                            enable_renowned_scholar=config.enable_renowned_scholar_filter,
-                            renowned_scholar_model=config.renowned_scholar_model,
-                            renowned_scholar_prompt=config.renowned_scholar_prompt,
-                            enable_author_verification=config.enable_author_verification,
-                            author_verify_model=config.author_verify_model,
-                            author_verify_prompt=config.author_verify_prompt,
-                            debug_mode=config.debug_mode,
-                            target_paper_authors=target_authors,
-                            author_cache=author_cache,
-                        )
                         author_file = result_dir / f"{paper_slug}_authors.jsonl"
-                        await searcher.search(
+                        await self._run_skill(
+                            "phase2_author_intel",
+                            config,
                             input_file=citing_file,
                             output_file=author_file,
                             sleep_seconds=config.sleep_between_authors,
                             parallel_workers=config.parallel_author_search,
-                            cancel_check=lambda: self.should_cancel,
                             citing_paper=canonical,   # 始终用正式标题写入 Citing_Paper
+                            target_paper_authors=target_authors,
+                            author_cache=author_cache,
                         )
                         if self.should_cancel:
                             break
@@ -662,10 +592,11 @@ class TaskExecutor:
 
                 # —— Phase 3：导出 ——
                 self.log_manager.info("▶ Phase 3: 导出结果")
-                exporter = ResultExporter(log_callback=self.log_manager.info)
                 excel_file = result_dir / f"{output_prefix}_results.xlsx"
                 json_file = result_dir / f"{output_prefix}_results.json"
-                exporter.export(
+                await self._run_skill(
+                    "phase3_export",
+                    config,
                     input_file=merged_file,
                     excel_output=excel_file,
                     json_output=json_file,
@@ -798,27 +729,17 @@ class TaskExecutor:
                     self.log_manager.info(f"🧪 已生成伪造引用描述: {_phase4_output}")
                 else:
                     self.log_manager.info("▶ Phase 4: 搜索引用描述")
-                    from citationclaw.core.citing_description_searcher import CitingDescriptionSearcher
-                    from citationclaw.core.citing_description_cache import CitingDescriptionCache
-                    desc_cache = CitingDescriptionCache()
-                    desc_searcher = CitingDescriptionSearcher(
-                        api_key=config.openai_api_key,
-                        base_url=config.openai_base_url,
-                        model=config.openai_model,
-                        log_callback=self.log_manager.info,
-                        progress_callback=self.log_manager.update_progress,
-                        cache=desc_cache,
-                    )
-                    await desc_searcher.search(
+                    phase4_result = await self._run_skill(
+                        "phase4_citation_desc",
+                        config,
                         input_excel=phase4_input,
                         output_excel=_phase4_output,
                         parallel_workers=config.parallel_author_search,
-                        cancel_check=lambda: self.should_cancel,
                     )
-                    s = desc_cache.stats()
+                    s = phase4_result.get("cache_stats", {})
                     self.log_manager.info(
-                        f"引用描述记忆池: 共 {s['total_entries']} 条 | "
-                        f"命中 {s['hits']} | 新增 {s['updates']}"
+                        f"引用描述记忆池: 共 {s.get('total_entries', 0)} 条 | "
+                        f"命中 {s.get('hits', 0)} | 新增 {s.get('updates', 0)}"
                     )
 
                 # renowned_only 模式：将描述合并回全量论文文件，确保 Phase 5 能读到完整数据
@@ -850,23 +771,17 @@ class TaskExecutor:
             html_file = None
             if config.enable_dashboard:
                 self.log_manager.info("▶ Phase 5: 生成 HTML 画像报告")
-                from citationclaw.core.dashboard_generator import DashboardGenerator
                 html_file = result_dir / f"{output_prefix}_dashboard.html"
 
                 all_renowned = excel_file.with_stem(excel_file.stem + "_all_renowned_scholar")
                 top_renowned = excel_file.with_stem(excel_file.stem + "_top-tier_scholar")
 
-                gen = DashboardGenerator(
-                    api_key=config.openai_api_key,
-                    base_url=config.openai_base_url,
-                    model=config.dashboard_model,
-                    log_callback=self.log_manager.info,
-                    test_mode=config.test_mode,
-                )
                 def _fwd(p: Path) -> str:
                     return str(p).replace("\\", "/")
 
-                gen.generate(
+                await self._run_skill(
+                    "phase5_report_generate",
+                    config,
                     citing_desc_excel=citing_desc_excel,
                     renowned_all_xlsx=all_renowned,
                     renowned_top_xlsx=top_renowned,
