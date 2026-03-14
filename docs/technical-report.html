@@ -1050,11 +1050,11 @@
   <div class="hero-inner">
     <div class="hero-badge">
       <span class="dot"></span>
-      v1.0 &nbsp;·&nbsp; Python 3.12 &nbsp;·&nbsp; FastAPI &nbsp;·&nbsp; OpenAI-compatible
+      beta v1.0.6 &nbsp;·&nbsp; Python 3.12 &nbsp;·&nbsp; FastAPI &nbsp;·&nbsp; Skills Runtime
     </div>
-    <h1>Citation<span>Agent</span></h1>
+    <h1>Citation<span>Claw</span></h1>
     <p class="hero-subtitle">
-      一个面向科研工作者的全自动学术引用分析系统 —— 从 Google Scholar 抓取到 AI 驱动的作者画像，再到自包含的 HTML 分析仪表盘，端到端无缝流水线。
+      一个面向科研工作者的全自动学术引用分析系统 —— 从 Google Scholar 抓取到 AI 驱动的作者画像，再到自包含的 HTML 分析仪表盘，端到端无缝流水线。v1.0.6 引入 Skills Runtime，将五阶段流水线模块化为独立可替换的 Skill 对象。
     </p>
     <div class="hero-meta">
       <div class="hero-meta-item">
@@ -1075,7 +1075,7 @@
       </div>
     </div>
     <div class="hero-grid">
-      <div class="hero-stat"><span class="num">5</span><span class="lbl">流水线阶段</span></div>
+      <div class="hero-stat"><span class="num">5</span><span class="lbl">Skills 模块</span></div>
       <div class="hero-stat"><span class="num">12</span><span class="lbl">核心模块</span></div>
       <div class="hero-stat"><span class="num">3</span><span class="lbl">重试层级</span></div>
       <div class="hero-stat"><span class="num">1000+</span><span class="lbl">绕过论文上限</span></div>
@@ -1205,6 +1205,101 @@
         <div class="principle-content">
           <h4>确定性降级 Fallback</h4>
           <p>Phase 5（仪表盘）的每个 LLM 分析步骤都有一个不依赖 LLM 的确定性算法作为后备：关键词分析用词频统计，趋势预测用线性回归（含同比增长率截断），洞察生成用模板字符串。这确保了即使 LLM API 完全不可用，系统仍能输出有意义的报告。</p>
+        </div>
+      </div>
+      <div class="principle-item">
+        <div class="principle-num">08</div>
+        <div class="principle-content">
+          <h4>Skills Runtime — 模块化流水线</h4>
+          <p>v1.0.6 将五阶段流水线重构为 Skills 模式：每个阶段实现 <code>Skill</code> Protocol（含 <code>name: str</code> 和 <code>async run(ctx, **kwargs) → SkillResult</code>），由 <code>SkillsRuntime</code> 统一调度，通过 <code>SkillContext</code>（持有 config、log、progress、cancel_check）共享上下文。这使得各 Skill 可独立测试、替换和扩展，而无需修改执行调度逻辑。</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ===== SECTION 2.5: SKILLS RUNTIME ===== -->
+<section class="section" id="skills">
+  <div class="container">
+    <div class="section-header">
+      <div class="section-number">02.5 &mdash; Skills Runtime（v1.0.6 新增）</div>
+      <h2>模块化技能调度架构</h2>
+      <div class="divider"></div>
+      <p>v1.0.6 将五阶段流水线重构为 Skills 模式，实现了阶段级别的解耦与可替换性。</p>
+    </div>
+
+    <div class="card-grid card-grid-2" style="margin-bottom:32px;">
+      <div class="card">
+        <h3 style="margin-bottom:16px;">&#127381; 核心组件</h3>
+        <ul class="feature-list check" style="gap:12px;">
+          <li><code>Skill</code> Protocol — 定义 <code>name: str</code> + <code>async run(ctx, **kwargs) → SkillResult</code> 接口</li>
+          <li><code>SkillContext</code> — 共享运行时上下文（config, log, progress, cancel_check, extras）</li>
+          <li><code>SkillResult</code> — 统一结果信封（name + data dict）</li>
+          <li><code>SkillRegistry</code> — 按名称注册/查找 Skill 的轻量容器</li>
+          <li><code>SkillsRuntime</code> — 顶层调度器，build registry → resolve skill → build ctx → await run</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h3 style="margin-bottom:16px;">&#128230; 五个内置 Skill</h3>
+        <div class="table-wrap" style="margin:0;box-shadow:none;border:none;">
+          <table style="font-size:0.82rem;">
+            <thead><tr><th>Skill 名称</th><th>Phase</th><th>核心模块</th></tr></thead>
+            <tbody>
+              <tr><td><code>CitationFetchSkill</code></td><td>Phase 1</td><td>scraper.py</td></tr>
+              <tr><td><code>AuthorIntelSkill</code></td><td>Phase 2</td><td>author_searcher.py</td></tr>
+              <tr><td><code>ExportSkill</code></td><td>Phase 3</td><td>exporter.py</td></tr>
+              <tr><td><code>CitationDescriptionSkill</code></td><td>Phase 4</td><td>citing_description_searcher.py</td></tr>
+              <tr><td><code>ReportGenerateSkill</code></td><td>Phase 5</td><td>dashboard_generator.py</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- Data flow diagram -->
+    <div class="card" style="margin-bottom:24px;">
+      <h3 style="margin-bottom:16px;">&#128260; 调用链路</h3>
+      <div style="overflow-x:auto;">
+        <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:0;min-width:600px;align-items:center;text-align:center;font-size:0.8rem;">
+          <div style="background:var(--bg-warm);border:1px solid var(--border-warm);border-radius:8px;padding:12px 8px;">
+            <div style="font-family:'JetBrains Mono',monospace;font-weight:700;color:var(--accent-fire);margin-bottom:4px;">app/main.py</div>
+            <div style="color:var(--text-muted);font-size:0.72rem;">POST /api/run</div>
+          </div>
+          <div style="color:var(--accent-fire);font-size:1.4rem;padding:0 4px;">→</div>
+          <div style="background:var(--bg-deep);border:1px solid var(--accent-fire);border-radius:8px;padding:12px 8px;">
+            <div style="font-family:'JetBrains Mono',monospace;font-weight:700;color:#FFD54F;margin-bottom:4px;">SkillsRuntime</div>
+            <div style="color:#BCAAA4;font-size:0.72rem;">registry.get(name)</div>
+          </div>
+          <div style="color:var(--accent-fire);font-size:1.4rem;padding:0 4px;">→</div>
+          <div style="background:var(--bg-warm);border:1px solid var(--border-warm);border-radius:8px;padding:12px 8px;">
+            <div style="font-family:'JetBrains Mono',monospace;font-weight:700;color:var(--accent-ember);margin-bottom:4px;">Skill.run(ctx)</div>
+            <div style="color:var(--text-muted);font-size:0.72rem;">SkillResult.data</div>
+          </div>
+        </div>
+        <div style="margin-top:16px;background:var(--bg-code);border-radius:8px;padding:16px;font-family:'JetBrains Mono',monospace;font-size:0.78rem;color:#FFCC80;line-height:1.7;">
+          <span style="color:#B0BEC5;"># runtime.py (simplified)</span><br>
+          ctx = SkillContext(config=config, log=log, progress=progress, ...)<br>
+          skill = self.registry.get(skill_name) <span style="color:#B0BEC5;"># by name string</span><br>
+          result = await skill.run(ctx, **kwargs)<br>
+          return result.data <span style="color:#B0BEC5;"># dict passed back to task_executor</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3 style="margin-bottom:16px;">&#128270; 设计亮点</h3>
+      <div class="card-grid card-grid-3" style="margin-top:12px;">
+        <div style="background:var(--bg-warm);border-radius:8px;padding:16px;">
+          <div style="font-weight:700;color:var(--accent-fire);margin-bottom:8px;">零依赖接口</div>
+          <p style="font-size:0.85rem;color:var(--text-muted);">Skill Protocol 仅依赖标准库 dataclass + typing，任何实现了 <code>name</code> + <code>run</code> 的对象均可注册，无需继承基类。</p>
+        </div>
+        <div style="background:var(--bg-warm);border-radius:8px;padding:16px;">
+          <div style="font-weight:700;color:var(--accent-fire);margin-bottom:8px;">上下文注入</div>
+          <p style="font-size:0.85rem;color:var(--text-muted);"><code>SkillContext</code> 持有 config、log callback、progress callback、cancel_check，Skill 无需直接访问全局状态，天然支持单元测试 mock。</p>
+        </div>
+        <div style="background:var(--bg-warm);border-radius:8px;padding:16px;">
+          <div style="font-weight:700;color:var(--accent-fire);margin-bottom:8px;">统一 Registry</div>
+          <p style="font-size:0.85rem;color:var(--text-muted);"><code>build_default_registry()</code> 集中注册全部 5 个 Skill，可在测试或扩展时替换为自定义 registry，无需修改 runtime 逻辑。</p>
         </div>
       </div>
     </div>
@@ -2478,6 +2573,10 @@
             <tr><td><code>rumps</code></td><td>Ridiculously Uncomplicated macOS Python Statusbar apps，macOS 菜单栏应用框架</td></tr>
             <tr><td><code>year_traverse</code></td><td>年份遍历模式，将整体查询按年份分解，绕过 Google Scholar 1000 篇硬限制</td></tr>
             <tr><td><code>dc_inconsistency</code></td><td>数据中心不一致，Google Scholar 不同地理节点的缓存不同步导致的短页面现象</td></tr>
+            <tr><td><code>SkillsRuntime</code></td><td>v1.0.6 新增的调度器，持有 SkillRegistry，接受 skill_name + config + log 构建 SkillContext 并 await skill.run()</td></tr>
+            <tr><td><code>SkillContext</code></td><td>Skill 运行时共享上下文 dataclass，持有 config、log callback、progress callback、cancel_check、extras</td></tr>
+            <tr><td><code>SkillResult</code></td><td>Skill 返回的标准结果信封，包含 name（skill 标识）和 data（dict，传回 task_executor）</td></tr>
+            <tr><td><code>Skill Protocol</code></td><td>Python structural subtyping 接口，任何含 name: str 和 async run(ctx, **kwargs) → SkillResult 的对象均满足</td></tr>
           </tbody>
         </table>
       </div>

@@ -38,7 +38,7 @@ Input paper titles (or import from Google Scholar profiles), and generate a full
 
 ## 📢 News
 
-- **2026-03-15**: Released **v1.0.6** — English README as default, Chinese switch at top, and usage flow linked to Guidelines Quick Start.
+- **2026-03-15**: Released **beta v1.0.6** — English README as default, Chinese switch at top, and usage flow linked to Guidelines Quick Start.
 - **2026-03-14**: Released **v1.0.5** — AI assistant widgets for UI/report pages and reliability fixes.
 - **2026-03-14**: Released **v1.0.4** — improved UI and introduced Basic/Advanced/Full service tiers.
 - **2026-03-12**: Released **v1.0** — first public release.

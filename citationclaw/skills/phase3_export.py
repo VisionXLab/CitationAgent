@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import asyncio
 from pathlib import Path
 
 from citationclaw.skills.base import SkillContext, SkillResult
@@ -16,8 +15,7 @@ class ExportSkill:
         json_output = Path(kwargs["json_output"])
 
         exporter = ResultExporter(log_callback=ctx.log)
-        await asyncio.to_thread(
-            exporter.export,
+        exporter.export(
             input_file=input_file,
             excel_output=excel_output,
             json_output=json_output,

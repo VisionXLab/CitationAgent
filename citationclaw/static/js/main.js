@@ -343,63 +343,119 @@ async function checkExistingFiles() {
 }
 
 async function loadResults() {
-    const loading = document.getElementById('loading-indicator');
-    const empty = document.getElementById('empty-state');
-    const tableContainer = document.getElementById('results-table-container');
-    const table = document.getElementById('results-table');
+    await resultsShowFolders();
+}
 
-    if (!loading || !table) return;
+function _resultsSetLoading(show) {
+    document.getElementById('loading-indicator').style.display = show ? 'block' : 'none';
+}
+function _resultsShowView(view) {
+    // view: 'empty' | 'folders' | 'files'
+    document.getElementById('empty-state').style.display = view === 'empty' ? 'block' : 'none';
+    document.getElementById('results-folder-view').style.display = view === 'folders' ? 'block' : 'none';
+    document.getElementById('results-file-view').style.display = view === 'files' ? 'block' : 'none';
+    document.getElementById('results-back-btn').style.display = view === 'files' ? 'inline-flex' : 'none';
+    document.getElementById('results-panel-title').textContent = view === 'files'
+        ? (window._resultCurrentFolderDisplay || '文件夹内容')
+        : '结果文件夹';
+}
 
-    loading.style.display = 'block';
-    empty.style.display = 'none';
-    tableContainer.style.display = 'none';
-
+async function resultsShowFolders() {
+    _resultsSetLoading(true);
+    _resultsShowView('empty');
     try {
-        const response = await fetch('/api/results/list');
-        const files = await response.json();
-
-        loading.style.display = 'none';
-
-        if (files.length === 0) {
-            empty.style.display = 'block';
-        } else {
-            tableContainer.style.display = 'block';
-            table.innerHTML = '';
-
-            files.forEach(file => {
-                const row = document.createElement('tr');
-
-                const typeClass = file.type === '.xlsx' ? 'success' :
-                                file.type === '.json' ? 'info' : 'warning';
-
-                const size = (file.size / 1024).toFixed(2);
-                const date = new Date(file.modified * 1000).toLocaleString('zh-CN');
-
-                row.innerHTML = `
-                    <td>
-                        <i class="bi bi-file-earmark-${file.type === '.xlsx' ? 'excel' : 'code'}"></i>
-                        ${file.name}
-                    </td>
-                    <td><span class="badge bg-${typeClass}">${file.type}</span></td>
-                    <td>${size} KB</td>
-                    <td>${date}</td>
-                    <td>
-                        <a href="/api/results/download/${file.name}"
-                           class="btn btn-sm btn-primary"
-                           download>
-                            <i class="bi bi-download"></i> 下载
-                        </a>
-                    </td>
-                `;
-                table.appendChild(row);
-            });
-
-            document.getElementById('file-count').textContent = files.length;
+        const res = await fetch('/api/results/folders');
+        const folders = await res.json();
+        _resultsSetLoading(false);
+        if (folders.length === 0) {
+            _resultsShowView('empty');
+            return;
         }
-    } catch (error) {
-        console.error('加载结果失败:', error);
-        if (loading) loading.style.display = 'none';
-        if (empty) empty.style.display = 'block';
+        const list = document.getElementById('results-folder-list');
+        list.innerHTML = '';
+        folders.forEach(folder => {
+            const date = new Date(folder.modified * 1000).toLocaleString('zh-CN');
+            const sizeMB = (folder.size / 1024 / 1024).toFixed(2);
+            const item = document.createElement('div');
+            item.className = 'list-group-item d-flex align-items-center gap-3 py-3';
+            item.innerHTML = `
+                <i class="bi bi-folder2 fs-4 text-warning flex-shrink-0"></i>
+                <div class="flex-grow-1 min-width-0" style="cursor:pointer" data-folder="${folder.name}" data-display="${folder.display_name}">
+                    <div class="fw-semibold text-truncate">${folder.display_name}</div>
+                    <small class="text-muted">${folder.file_count} 个文件 &nbsp;·&nbsp; ${sizeMB} MB &nbsp;·&nbsp; ${date}</small>
+                </div>
+                <i class="bi bi-chevron-right text-muted flex-shrink-0" style="cursor:pointer" data-folder="${folder.name}" data-display="${folder.display_name}"></i>
+                <button class="btn btn-sm btn-outline-danger flex-shrink-0 ms-1" data-delete="${folder.name}" title="删除此文件夹">
+                    <i class="bi bi-trash"></i>
+                </button>
+            `;
+            item.querySelector('[data-folder]').addEventListener('click', (e) => {
+                const el = e.currentTarget;
+                resultsOpenFolder(el.dataset.folder, el.dataset.display);
+            });
+            item.querySelector('[data-delete]').addEventListener('click', async (e) => {
+                e.stopPropagation();
+                const name = e.currentTarget.dataset.delete;
+                if (!confirm(`确定要删除文件夹 "${name}" 及其所有文件吗？此操作不可撤销。`)) return;
+                try {
+                    const r = await fetch(`/api/results/folder/${encodeURIComponent(name)}`, { method: 'DELETE' });
+                    if (!r.ok) throw new Error(await r.text());
+                    await resultsShowFolders();
+                } catch (err) {
+                    alert('删除失败：' + err.message);
+                }
+            });
+            list.appendChild(item);
+        });
+        _resultsShowView('folders');
+    } catch (err) {
+        console.error('加载文件夹失败:', err);
+        _resultsSetLoading(false);
+        _resultsShowView('empty');
+    }
+}
+
+async function resultsOpenFolder(folderName, displayName) {
+    window._resultCurrentFolderDisplay = displayName;
+    _resultsSetLoading(true);
+    _resultsShowView('empty');
+    try {
+        const res = await fetch(`/api/results/list?folder=${encodeURIComponent(folderName)}`);
+        const files = await res.json();
+        _resultsSetLoading(false);
+        const table = document.getElementById('results-table');
+        table.innerHTML = '';
+        files.forEach(file => {
+            const typeClass = file.type === '.xlsx' ? 'success' :
+                              file.type === '.json' ? 'info' :
+                              file.type === '.html' ? 'primary' : 'warning';
+            const size = (file.size / 1024).toFixed(2);
+            const date = new Date(file.modified * 1000).toLocaleString('zh-CN');
+            const icon = file.type === '.xlsx' ? 'excel' :
+                         file.type === '.html' ? 'richtext' : 'code';
+            const actionBtn = file.type === '.html'
+                ? `<a href="/api/results/view/${file.path}" target="_blank" class="btn btn-sm btn-primary">
+                       <i class="bi bi-eye"></i> 查看报告
+                   </a>`
+                : `<a href="/api/results/download/${file.path}" class="btn btn-sm btn-outline-primary" download>
+                       <i class="bi bi-download"></i> 下载
+                   </a>`;
+            const row = document.createElement('tr');
+            row.innerHTML = `
+                <td><i class="bi bi-file-earmark-${icon}"></i> ${file.name}</td>
+                <td><span class="badge bg-${typeClass}">${file.type}</span></td>
+                <td>${size} KB</td>
+                <td>${date}</td>
+                <td>${actionBtn}</td>
+            `;
+            table.appendChild(row);
+        });
+        document.getElementById('file-count').textContent = files.length;
+        _resultsShowView('files');
+    } catch (err) {
+        console.error('加载文件夹内容失败:', err);
+        _resultsSetLoading(false);
+        _resultsShowView('empty');
     }
 }
 

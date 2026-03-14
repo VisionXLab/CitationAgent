@@ -719,7 +719,7 @@ body { font-family: 'Noto Sans SC', -apple-system, BlinkMacSystemFont, 'Segoe UI
   color: rgba(180,210,255,0.75); margin-bottom: 14px; }
 .header h1 { font-size: 36px; font-weight: 700; color: #fff; line-height: 1.15; margin-bottom: 14px; }
 .header h1 em { font-style: normal; color: #7db8f5; }
-.header-subtitle { font-size: 13.5px; color: rgba(200,220,255,0.70); max-width: 580px; line-height: 1.75; }
+.header-subtitle { font-size: 13.5px; color: rgba(200,220,255,0.70); white-space: nowrap; line-height: 1.75; }
 .header-divider { position: absolute; bottom: 0; left: 0; right: 0; height: 3px;
   background: linear-gradient(90deg, transparent, rgba(120,180,255,0.6) 30%, rgba(80,200,160,0.5) 70%, transparent); }
 .header-targets { display: flex; flex-direction: column; gap: 6px; margin: 14px 0 16px; }
@@ -1994,13 +1994,10 @@ a.author-pill:hover { background: var(--teal-light); border-color: var(--teal); 
 
 <!-- ═══ HEADER ═══ -->
 <div class="header">
-  <div class="header-eyebrow">Citation Intelligence · {now.year}</div>
+  <div class="header-eyebrow">CitationClaw</div>
   <h1>引用论文<em>多维画像</em>分析报告</h1>
   {header_targets_html}
-  <p class="header-subtitle">
-    基于 {total_papers} 篇引用论文与 {stats['unique_scholars']} 位知名学者（含 {stats['fellow_count']} 位院士/Fellow）数据，
-    结合大模型对引用描述的深度解读，全面呈现学术影响力格局
-  </p>
+  <p class="header-subtitle">基于 {total_papers} 篇引用论文与 {stats['unique_scholars']} 位知名学者（含 {stats['fellow_count']} 位院士/Fellow）数据，结合大模型对引用描述的深度解读，全面呈现学术影响力格局</p>
   <div class="header-divider"></div>
 </div>
 
@@ -2434,7 +2431,7 @@ new Chart(document.getElementById('cTrend'), {{
 #cc-send:disabled{{opacity:0.4;cursor:default}}
 </style>
 
-<button id="cc-fab" title="CitationClaw 智能助手"><img src="/static/citationclaw_icon.png" style="width:56px;height:56px;border-radius:50%;object-fit:cover;pointer-events:none"></button>
+<button id="cc-fab" title="CitationClaw 智能助手"><img src="/docs-assets/head_logo.png" style="width:56px;height:56px;border-radius:50%;object-fit:cover;pointer-events:none"></button>
 <div id="cc-win" style="display:none">
   <div id="cc-header">
     <div>
@@ -2467,7 +2464,7 @@ new Chart(document.getElementById('cTrend'), {{
     var win = document.getElementById('cc-win');
     var fab = document.getElementById('cc-fab');
     win.style.display = isOpen ? 'flex' : 'none';
-    fab.innerHTML = isOpen ? '✕' : '<img src="/static/citationclaw_icon.png" style="width:56px;height:56px;border-radius:50%;object-fit:cover;pointer-events:none">';
+    fab.innerHTML = isOpen ? '✕' : '<img src="/docs-assets/head_logo.png" style="width:56px;height:56px;border-radius:50%;object-fit:cover;pointer-events:none">';
     fab.style.fontSize = isOpen ? '20px' : '';
     if (isOpen) {{
       var offline = window.location.protocol === 'file:';

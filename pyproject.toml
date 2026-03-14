@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "citationclaw"
-version = "1.0.5"
+version = "1.0.6"
 description = "论文被引画像分析工具 — 自动爬取施引文献、识别著名学者、生成可视化 HTML 报告"
 readme = "README.md"
 license = "CC-BY-NC-4.0"

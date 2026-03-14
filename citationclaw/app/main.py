@@ -1,4 +1,5 @@
 import asyncio
+import shutil
 from pathlib import Path
 from typing import List
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Request, HTTPException, UploadFile, File
@@ -13,7 +14,7 @@ from citationclaw.app.log_manager import LogManager
 
 
 # FastAPI应用
-app = FastAPI(title="论文被引画像智能体", version="1.0.0")
+app = FastAPI(title="CitationClaw", version="1.0.0")
 
 # 静态文件和模板（使用包内路径，兼容 pip install 和本地开发）
 _PKG_DIR = Path(__file__).parent.parent
@@ -616,26 +617,74 @@ async def get_task_status():
     return task_executor.get_status()
 
 
-@app.get("/api/results/list")
-async def list_results():
-    """列出所有结果文件"""
-    results = []
+@app.get("/api/results/folders")
+async def list_result_folders():
+    """列出所有结果文件夹"""
+    folders = []
+    data_dir = Path("data")
+    if data_dir.exists():
+        for sub in data_dir.iterdir():
+            if not (sub.is_dir() and sub.name.startswith("result-")):
+                continue
+            files = [f for f in sub.iterdir() if f.is_file()]
+            folders.append({
+                "name": sub.name,
+                "display_name": sub.name,
+                "file_count": len(files),
+                "modified": max((f.stat().st_mtime for f in files), default=sub.stat().st_mtime),
+                "size": sum(f.stat().st_size for f in files),
+            })
 
+    # 旧版扁平目录
+    legacy_files = []
     for dir_path in [Path("data/excel"), Path("data/json"), Path("data/jsonl")]:
         if dir_path.exists():
-            for file in dir_path.iterdir():
-                if file.is_file():
-                    results.append({
-                        "name": file.name,
-                        "size": file.stat().st_size,
-                        "type": file.suffix,
-                        "path": str(file),
-                        "modified": file.stat().st_mtime
-                    })
+            legacy_files.extend([f for f in dir_path.iterdir() if f.is_file()])
+    if legacy_files:
+        folders.append({
+            "name": "__legacy__",
+            "display_name": "旧版结果文件",
+            "file_count": len(legacy_files),
+            "modified": max(f.stat().st_mtime for f in legacy_files),
+            "size": sum(f.stat().st_size for f in legacy_files),
+        })
 
-    # 按修改时间倒序排列
+    folders.sort(key=lambda x: x["modified"], reverse=True)
+    return folders
+
+
+@app.get("/api/results/list")
+async def list_results(folder: str = None):
+    """列出结果文件；传 folder 参数时只返回该文件夹内的文件"""
+    results = []
+
+    def add_file(file: Path):
+        results.append({
+            "name": file.name,
+            "size": file.stat().st_size,
+            "type": file.suffix,
+            "path": str(file),
+            "modified": file.stat().st_mtime
+        })
+
+    if folder == "__legacy__" or (folder is None):
+        for dir_path in [Path("data/excel"), Path("data/json"), Path("data/jsonl")]:
+            if dir_path.exists():
+                for file in dir_path.iterdir():
+                    if file.is_file():
+                        add_file(file)
+
+    if folder != "__legacy__":
+        data_dir = Path("data")
+        if data_dir.exists():
+            for sub in data_dir.iterdir():
+                if sub.is_dir() and sub.name.startswith("result-"):
+                    if folder is None or sub.name == folder:
+                        for file in sub.iterdir():
+                            if file.is_file():
+                                add_file(file)
+
     results.sort(key=lambda x: x["modified"], reverse=True)
-
     return results
 
 
@@ -675,6 +724,22 @@ async def download_result(filepath: str):
     raise HTTPException(status_code=404, detail="文件不存在")
 
 
+@app.delete("/api/results/folder/{folder_name}")
+async def delete_result_folder(folder_name: str):
+    """删除 data/result-{timestamp} 文件夹"""
+    if not folder_name.startswith("result-"):
+        raise HTTPException(status_code=400, detail="只允许删除 result- 开头的文件夹")
+    folder_path = Path("data") / folder_name
+    try:
+        folder_path.resolve().relative_to(Path("data").resolve())
+    except ValueError:
+        raise HTTPException(status_code=403, detail="不允许访问该路径")
+    if not folder_path.exists() or not folder_path.is_dir():
+        raise HTTPException(status_code=404, detail="文件夹不存在")
+    shutil.rmtree(folder_path)
+    return {"success": True}
+
+
 # ==================== WebSocket ====================
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
@@ -710,7 +775,7 @@ async def websocket_endpoint(websocket: WebSocket):
 async def startup_event():
     """应用启动时"""
     print("=" * 50)
-    print("论文被引画像智能体启动中...")
+    print("CitationClaw has been activated.")
     print("=" * 50)
 
 

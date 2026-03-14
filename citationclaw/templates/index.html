@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}论文被引画像🦞{% endblock %}
+{% block title %}CitationClaw{% endblock %}
 
 {% block content %}
 
@@ -716,9 +716,13 @@
 <div class="row">
     <div class="col-md-11 mx-auto">
         <div class="card shadow-lg">
-            <div class="card-header bg-primary text-white">
-                <h5 class="mb-0">
-                    <i class="bi bi-file-earmark-spreadsheet"></i> 结果文件列表
+            <div class="card-header bg-primary text-white d-flex align-items-center justify-content-between">
+                <h5 class="mb-0 d-flex align-items-center gap-2">
+                    <button id="results-back-btn" class="btn btn-sm btn-light me-1" style="display:none" onclick="resultsShowFolders()">
+                        <i class="bi bi-arrow-left"></i> 返回
+                    </button>
+                    <i class="bi bi-folder2-open"></i>
+                    <span id="results-panel-title">结果文件夹</span>
                 </h5>
             </div>
             <div class="card-body">
@@ -727,7 +731,7 @@
                     <div class="spinner-border text-primary" role="status">
                         <span class="visually-hidden">加载中...</span>
                     </div>
-                    <p class="mt-2 text-muted">正在加载结果文件...</p>
+                    <p class="mt-2 text-muted">正在加载...</p>
                 </div>
 
                 <!-- 空状态 -->
@@ -740,8 +744,13 @@
                     </a>
                 </div>
 
-                <!-- 文件表格 -->
-                <div id="results-table-container" style="display:none;">
+                <!-- 文件夹列表 -->
+                <div id="results-folder-view" style="display:none;">
+                    <div id="results-folder-list" class="list-group list-group-flush"></div>
+                </div>
+
+                <!-- 文件列表 -->
+                <div id="results-file-view" style="display:none;">
                     <div class="table-responsive">
                         <table class="table table-hover table-striped">
                             <thead class="table-light">
@@ -753,22 +762,18 @@
                                     <th><i class="bi bi-download"></i> 操作</th>
                                 </tr>
                             </thead>
-                            <tbody id="results-table">
-                                <!-- 动态插入 -->
-                            </tbody>
+                            <tbody id="results-table"></tbody>
                         </table>
                     </div>
-
-                    <!-- 统计信息 -->
                     <div class="alert alert-info mt-3">
                         <i class="bi bi-info-circle"></i>
-                        共找到 <strong id="file-count">0</strong> 个文件
+                        共 <strong id="file-count">0</strong> 个文件
                     </div>
                 </div>
             </div>
             <div class="card-footer">
                 <button id="refresh-btn" class="btn btn-outline-primary">
-                    <i class="bi bi-arrow-clockwise"></i> 刷新列表
+                    <i class="bi bi-arrow-clockwise"></i> 刷新
                 </button>
                 <a href="#" data-spa-panel="home" class="btn btn-outline-secondary">
                     <i class="bi bi-plus-circle"></i> 新建任务
@@ -996,59 +1001,60 @@ function escHtml(s) {
   transition:transform .2s,box-shadow .2s;color:#333}
 #cc-ui-fab:hover{transform:scale(1.1);box-shadow:0 6px 28px rgba(0,0,0,0.28)}
 #cc-ui-win{position:fixed;right:24px;bottom:88px;width:380px;height:500px;
-  background:#fff;border:1px solid #e2e8f0;border-radius:16px;
+  background:#0d1421;border:1px solid rgba(66,153,225,0.35);border-radius:16px;
   display:flex;flex-direction:column;z-index:9999;
-  box-shadow:0 12px 48px rgba(0,0,0,0.15);overflow:hidden;
+  box-shadow:0 12px 48px rgba(0,0,0,0.7);overflow:hidden;
   animation:ccuiSlide .22s ease}
 @keyframes ccuiSlide{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:none}}
 #cc-ui-header{display:flex;align-items:center;justify-content:space-between;
-  padding:13px 16px;background:linear-gradient(135deg,#2563eb,#1e40af);flex-shrink:0}
-#cc-ui-header-title{color:#fff;font-size:14px;font-weight:600;display:flex;align-items:center;gap:7px}
-#cc-ui-header-sub{color:rgba(255,255,255,0.65);font-size:10px;margin-top:1px}
-#cc-ui-close{background:none;border:none;color:rgba(255,255,255,0.7);
+  padding:13px 16px;background:rgba(37,99,235,0.15);
+  border-bottom:1px solid rgba(66,153,225,0.2);flex-shrink:0}
+#cc-ui-header-title{color:#bee3f8;font-size:14px;font-weight:600;display:flex;align-items:center;gap:7px}
+#cc-ui-header-sub{color:rgba(180,210,255,0.5);font-size:10px;margin-top:1px}
+#cc-ui-close{background:none;border:none;color:rgba(180,210,255,0.5);
   cursor:pointer;font-size:18px;padding:0 2px;line-height:1}
 #cc-ui-close:hover{color:#fff}
 #cc-ui-msgs{flex:1;overflow-y:auto;padding:14px 14px 6px;display:flex;
   flex-direction:column;gap:9px;scroll-behavior:smooth}
 #cc-ui-msgs::-webkit-scrollbar{width:4px}
-#cc-ui-msgs::-webkit-scrollbar-thumb{background:#e2e8f0;border-radius:2px}
+#cc-ui-msgs::-webkit-scrollbar-thumb{background:rgba(66,153,225,0.3);border-radius:2px}
 .cc-ui-bubble{max-width:88%;padding:9px 13px;border-radius:12px;
   font-size:12.5px;line-height:1.6;word-break:break-word;white-space:pre-wrap}
-.cc-ui-bubble.user{align-self:flex-end;background:#2563eb;color:#fff;border-bottom-right-radius:3px}
-.cc-ui-bubble.ai{align-self:flex-start;background:#f7fafc;color:#2d3748;
-  border:1px solid #e2e8f0;border-bottom-left-radius:3px}
+.cc-ui-bubble.user{align-self:flex-end;background:rgba(37,99,235,0.35);color:#e2e8f0;border-bottom-right-radius:3px}
+.cc-ui-bubble.ai{align-self:flex-start;background:rgba(255,255,255,0.05);
+  color:#cbd5e0;border:1px solid rgba(66,153,225,0.12);border-bottom-left-radius:3px}
 .cc-ui-bubble.ai.typing::after{content:'▌';animation:ccuiBlink .7s step-end infinite}
 @keyframes ccuiBlink{0%,100%{opacity:1}50%{opacity:0}}
 .cc-ui-bubble.ai.md-rendered{white-space:normal}
 .cc-ui-bubble.ai p{margin:0 0 5px}.cc-ui-bubble.ai p:last-child{margin-bottom:0}
 .cc-ui-bubble.ai ul,.cc-ui-bubble.ai ol{padding-left:16px;margin:4px 0}
 .cc-ui-bubble.ai li{margin:2px 0}
-.cc-ui-bubble.ai strong{color:#1a202c;font-weight:600}
-.cc-ui-bubble.ai a{color:#2563eb;text-decoration:underline}
-.cc-ui-bubble.ai code{background:#edf2f7;padding:1px 5px;border-radius:3px;font-size:11px;font-family:monospace}
-.cc-ui-bubble.ai pre{background:#f7fafc;border:1px solid #e2e8f0;padding:8px 10px;border-radius:6px;overflow-x:auto;margin:6px 0}
+.cc-ui-bubble.ai strong{color:#e2e8f0;font-weight:600}
+.cc-ui-bubble.ai a{color:#63b3ed;text-decoration:underline}
+.cc-ui-bubble.ai code{background:rgba(0,0,0,0.25);padding:1px 5px;border-radius:3px;font-size:11px;font-family:monospace}
+.cc-ui-bubble.ai pre{background:rgba(0,0,0,0.3);border:1px solid rgba(66,153,225,0.2);padding:8px 10px;border-radius:6px;overflow-x:auto;margin:6px 0}
 .cc-ui-bubble.ai pre code{background:none;padding:0}
-.cc-ui-bubble.ai h1,.cc-ui-bubble.ai h2,.cc-ui-bubble.ai h3{font-size:13px;font-weight:700;margin:8px 0 4px;color:#2d3748}
+.cc-ui-bubble.ai h1,.cc-ui-bubble.ai h2,.cc-ui-bubble.ai h3{font-size:13px;font-weight:700;margin:8px 0 4px;color:#bee3f8}
 #cc-ui-chips{display:flex;flex-wrap:wrap;gap:5px;padding:6px 12px;flex-shrink:0;
-  border-top:1px solid #f0f4f8}
-.cc-ui-chip{font-size:11px;padding:4px 10px;border:1px solid #bee3f8;
-  border-radius:20px;background:#ebf8ff;color:#2b6cb0;cursor:pointer;transition:background .15s}
-.cc-ui-chip:hover{background:#bee3f8}
+  border-top:1px solid rgba(66,153,225,0.15)}
+.cc-ui-chip{font-size:11px;padding:4px 10px;border:1px solid rgba(66,153,225,0.3);
+  border-radius:20px;background:rgba(37,99,235,0.15);color:#93c5fd;cursor:pointer;transition:background .15s}
+.cc-ui-chip:hover{background:rgba(37,99,235,0.3)}
 #cc-ui-input-row{display:flex;gap:8px;padding:10px 12px;
-  border-top:1px solid #e2e8f0;flex-shrink:0;background:#fff}
-#cc-ui-input{flex:1;border:1px solid #e2e8f0;border-radius:8px;
-  padding:8px 12px;color:#2d3748;font-size:12.5px;resize:none;
+  border-top:1px solid rgba(66,153,225,0.15);flex-shrink:0}
+#cc-ui-input{flex:1;background:rgba(255,255,255,0.06);border:1px solid rgba(66,153,225,0.25);
+  border-radius:8px;padding:8px 12px;color:#e2e8f0;font-size:12.5px;resize:none;
   outline:none;transition:border-color .2s;font-family:inherit}
-#cc-ui-input:focus{border-color:#4299e1}
-#cc-ui-input::placeholder{color:#a0aec0}
-#cc-ui-send{background:#2563eb;border:none;border-radius:8px;
+#cc-ui-input:focus{border-color:rgba(66,153,225,0.6)}
+#cc-ui-input::placeholder{color:rgba(180,210,255,0.3)}
+#cc-ui-send{background:linear-gradient(135deg,#2563eb,#1e40af);border:none;border-radius:8px;
   padding:8px 14px;color:#fff;font-size:12px;cursor:pointer;
   flex-shrink:0;transition:opacity .2s;font-family:inherit}
 #cc-ui-send:hover{opacity:0.85}
 #cc-ui-send:disabled{opacity:0.4;cursor:default}
 </style>
 
-<button id="cc-ui-fab" onclick="ccuiToggle()" title="CitationClaw 使用助手"><img src="/static/citationclaw_icon.png" style="width:56px;height:56px;border-radius:50%;object-fit:cover;pointer-events:none"></button>
+<button id="cc-ui-fab" onclick="ccuiToggle()" title="CitationClaw 使用助手"><img src="/docs-assets/head_logo.png" style="width:56px;height:56px;border-radius:50%;object-fit:cover;pointer-events:none"></button>
 <div id="cc-ui-win" style="display:none">
   <div id="cc-ui-header">
     <div>
@@ -1086,7 +1092,7 @@ function escHtml(s) {
     var win = document.getElementById('cc-ui-win');
     var fab = document.getElementById('cc-ui-fab');
     win.style.display = isOpen ? 'flex' : 'none';
-    fab.innerHTML = isOpen ? '✕' : '<img src="/static/citationclaw_icon.png" style="width:56px;height:56px;border-radius:50%;object-fit:cover;pointer-events:none">';
+    fab.innerHTML = isOpen ? '✕' : '<img src="/docs-assets/head_logo.png" style="width:56px;height:56px;border-radius:50%;object-fit:cover;pointer-events:none">';
     fab.style.fontSize = isOpen ? '18px' : '';
     if (isOpen) { var inp = document.getElementById('cc-ui-input'); if(inp) inp.focus(); }
   };

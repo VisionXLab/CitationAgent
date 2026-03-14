@@ -364,7 +364,7 @@
     ───────────────────────────────────────── */
     .pipeline-row {
       display: grid;
-      grid-template-columns: repeat(4, 1fr);
+      grid-template-columns: repeat(5, 1fr);
       gap: 0;
       position: relative;
     }
@@ -381,6 +381,7 @@
     }
     @media (max-width: 640px) {
       .pipeline-step:nth-child(2)::after { display: none; }
+      .pipeline-step:nth-child(4)::after { display: none; }
       .pipeline-step:last-child::after { display: none; }
     }
     .step-num {
@@ -523,7 +524,7 @@
 <div class="hero">
   <div class="hero-tag">
     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
-    Citation Intelligence
+    Citation Intelligence · beta v1.0.6
   </div>
   <h1>CitationClaw<br>论文被引画像分析🦞</h1>
   <p class="hero-subtitle">Paper Citation Portrait Analysis Agent</p>
@@ -680,7 +681,7 @@
     <div class="abstract-box">
       CitationClaw 是一款面向科研人员的论文被引画像分析🦞。只需输入论文题目（或从 Google Scholar 学者主页批量导入），系统将自动完成：<strong>爬取所有施引文献</strong>、<strong>识别著名学者背景</strong>（院士、Fellow、杰青、长江学者等）、<strong>精准检索引用原句</strong>，最终生成一份包含关键词云、引用趋势预测、国家/机构分布、学者画像等多维可视化内容的精美 HTML 报告——无需服务器，单文件即可分享。
       <br><br>
-      CitationClaw is a paper citation portrait analysis agent for researchers. Given a paper title or Google Scholar profile URL, it automatically crawls all citing papers, identifies renowned scholars (academicians, IEEE/ACM Fellows, etc.), retrieves citation sentences, and produces a fully self-contained, shareable HTML portrait report.
+      CitationClaw is a paper citation portrait analysis agent for researchers. Given a paper title or Google Scholar profile URL, it automatically crawls all citing papers, identifies renowned scholars (academicians, IEEE/ACM Fellows, etc.), retrieves citation sentences, and produces a fully self-contained, shareable HTML portrait report. In v1.0.6, CitationClaw introduces a Skills Runtime that modularizes its five-phase pipeline into independently deployable skill modules.
     </div>
   </div>
 </section>
@@ -726,12 +727,19 @@
         <div class="feature-title">LLM 综合 Insight</div>
         <div class="feature-desc">自动生成四维结构化总结——引用规模与分布、主要用途、代表性原文摘录、综合说明，支持任意 OpenAI 兼容 API。</div>
       </div>
+      <div class="feature-card">
+        <span class="feature-icon">🧩</span>
+        <div class="feature-title">Skills 模块化运行时</div>
+        <div class="feature-desc">v1.0.6 引入 Skills Runtime，将五个分析阶段封装为独立 Skill 模块（CitationFetch、AuthorIntel、Export、CitationDesc、ReportGenerate），统一由 SkillsRuntime 调度，每个 Skill 共享配置上下文，支持独立扩展与替换。</div>
+      </div>
+      <div class="feature-card">
+        <span class="feature-icon">💬</span>
+        <div class="feature-title">双端 AI 智能助手</div>
+        <div class="feature-desc">主界面内置使用助手（操作引导），分析报告内置智能问答助手（基于报告数据）；报告助手支持联网搜索智能路由：自动判断是否需要实时信息，按需切换联网搜索模式。</div>
+      </div>
     </div>
   </div>
 </section>
-
-<!-- ─────────────────────────────────────────
-     PIPELINE
 ───────────────────────────────────────── -->
 <section id="pipeline" style="border-top:1px solid var(--border)">
   <div class="container">
@@ -757,6 +765,11 @@
       </div>
       <div class="pipeline-step">
         <div class="step-num">4</div>
+        <div class="step-title">等待分析</div>
+        <div class="step-desc">系统自动依次执行五个分析阶段，Skills Runtime 调度各模块完成全流程。</div>
+      </div>
+      <div class="pipeline-step">
+        <div class="step-num">5</div>
         <div class="step-title">获取报告</div>
         <div class="step-desc">下载 paper_dashboard.html，浏览器直接打开，单文件即可分享。</div>
       </div>
@@ -896,7 +909,7 @@
     <a href="https://www.reduct.cn/" target="_blank">减论</a> &nbsp;·&nbsp;
     上海交通大学 VisionXLab@RethinkLab
   </p>
-  <p>Qihao Yang · Ziqian Fan · Ziyang Gong · Xue Yang &nbsp;·&nbsp; v1.0 &nbsp;·&nbsp; 2026</p>
+  <p>Qihao Yang · Ziqian Fan · Ziyang Gong · Xue Yang &nbsp;·&nbsp; beta v1.0.6 &nbsp;·&nbsp; 2026</p>
 </footer>
 
 <script>

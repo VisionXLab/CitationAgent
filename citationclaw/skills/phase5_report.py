@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import asyncio
 from pathlib import Path
 
 from citationclaw.skills.base import SkillContext, SkillResult
@@ -27,8 +26,7 @@ class ReportGenerateSkill:
             log_callback=ctx.log,
             test_mode=config.test_mode,
         )
-        await asyncio.to_thread(
-            gen.generate,
+        gen.generate(
             citing_desc_excel=citing_desc_excel,
             renowned_all_xlsx=renowned_all_xlsx,
             renowned_top_xlsx=renowned_top_xlsx,
