@@ -18,7 +18,6 @@ Turn Every Citation into Explainable Impact
 [![Visitors](https://visitor-badge.laobi.icu/badge?page_id=VisionXLab.CitationClaw)](https://github.com/VisionXLab/CitationClaw)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg?style=flat-square)](https://github.com/VisionXLab/CitationClaw/pulls)
 [![Issues](https://img.shields.io/github/issues/VisionXLab/CitationClaw)](https://github.com/VisionXLab/CitationClaw/issues)
-![Python](https://img.shields.io/badge/Python-3.10%2B-3776AB?logo=python&logoColor=white)
 ![Platform](https://img.shields.io/badge/Platform-macOS%20%7C%20Linux%20%7C%20Windows-lightgrey)
 ![LLM](https://img.shields.io/badge/LLM-OpenAI%20Compatible-412991?logo=openai&logoColor=white)
 ![ScraperAPI](https://img.shields.io/badge/Crawler-ScraperAPI-FF6B35)
