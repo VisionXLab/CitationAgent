@@ -2406,6 +2406,16 @@ new Chart(document.getElementById('cTrend'), {{
   color:#cbd5e0;border-bottom-left-radius:3px;border:1px solid rgba(66,153,225,0.12)}}
 .cc-bubble.ai.typing::after{{content:'▌';animation:ccBlink .7s step-end infinite}}
 @keyframes ccBlink{{0%,100%{{opacity:1}}50%{{opacity:0}}}}
+.cc-bubble.ai.md-rendered{{white-space:normal}}
+.cc-bubble.ai p{{margin:0 0 5px}}.cc-bubble.ai p:last-child{{margin-bottom:0}}
+.cc-bubble.ai ul,.cc-bubble.ai ol{{padding-left:16px;margin:4px 0}}
+.cc-bubble.ai li{{margin:2px 0}}
+.cc-bubble.ai strong{{color:#e2e8f0;font-weight:600}}
+.cc-bubble.ai a{{color:#63b3ed;text-decoration:underline}}
+.cc-bubble.ai code{{background:rgba(0,0,0,0.25);padding:1px 5px;border-radius:3px;font-size:11px;font-family:monospace}}
+.cc-bubble.ai pre{{background:rgba(0,0,0,0.3);border:1px solid rgba(66,153,225,0.2);padding:8px 10px;border-radius:6px;overflow-x:auto;margin:6px 0}}
+.cc-bubble.ai pre code{{background:none;padding:0}}
+.cc-bubble.ai h1,.cc-bubble.ai h2,.cc-bubble.ai h3{{font-size:13px;font-weight:700;margin:8px 0 4px;color:#bee3f8}}
 #cc-offline{{text-align:center;padding:16px 12px;font-size:11.5px;color:rgba(180,210,255,0.5);
   background:rgba(255,200,0,0.06);border-top:1px solid rgba(255,200,0,0.15);
   margin:8px 14px;border-radius:8px;display:none}}
@@ -2489,6 +2499,11 @@ new Chart(document.getElementById('cTrend'), {{
   }}
 
   /* ── Send ── */
+  function renderMd(el, text) {{
+    el.classList.add('md-rendered');
+    el.innerHTML = (typeof marked !== 'undefined') ? marked.parse(text) : text;
+  }}
+
   window.ccSend = function() {{
     if (isStreaming) return;
     if (window.location.protocol === 'file:') return;
@@ -2543,6 +2558,7 @@ new Chart(document.getElementById('cTrend'), {{
           if (result.done) {{
             aiBubble.classList.remove('typing');
             removeSearchIndicator();
+            renderMd(aiBubble, fullText);
             if (fullText) history.push({{ role: 'assistant', content: fullText }});
             isStreaming = false;
             if (sendBtn) sendBtn.disabled = false;

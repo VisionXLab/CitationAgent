@@ -1015,6 +1015,16 @@ function escHtml(s) {
   border:1px solid #e2e8f0;border-bottom-left-radius:3px}
 .cc-ui-bubble.ai.typing::after{content:'▌';animation:ccuiBlink .7s step-end infinite}
 @keyframes ccuiBlink{0%,100%{opacity:1}50%{opacity:0}}
+.cc-ui-bubble.ai.md-rendered{white-space:normal}
+.cc-ui-bubble.ai p{margin:0 0 5px}.cc-ui-bubble.ai p:last-child{margin-bottom:0}
+.cc-ui-bubble.ai ul,.cc-ui-bubble.ai ol{padding-left:16px;margin:4px 0}
+.cc-ui-bubble.ai li{margin:2px 0}
+.cc-ui-bubble.ai strong{color:#1a202c;font-weight:600}
+.cc-ui-bubble.ai a{color:#2563eb;text-decoration:underline}
+.cc-ui-bubble.ai code{background:#edf2f7;padding:1px 5px;border-radius:3px;font-size:11px;font-family:monospace}
+.cc-ui-bubble.ai pre{background:#f7fafc;border:1px solid #e2e8f0;padding:8px 10px;border-radius:6px;overflow-x:auto;margin:6px 0}
+.cc-ui-bubble.ai pre code{background:none;padding:0}
+.cc-ui-bubble.ai h1,.cc-ui-bubble.ai h2,.cc-ui-bubble.ai h3{font-size:13px;font-weight:700;margin:8px 0 4px;color:#2d3748}
 #cc-ui-chips{display:flex;flex-wrap:wrap;gap:5px;padding:6px 12px;flex-shrink:0;
   border-top:1px solid #f0f4f8}
 .cc-ui-chip{font-size:11px;padding:4px 10px;border:1px solid #bee3f8;
@@ -1058,9 +1068,14 @@ function escHtml(s) {
   </div>
 </div>
 
+<script src="https://cdn.jsdelivr.net/npm/marked@9/marked.min.js"></script>
 <script>
 (function(){
   var isOpen = false, isStreaming = false, history = [];
+  function renderMd(el, text){
+    el.classList.add('md-rendered');
+    el.innerHTML = (typeof marked !== 'undefined') ? marked.parse(text) : text;
+  }
 
   window.ccuiToggle = function(){
     isOpen = !isOpen;
@@ -1122,6 +1137,7 @@ function escHtml(s) {
         reader.read().then(function(r){
           if (r.done){
             aiBubble.classList.remove('typing');
+            renderMd(aiBubble, fullText);
             if (fullText) history.push({role:'assistant', content:fullText});
             isStreaming = false; if(sendBtn) sendBtn.disabled = false; return;
           }
