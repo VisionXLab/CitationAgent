@@ -1,0 +1,610 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CitationClaw Guidelines</title>
+  <meta name="description" content="CitationClaw 项目指南：安装、快速开始、配置、API 支持、版本历史与运维建议。">
+  <style>
+    :root {
+      --bg: #f6f8fc;
+      --panel: #ffffff;
+      --text: #17233a;
+      --muted: #5f6b82;
+      --line: #e6ebf4;
+      --primary: #2f66f3;
+      --primary-soft: #edf3ff;
+      --code-bg: #0f172a;
+      --code-text: #dbeafe;
+      --max-width: 1320px;
+      --sidebar-w: 310px;
+    }
+
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "PingFang SC", "Microsoft YaHei", sans-serif;
+      color: var(--text);
+      background: var(--bg);
+      line-height: 1.65;
+    }
+
+    .layout {
+      max-width: var(--max-width);
+      margin: 0 auto;
+      display: grid;
+      grid-template-columns: var(--sidebar-w) minmax(0, 1fr);
+      gap: 20px;
+      padding: 20px;
+    }
+
+    .sidebar {
+      position: sticky;
+      top: 14px;
+      align-self: start;
+      max-height: calc(100vh - 28px);
+      overflow: auto;
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 16px 14px;
+    }
+
+    .brand {
+      padding: 6px 8px 12px;
+      border-bottom: 1px solid var(--line);
+      margin-bottom: 10px;
+    }
+    .brand h1 {
+      margin: 0;
+      font-size: 16px;
+      line-height: 1.35;
+    }
+    .brand p {
+      margin: 6px 0 0;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .toc { list-style: none; padding: 0; margin: 0; }
+    .toc li { margin: 2px 0; }
+    .toc a {
+      display: block;
+      text-decoration: none;
+      color: #334155;
+      border-radius: 8px;
+      padding: 7px 9px;
+      font-size: 13px;
+    }
+    .toc a:hover {
+      background: var(--primary-soft);
+      color: var(--primary);
+    }
+    .toc .sub {
+      list-style: none;
+      margin: 3px 0 5px 8px;
+      padding-left: 8px;
+      border-left: 1px dashed #d2dcf0;
+    }
+    .toc .sub a {
+      font-size: 12px;
+      padding: 6px 8px;
+      color: #4b5568;
+    }
+
+    .content {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 28px 30px;
+    }
+
+    .hero {
+      background: linear-gradient(135deg, #eef4ff 0%, #f8f4ff 100%);
+      border: 1px solid #dfe9ff;
+      border-radius: 14px;
+      padding: 18px 20px;
+      margin-bottom: 26px;
+    }
+    .hero h2 {
+      margin: 0 0 8px;
+      font-size: 24px;
+      line-height: 1.35;
+    }
+    .hero p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    h2 {
+      margin-top: 30px;
+      margin-bottom: 10px;
+      font-size: 22px;
+      border-bottom: 1px solid var(--line);
+      padding-bottom: 8px;
+    }
+    h3 {
+      margin-top: 22px;
+      margin-bottom: 8px;
+      font-size: 17px;
+    }
+    h4 {
+      margin-top: 16px;
+      margin-bottom: 6px;
+      font-size: 15px;
+    }
+    p { margin: 8px 0; }
+    ul, ol { margin: 8px 0 8px 20px; }
+    li { margin: 4px 0; }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 12px 0 14px;
+      font-size: 13px;
+    }
+    th, td {
+      border: 1px solid var(--line);
+      padding: 8px 10px;
+      vertical-align: top;
+      text-align: left;
+    }
+    th { background: #f8fbff; }
+
+    .tag {
+      display: inline-block;
+      padding: 1px 8px;
+      border-radius: 99px;
+      background: var(--primary-soft);
+      border: 1px solid #dbe7ff;
+      color: var(--primary);
+      font-size: 12px;
+      margin-right: 4px;
+    }
+
+    pre {
+      margin: 10px 0;
+      background: var(--code-bg);
+      color: var(--code-text);
+      border-radius: 10px;
+      padding: 14px 16px;
+      overflow-x: auto;
+      font-size: 12px;
+      line-height: 1.65;
+    }
+    code {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+    }
+    .inline {
+      background: #edf2ff;
+      padding: 1px 5px;
+      border-radius: 5px;
+      font-size: 12.5px;
+    }
+
+    .note, .warn {
+      border-radius: 10px;
+      padding: 10px 12px;
+      margin: 10px 0;
+      font-size: 13px;
+    }
+    .note {
+      border: 1px solid #dbe7ff;
+      background: #f5f9ff;
+    }
+    .warn {
+      border: 1px solid #ffe6c7;
+      background: #fff8ef;
+    }
+
+    @media (max-width: 1100px) {
+      .layout { grid-template-columns: 1fr; }
+      .sidebar {
+        position: relative;
+        top: 0;
+        max-height: none;
+      }
+      .content { padding: 22px 18px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="layout">
+    <aside class="sidebar">
+      <div class="brand">
+        <h1>CitationClaw<br>Project Guidelines</h1>
+        <p>左侧导航完整覆盖，顶部无导航栏</p>
+      </div>
+      <ul class="toc">
+        <li><a href="#overview">1. 文档定位与适用范围</a></li>
+        <li><a href="#architecture">2. 项目剖析（架构与流程）</a>
+          <ul class="sub">
+            <li><a href="#architecture-pipeline">2.1 五阶段流水线</a></li>
+            <li><a href="#architecture-frontend">2.2 前端结构</a></li>
+            <li><a href="#architecture-backend">2.3 后端结构</a></li>
+            <li><a href="#architecture-data">2.4 数据与产物结构</a></li>
+          </ul>
+        </li>
+        <li><a href="#requirements">3. 环境要求</a></li>
+        <li><a href="#installation">4. 安装与 Quick Start（首次使用）</a>
+          <ul class="sub">
+            <li><a href="#installation-pip">4.1 pip 安装（推荐）</a></li>
+            <li><a href="#installation-source">4.2 源码运行（开发者）</a></li>
+            <li><a href="#installation-cli">4.3 启动参数</a></li>
+            <li><a href="#quickstart-api">4.4 API 配置建议</a></li>
+            <li><a href="#quickstart-paper">4.5 首次论文选择</a></li>
+            <li><a href="#quickstart-tier">4.6 服务层级建议</a></li>
+            <li><a href="#quickstart-runtime">4.7 运行期注意事项</a></li>
+          </ul>
+        </li>
+        <li><a href="#core-config">5. 关键配置指南</a>
+          <ul class="sub">
+            <li><a href="#core-config-api">5.1 API 与模型配置</a></li>
+            <li><a href="#core-config-tier">5.2 服务层级配置</a></li>
+            <li><a href="#core-config-reliability">5.3 稳定性与续跑配置</a></li>
+            <li><a href="#core-config-cost">5.4 成本控制配置</a></li>
+            <li><a href="#core-config-quality">5.5 质量与调试配置</a></li>
+          </ul>
+        </li>
+        <li><a href="#api-support">6. API 支持与接口清单</a>
+          <ul class="sub">
+            <li><a href="#api-external">6.1 外部服务支持</a></li>
+            <li><a href="#api-internal">6.2 内部 REST/WebSocket 接口</a></li>
+          </ul>
+        </li>
+        <li><a href="#outputs">7. 输出产物说明</a></li>
+        <li><a href="#operations">8. 运行与运维建议</a></li>
+        <li><a href="#troubleshooting">9. 常见问题与排查</a></li>
+        <li><a href="#changelog">10. 版本更新历史</a></li>
+        <li><a href="#roadmap">11. 已知事项与后续建议</a></li>
+      </ul>
+    </aside>
+
+    <main class="content">
+      <div class="hero">
+        <h2>CitationClaw 项目指南（Guidelines）</h2>
+        <p>基于项目源码与 README 的系统化文档，强调快速上手、配置边界、接口能力和稳定运行策略。</p>
+      </div>
+
+      <section id="overview">
+        <h2>1. 文档定位与适用范围</h2>
+        <p>本指南面向三类用户：</p>
+        <ul>
+          <li>使用者：希望快速跑通论文被引画像分析；</li>
+          <li>维护者：希望理解配置、阶段流程、故障处理与成本控制；</li>
+          <li>开发者：希望扩展接口、替换模型、调整抓取与报告链路。</li>
+        </ul>
+        <p>文档内容覆盖 Quick Start、版本演进、关键设置、API 支持、输出产物、排障与维护建议。</p>
+      </section>
+
+      <section id="architecture">
+        <h2>2. 项目剖析（架构与流程）</h2>
+
+        <h3 id="architecture-pipeline">2.1 五阶段流水线</h3>
+        <p>核心执行逻辑位于 <span class="inline">citationclaw/app/task_executor.py</span>，标准流程如下：</p>
+        <ol>
+          <li><span class="tag">Phase 1</span>引用抓取：基于 ScraperAPI 抓取 Google Scholar 引用列表；</li>
+          <li><span class="tag">Phase 2</span>作者检索：调用 OpenAI 兼容模型检索作者信息与头衔；</li>
+          <li><span class="tag">Phase 3</span>结果导出：导出 Excel / JSON，并生成大佬学者专门表；</li>
+          <li><span class="tag">Phase 4</span>引文描述（可选）：逐篇（或按范围）提取引用原句与位置；</li>
+          <li><span class="tag">Phase 5</span>画像报告（可选）：生成可直接分享的 HTML Dashboard。</li>
+        </ol>
+        <div class="note">
+          项目支持“题目直接输入 + Google Scholar 主页批量导入”两种入口，并支持多论文与别名归并。
+        </div>
+
+        <h3 id="architecture-frontend">2.2 前端结构</h3>
+        <ul>
+          <li>模板：<span class="inline">citationclaw/templates/*.html</span>（首页、任务、配置、结果）；</li>
+          <li>脚本：<span class="inline">citationclaw/static/js/main.js</span> 与 <span class="inline">websocket.js</span>；</li>
+          <li>交互特性：实时日志、阶段进度、年份遍历弹窗、内置 UI 助手聊天窗口。</li>
+        </ul>
+
+        <h3 id="architecture-backend">2.3 后端结构</h3>
+        <ul>
+          <li>Web 框架：FastAPI（<span class="inline">citationclaw/app/main.py</span>）；</li>
+          <li>配置中心：Pydantic 配置模型（<span class="inline">config_manager.py</span>）；</li>
+          <li>核心模块：抓取器、作者检索器、引文检索器、导出器、Dashboard 生成器。</li>
+        </ul>
+
+        <h3 id="architecture-data">2.4 数据与产物结构</h3>
+        <p>新流程默认输出到时间戳目录：</p>
+        <pre><code>data/result-YYYYMMDD_HHMMSS/
+  paper1_citing.jsonl
+  paper1_authors.jsonl
+  merged_authors.jsonl
+  paper_results.xlsx
+  paper_results_all_renowned_scholar.xlsx
+  paper_results_top-tier_scholar.xlsx
+  paper_results_with_citing_desc.xlsx
+  paper_results.json
+  paper_dashboard.html</code></pre>
+      </section>
+
+      <section id="requirements">
+        <h2>3. 环境要求</h2>
+        <ul>
+          <li>Python：<strong>3.10+</strong>（推荐 3.12）；</li>
+          <li>系统：Linux / macOS / Windows；</li>
+          <li>网络：需访问 Google Scholar、ScraperAPI、OpenAI 兼容服务端点；</li>
+          <li>依赖管理：项目使用 <span class="inline">pyproject.toml</span> 与 <span class="inline">requirements.txt</span>。</li>
+        </ul>
+      </section>
+
+      <section id="installation">
+        <h2>4. 安装与 Quick Start（首次使用）</h2>
+
+        <h3 id="installation-pip">4.1 pip 安装（推荐）</h3>
+        <pre><code>pip install citationclaw
+citationclaw
+# 指定端口
+citationclaw --port 8080</code></pre>
+
+        <h3 id="installation-source">4.2 源码运行（开发者）</h3>
+        <pre><code>git clone https://github.com/VisionXLab/CitationClaw.git
+cd CitationClaw
+pip install -r requirements.txt
+python start.py
+# 或
+python start.py --port 8080</code></pre>
+
+        <h3 id="installation-cli">4.3 启动参数</h3>
+        <table>
+          <thead>
+            <tr><th>参数</th><th>默认值</th><th>说明</th></tr>
+          </thead>
+          <tbody>
+            <tr><td><span class="inline">--host</span></td><td>127.0.0.1</td><td>监听地址</td></tr>
+            <tr><td><span class="inline">--port</span></td><td>8000</td><td>监听端口</td></tr>
+            <tr><td><span class="inline">--no-browser</span></td><td>False</td><td>启动后不自动打开浏览器</td></tr>
+          </tbody>
+        </table>
+
+        <p>以下流程按“第一次使用”设计，默认你还没有任何本地配置。</p>
+
+        <h3 id="quickstart-api">4.4 API 配置建议（按界面图示）</h3>
+        <figure style="margin:12px 0 16px;">
+          <img src="assets/guidelines/quick_api.png" alt="Quick Start API 配置示意"
+               style="width:100%;max-width:980px;border:1px solid var(--line);border-radius:10px;display:block;">
+        </figure>
+        <ol>
+          <li>启动服务后，第一步先填写 <span class="inline">ScraperAPI Key</span>（可多个，逗号分隔）与 <span class="inline">OpenAI 兼容 API Key</span>；</li>
+          <li><strong>Search Model 不用改</strong>，保持 <span class="inline">gemini-3-flash-preview-search</span>（当前效果最好）；</li>
+          <li>其他配置先保持默认；</li>
+          <li>点击“保存配置”。</li>
+        </ol>
+
+        <h3 id="quickstart-paper">4.5 首次论文选择建议</h3>
+        <figure style="margin:12px 0 16px;">
+          <img src="assets/guidelines/quick_paper.png" alt="Quick Start 论文输入示意"
+               style="width:100%;max-width:980px;border:1px solid var(--line);border-radius:10px;display:block;">
+        </figure>
+        <ol>
+          <li>启动后先输入目标论文标题；</li>
+          <li>首次测试建议选 <span class="inline">citation &lt; 10</span> 的论文，便于快速跑通全流程；</li>
+          <li>也支持一次输入多篇论文，但首次不建议太多，避免调试复杂度和成本上升。</li>
+        </ol>
+
+        <h3 id="quickstart-tier">4.6 服务层级建议（首次）</h3>
+        <p>在“服务层级”中优先选择 <strong>基础服务</strong>：</p>
+        <ul>
+          <li>仅搜索学者 + 筛选大佬；</li>
+          <li>成本较低、速度较快，适合首轮验证配置是否正确。</li>
+        </ul>
+
+        <h3 id="quickstart-runtime">4.7 运行期注意事项</h3>
+        <ul>
+          <li>完成 API 配置与论文输入后，点击“开始分析”；</li>
+          <li>过程中请开启科学上网，保证 Scholar 与 API 网络访问稳定；</li>
+          <li>请耐心等待，<span class="inline">citation &lt; 10</span> 的论文通常几分钟可完成检索；</li>
+          <li>分析完成后下载并打开 <span class="inline">paper_dashboard.html</span> 查看结果。</li>
+        </ul>
+
+        <div class="warn">
+          若作者信息质量异常，优先检查 Search Model 是否支持实时 web search；模型不具备检索能力时容易出现幻觉内容。
+        </div>
+      </section>
+
+      <section id="core-config">
+        <h2>5. 关键配置指南</h2>
+
+        <h3 id="core-config-api">5.1 API 与模型配置</h3>
+        <table>
+          <thead>
+            <tr><th>配置项</th><th>是否必填</th><th>说明</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>scraper_api_keys</td><td>是</td><td>抓取 Google Scholar，建议 3 个以上轮换</td></tr>
+            <tr><td>openai_api_key</td><td>是</td><td>OpenAI 兼容密钥</td></tr>
+            <tr><td>openai_base_url</td><td>建议</td><td>API 基础地址（默认 <span class="inline">https://api.gpt.ge/v1/</span>）</td></tr>
+            <tr><td>openai_model</td><td>是</td><td>Search 模型，用于作者检索/引文检索，需支持 web search</td></tr>
+            <tr><td>dashboard_model</td><td>建议</td><td>报告分析模型（可无需 web search）</td></tr>
+          </tbody>
+        </table>
+
+        <h3 id="core-config-tier">5.2 服务层级配置</h3>
+        <p>内置预设在 <span class="inline">SERVICE_TIER_PRESETS</span>：</p>
+        <ul>
+          <li><strong>basic</strong>：学者搜索 + 大佬筛选，不做引文描述分析；</li>
+          <li><strong>advanced</strong>：仅对院士/Fellow 相关施引论文做引文描述；</li>
+          <li><strong>full</strong>：对全部施引论文做引文描述（最完整，成本最高）。</li>
+        </ul>
+
+        <h3 id="core-config-reliability">5.3 稳定性与续跑配置</h3>
+        <ul>
+          <li><span class="inline">enable_year_traverse</span>：按年份遍历，突破 1000 条限制；</li>
+          <li><span class="inline">resume_page_count</span>：中断后断点续爬页码；</li>
+          <li><span class="inline">retry_max_attempts</span> + <span class="inline">retry_intervals</span>：统一重试策略；</li>
+          <li><span class="inline">scraper_session</span>：会话保持，缓解不同数据中心返回不一致；</li>
+          <li><span class="inline">scraper_geo_rotate</span>：重试时轮换国家节点（需相应套餐支持）。</li>
+        </ul>
+
+        <h3 id="core-config-cost">5.4 成本控制配置</h3>
+        <ul>
+          <li><span class="inline">parallel_author_search</span>：并行度越高，速度越快但瞬时成本更高；</li>
+          <li><span class="inline">scraper_premium</span> / <span class="inline">scraper_ultra_premium</span>：稳定性更高但积分成本显著上升；</li>
+          <li><span class="inline">api_access_token</span> + <span class="inline">api_user_id</span>：启用运行前后 LLM 额度差值追踪。</li>
+        </ul>
+
+        <h3 id="core-config-quality">5.5 质量与调试配置</h3>
+        <ul>
+          <li><span class="inline">enable_author_verification</span>：对作者信息做真实性核验；</li>
+          <li><span class="inline">debug_mode</span>：保存每页 HTML 与解析详情到 <span class="inline">debug/</span>；</li>
+          <li><span class="inline">test_mode</span>：使用 <span class="inline">test/mock_author_info.jsonl</span> 跳过真实 API 调用；</li>
+          <li><span class="inline">enable_dashboard</span>：是否生成最终 HTML 报告。</li>
+        </ul>
+      </section>
+
+      <section id="api-support">
+        <h2>6. API 支持与接口清单</h2>
+
+        <h3 id="api-external">6.1 外部服务支持</h3>
+        <ul>
+          <li><strong>ScraperAPI</strong>：用于 Scholar 页面抓取，支持普通 / Premium / Ultra Premium；</li>
+          <li><strong>OpenAI 兼容 API</strong>：用于作者检索、引文描述、报告分析、聊天问答；</li>
+          <li><strong>Web Search 能力检测</strong>：通过 <span class="inline">/api/test_openai</span> 进行测试。</li>
+        </ul>
+
+        <h3 id="api-internal">6.2 内部 REST/WebSocket 接口</h3>
+        <table>
+          <thead>
+            <tr><th>接口</th><th>方法</th><th>用途</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>/api/config</td><td>GET/POST</td><td>读取/保存配置</td></tr>
+            <tr><td>/api/presets</td><td>GET</td><td>获取服务层级预设</td></tr>
+            <tr><td>/api/run</td><td>POST</td><td>按论文标题启动全流程</td></tr>
+            <tr><td>/api/scholar/papers</td><td>POST</td><td>爬取 Scholar 主页论文列表</td></tr>
+            <tr><td>/api/task/start</td><td>POST</td><td>仅执行阶段 1</td></tr>
+            <tr><td>/api/task/continue</td><td>POST</td><td>续执行阶段 2/3</td></tr>
+            <tr><td>/api/task/import</td><td>POST</td><td>导入历史抓取 JSONL</td></tr>
+            <tr><td>/api/task/status</td><td>GET</td><td>查看运行状态</td></tr>
+            <tr><td>/api/task/cancel</td><td>POST</td><td>取消任务</td></tr>
+            <tr><td>/api/task/year-traverse-respond</td><td>POST</td><td>响应年份遍历弹窗选择</td></tr>
+            <tr><td>/api/results/list</td><td>GET</td><td>列出结果文件</td></tr>
+            <tr><td>/api/results/view/{path}</td><td>GET</td><td>在线查看 HTML 报告</td></tr>
+            <tr><td>/api/results/download/{path}</td><td>GET</td><td>下载结果文件</td></tr>
+            <tr><td>/api/chat/ui</td><td>POST</td><td>前端使用助手（流式）</td></tr>
+            <tr><td>/api/chat/report</td><td>POST</td><td>报告问答（含自动检索判定）</td></tr>
+            <tr><td>/api/quota/check</td><td>GET</td><td>查询 LLM 额度</td></tr>
+            <tr><td>/ws</td><td>WebSocket</td><td>推送日志、进度、阶段事件</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section id="outputs">
+        <h2>7. 输出产物说明</h2>
+        <h3>8.1 标准产物</h3>
+        <ul>
+          <li><span class="inline">*_results.xlsx</span>：全量结构化结果；</li>
+          <li><span class="inline">*_results_all_renowned_scholar.xlsx</span>：所有知名学者；</li>
+          <li><span class="inline">*_results_top-tier_scholar.xlsx</span>：院士/Fellow 等顶层学者；</li>
+          <li><span class="inline">*_results_with_citing_desc.xlsx</span>：含引用原句结果；</li>
+          <li><span class="inline">*_results.json</span>：JSON 输出；</li>
+          <li><span class="inline">*_dashboard.html</span>：最终可视化画像报告。</li>
+        </ul>
+        <h3>8.2 可复用机制</h3>
+        <ul>
+          <li>作者信息缓存：跨运行复用，降低重复查询成本；</li>
+          <li>引文描述缓存：重复文献命中缓存，减少 LLM 调用；</li>
+          <li>历史导入：支持从已有 JSONL 跳过阶段 1。</li>
+        </ul>
+      </section>
+
+      <section id="operations">
+        <h2>8. 运行与运维建议</h2>
+        <h3>9.1 生产可用默认值建议</h3>
+        <ul>
+          <li>服务层级：先 <strong>basic</strong> 验证链路，再切换 <strong>advanced/full</strong>；</li>
+          <li>并行度：<span class="inline">parallel_author_search=3~8</span>（按额度与稳定性调节）；</li>
+          <li>重试：<span class="inline">retry_max_attempts=3</span>、<span class="inline">retry_intervals=5,10,20</span>；</li>
+          <li>超高被引论文：建议开启 <span class="inline">enable_year_traverse</span>。</li>
+        </ul>
+
+        <h3>9.2 成本与速度平衡</h3>
+        <ul>
+          <li>速度优先：提高并行度，但同时准备更多 Key 与更高额度；</li>
+          <li>成本优先：先跑 basic，不做 phase 4 深挖；</li>
+          <li>质量优先：开启作者校验与调试模式（耗时增加）。</li>
+        </ul>
+      </section>
+
+      <section id="troubleshooting">
+        <h2>9. 常见问题与排查</h2>
+        <table>
+          <thead>
+            <tr><th>问题</th><th>现象</th><th>排查建议</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>作者信息明显不准</td>
+              <td>头衔、机构、引用量偏差大</td>
+              <td>确认 Search Model 支持 web search；必要时启用 <span class="inline">enable_author_verification</span></td>
+            </tr>
+            <tr>
+              <td>ScraperAPI 频繁失败</td>
+              <td>抓取中断、页面异常</td>
+              <td>增加 key 数量、检查余额、提高重试间隔；必要时启用 premium/session</td>
+            </tr>
+            <tr>
+              <td>引用超 1000 条不完整</td>
+              <td>抓取停在约 100 页</td>
+              <td>开启 <span class="inline">enable_year_traverse</span></td>
+            </tr>
+            <tr>
+              <td>任务中断需要继续</td>
+              <td>中途退出或被阻断</td>
+              <td>设置 <span class="inline">resume_page_count</span> 后重启任务</td>
+            </tr>
+            <tr>
+              <td>报告未生成</td>
+              <td>没有 dashboard 文件</td>
+              <td>检查 <span class="inline">enable_dashboard</span>，以及前置数据是否成功生成</td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section id="changelog">
+        <h2>10. 版本更新历史</h2>
+        <table>
+          <thead>
+            <tr><th>日期</th><th>版本</th><th>变更</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>2026-03-14</td><td>v1.0.4</td><td>界面交互优化，强化服务分层（基础/进阶/全面）</td></tr>
+            <tr><td>2026-03-12</td><td>v1.0.3</td><td>支持 PyPI 一行安装，自动打开浏览器，跨平台运行</td></tr>
+            <tr><td>2026-03-12</td><td>v1.0</td><td>首次公开发布：批量导入、多层级分析、断点续爬、缓存复用、HTML 报告</td></tr>
+          </tbody>
+        </table>
+        <div class="note">
+          维护时建议同步统一版本号来源（例如 <span class="inline">pyproject.toml</span>、<span class="inline">citationclaw/__init__.py</span>、FastAPI app version）。
+        </div>
+      </section>
+
+      <section id="roadmap">
+        <h2>11. 已知事项与后续建议</h2>
+        <h3>12.1 已知事项</h3>
+        <ul>
+          <li>Google Scholar 存在天然反爬与结果上限，需结合重试与年份遍历策略；</li>
+          <li>不同数据中心可能导致页面不一致，项目已实现 session 与国家轮换补救；</li>
+          <li>模型质量与检索能力强相关，Search 模型选型直接影响准确性。</li>
+        </ul>
+
+        <h3>12.2 后续建议</h3>
+        <ul>
+          <li>补充 <span class="inline">docs/guidelines.html</span> 到主页入口，便于新用户发现；</li>
+          <li>将配置项按“必填/推荐/高级/实验”分层展示，降低上手门槛；</li>
+          <li>引入固定测试数据回归（test_mode）与 API 兼容性自动体检。</li>
+        </ul>
+
+        <div class="warn">
+          本项目仅用于学术研究与学习，请遵守 Google Scholar 与第三方 API 服务条款，避免高频违规抓取。
+        </div>
+      </section>
+    </main>
+  </div>
+</body>
+</html>
