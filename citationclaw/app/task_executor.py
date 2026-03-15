@@ -366,6 +366,7 @@ class TaskExecutor:
         self._year_traverse_event = None
         self._year_traverse_choice = False
         self._year_traverse_prompted = False
+        self.quota_exceeded_event = asyncio.Event()
 
         # 初始化费用追踪器
         cost_tracker = CostTracker()
@@ -543,9 +544,13 @@ class TaskExecutor:
                             citing_paper=canonical,   # 始终用正式标题写入 Citing_Paper
                             target_paper_authors=target_authors,
                             author_cache=author_cache,
+                            quota_event=self.quota_exceeded_event,
                         )
                         if self.should_cancel:
                             break
+                        if self.quota_exceeded_event.is_set():
+                            self._handle_quota_exceeded()
+                            return
                         author_info_files.append(author_file)
                     else:
                         self.log_manager.info("⏭ 跳过 Phase 2（skip_author_search=True）")
@@ -735,7 +740,11 @@ class TaskExecutor:
                         input_excel=phase4_input,
                         output_excel=_phase4_output,
                         parallel_workers=config.parallel_author_search,
+                        quota_event=self.quota_exceeded_event,
                     )
+                    if self.quota_exceeded_event.is_set():
+                        self._handle_quota_exceeded()
+                        return
                     s = phase4_result.get("cache_stats", {})
                     self.log_manager.info(
                         f"引用描述记忆池: 共 {s.get('total_entries', 0)} 条 | "
@@ -838,6 +847,14 @@ class TaskExecutor:
             raise
         finally:
             self.is_running = False
+
+    def _handle_quota_exceeded(self):
+        """Called when any phase signals that API quota is exhausted."""
+        self.should_cancel = True
+        self.log_manager.error("❌ API 配额不足，搜索已自动停止。已处理的数据已保存至本地缓存。")
+        self.log_manager.broadcast_event("quota_exceeded", {
+            "message": "API 配额不足，搜索已自动停止。已处理的数据已保存至本地缓存，充值后重新运行将自动续跑，无需重复花费 Token。"
+        })
 
     def _filter_by_scholars(self, excel_file: Path, scholar_names: list, result_dir: Path, output_prefix: str) -> Path:
         """从 Excel 中过滤出含指定学者的行"""
