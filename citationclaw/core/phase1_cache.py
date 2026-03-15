@@ -25,6 +25,7 @@ class Phase1Cache:
         self._lock = asyncio.Lock()
         self._hits = 0
         self._misses = 0
+        self._updates = 0
         self._load()
 
     # ─── 内部 ────────────────────────────────────────────────────────────────
@@ -96,6 +97,7 @@ class Phase1Cache:
             "total_entries": len(self._data),
             "hits": self._hits,
             "misses": self._misses,
+            "updates": self._updates,
         }
 
     # ─── 写入 ─────────────────────────────────────────────────────────────────
@@ -121,6 +123,7 @@ class Phase1Cache:
                 if key and key not in papers:
                     papers[key] = paper_data
             entry["updated_at"] = datetime.now().isoformat()
+            self._updates += 1
             await self._save()
 
     async def mark_year_complete(self, url: str, year: int):
@@ -130,6 +133,7 @@ class Phase1Cache:
             entry["mode"] = "year_traverse"
             entry["years"].setdefault(str(year), {})["complete"] = True
             entry["updated_at"] = datetime.now().isoformat()
+            self._updates += 1
             await self._save()
 
     async def mark_complete(self, url: str):
@@ -138,6 +142,7 @@ class Phase1Cache:
             entry = self._entry(url)
             entry["complete"] = True
             entry["updated_at"] = datetime.now().isoformat()
+            self._updates += 1
             await self._save()
 
     # ─── JSONL 重建 ───────────────────────────────────────────────────────────
@@ -154,10 +159,12 @@ class Phase1Cache:
 
         page_size = 10
         lines = []
-        for page_idx in range(0, max(1, len(all_papers)), page_size):
+        if not all_papers:
+            return ""
+        for page_idx in range(0, len(all_papers), page_size):
             batch = all_papers[page_idx: page_idx + page_size]
             paper_dict = {f"paper_{i}": p for i, p in enumerate(batch)}
             record = {"paper_dict": paper_dict, "next_page": None}
             lines.append(json.dumps({f"page_{page_idx // page_size}": record}, ensure_ascii=False))
 
-        return "\n".join(lines) + "\n" if lines else ""
+        return "\n".join(lines) + "\n"
