@@ -695,6 +695,17 @@ function initIndexPage() {
         };
     });
 
+    ws.on('quota_exceeded', data => {
+        const msgEl = document.getElementById('quota-exceeded-message');
+        if (msgEl && data.message) {
+            msgEl.textContent = data.message;
+        }
+        GlobalProgress.hide();
+        stopRunTimer();
+        const modal = new bootstrap.Modal(document.getElementById('quotaExceededModal'));
+        modal.show();
+    });
+
     // 开始分析按钮
     runBtn.addEventListener('click', async () => {
         // 先把输入框里未提交的内容也加进列表

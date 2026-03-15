@@ -870,6 +870,31 @@
   </div>
 </div>
 
+<!-- ═══ Quota Exceeded Modal ═══ -->
+<div class="modal fade" id="quotaExceededModal" tabindex="-1" aria-labelledby="quotaExceededModalLabel" aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header border-0 pb-0">
+        <h5 class="modal-title" id="quotaExceededModalLabel">
+          <i class="bi bi-exclamation-triangle-fill text-danger"></i> API 配额不足，搜索已停止
+        </h5>
+      </div>
+      <div class="modal-body">
+        <p id="quota-exceeded-message">
+          API 配额不足，搜索已自动停止。
+        </p>
+        <div class="alert alert-info py-2 mb-0" role="alert" style="font-size:0.88rem">
+          <i class="bi bi-info-circle-fill"></i>
+          已处理的数据已保存至本地缓存，<strong>充值后重新运行将自动续跑</strong>，无需重复花费 Token。
+        </div>
+      </div>
+      <div class="modal-footer border-0 pt-0">
+        <button type="button" class="btn btn-primary" data-bs-dismiss="modal">我知道了</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 {% endblock %}
 
 {% block scripts %}
