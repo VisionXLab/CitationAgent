@@ -1,4 +1,5 @@
 import asyncio
+import re
 from pathlib import Path
 from typing import Optional, List
 from datetime import datetime
@@ -870,10 +871,8 @@ class TaskExecutor:
                     for paper_id, paper in paper_dict.items():
                         total += 1
                         cite_str = str(paper.get('citation', '') or '').strip()
-                        try:
-                            cite_num = int(cite_str.replace(',', ''))
-                        except ValueError:
-                            cite_num = 0
+                        nums = re.findall(r'\d+', cite_str)
+                        cite_num = int(nums[0]) if nums else 0
                         if cite_num >= threshold:
                             filtered_papers[paper_id] = paper
                             kept += 1
