@@ -58,16 +58,17 @@ class AppConfig(BaseModel):
 
 1. **谷歌学术累积引用**（如有）
 
-2. **重大学术头衔**（包括但不限于以下类别）：
-   - **国际顶级奖项得主**：诺贝尔奖（Nobel Prize）、图灵奖（Turing Award）、菲尔兹奖（Fields Medal）、阿贝尔奖（Abel Prize）、沃尔夫奖（Wolf Prize）、克拉福德奖（Crafoord Prize）、奈望林纳奖（Nevanlinna Prize/IMU Abacus Medal）、哥德尔奖（Gödel Prize）、 ACM Prize in Computing、IEEE Medal of Honor、富兰克林奖章（Franklin Medal）、科学突破奖（Breakthrough Prize）、拉斯克奖（Lasker Award）、邵逸夫奖（Shaw Prize）等
+2. **重大学术头衔**（严格限定以下类别，其他一概不关注）：
+   - **国际顶级奖项得主**：诺贝尔奖（Nobel Prize）、图灵奖（Turing Award）、菲尔兹奖（Fields Medal）、阿贝尔奖（Abel Prize）、沃尔夫奖（Wolf Prize）、克拉福德奖（Crafoord Prize）、奈望林纳奖（Nevanlinna Prize/IMU Abacus Medal）、哥德尔奖（Gödel Prize）、ACM Prize in Computing、IEEE Medal of Honor、富兰克林奖章（Franklin Medal）、科学突破奖（Breakthrough Prize）、拉斯克奖（Lasker Award）、邵逸夫奖（Shaw Prize）等
    - **院士头衔**：中国科学院院士、中国工程院院士、国外院士（如欧洲科学院院士、美国国家科学院院士、美国国家工程院院士、美国艺术与科学院院士、英国皇家学会院士/会士、德国科学院院士、法国科学院院士、瑞典皇家科学院院士等）
-   - **学会Fellow**：IEEE Fellow/ACM Fellow/ACL Fellow/AAAI Fellow/AAAS Fellow/SIAM Fellow/APS Fellow/AMS Fellow等
-   - **国家级人才计划**：国家杰出青年科学基金（杰青）、长江学者、国家优秀青年科学基金（优青）、海外优青、万人计划等
-   - **其他重要学术荣誉**：IEEE Life Fellow、ACM Distinguished Scientist、斯隆研究奖（Sloan Research Fellowship）、Packard Fellowship、ERC Consolidator/Advanced Grant获得者等
+   - **学会Fellow**：IEEE Fellow、ACM Fellow、ACL Fellow、AAAI Fellow、AAAS Fellow、SIAM Fellow、APS Fellow、AMS Fellow等
 
-3. **著名机构任职**：在国外著名研究机构（如Google Research、DeepMind、OpenAI、Meta AI、Microsoft Research、IBM Research、Bell Labs）或顶尖高校（如MIT、Stanford、CMU、Berkeley、Caltech、Harvard、Princeton、Oxford、Cambridge等）担任重要职位的学者
+3. **学术机构任职**：国内外顶尖高校（如清华、北大、MIT、Stanford、CMU、Berkeley、Caltech、Harvard、Princeton、Oxford、Cambridge等）或国家级研究机构的教授、研究员职称
 
-4. **行政职位**：国内外知名大学的校长、副校长、院长、系主任，或国家级研究机构负责人等""",
+**注意**：
+- 不搜索杰青、长江学者、优青、万人计划等国内院士以下的头衔
+- 不关注公司/企业任职（如Google、DeepMind、OpenAI、Meta AI、Microsoft Research等）
+- 只关注纯学术界的院士/Fellow级别和顶级奖项得主""",
         description="搜索作者详细信息的Prompt"
     )
 
@@ -79,32 +80,32 @@ class AppConfig(BaseModel):
         default=(
             "以上是一篇论文的作者列表信息。\n"
             "### 任务指南：\n"
-            "1. **高影响力判定 (is_high_impact)**：学术影响力大（满足以下任一条件）：\n"
+            "1. **严格的高影响力判定 (is_high_impact)**：只保留以下类别的学者（满足任一条件）：\n"
             "   - **国际顶级奖项得主**：诺贝尔奖、图灵奖、菲尔兹奖、阿贝尔奖、沃尔夫奖、克拉福德奖、奈望林纳奖/IMU Abacus Medal、哥德尔奖、ACM Prize in Computing、IEEE Medal of Honor、科学突破奖、拉斯克奖、邵逸夫奖等\n"
             "   - **院士头衔**：中科院院士、工程院院士、各国国家科学院/工程院院士、欧洲科学院院士、英国皇家学会会士等\n"
             "   - **知名学会Fellow**：IEEE Fellow、ACM Fellow、ACL Fellow、AAAI Fellow、AAAS Fellow、SIAM Fellow、APS Fellow等\n"
-            "   - **国家级人才计划**：国家杰青、长江学者特聘教授、优青、万人计划等\n"
-            "   - **顶尖机构核心成员**：Google/DeepMind/OpenAI/Meta AI/Microsoft Research的首席科学家、研究主管、Distinguished Scientist等\n"
-            "   - **企业界大佬**：知名科技公司首席科学家、VP、AI/研究部门负责人\n"
-            "   - **重要行政职务**：顶尖大学校长、副校长、院长等\n"
-            "   除此之外，其他普通教授或学者一律不保留。\n\n"
-            "2. **无重量级作者**：若作者信息明确说明无重量级作者，只需要输出'无任何重量级学者'。\n\n"
-            "3. **有重量级作者**：若有重量级作者，只输出那些顶级大佬级别的学者，进一步总结每位重量级作者的元信息，包括姓名、机构、国家、职务、荣誉称号。每位重量级作者之间用 $$$分隔符$$$ 来隔开，输出格式参考如下：\n\n"
+            "   **必须排除（不保留）**：\n"
+            "   - 国内院士以下的头衔：杰青、长江学者、优青、万人计划、青千等\n"
+            "   - 公司/企业任职：Google/DeepMind/OpenAI/Meta AI/Microsoft Research等企业员工\n"
+            "   - 普通大学教授、普通研究员\n"
+            "   除此之外，其他人员一律不保留。\n\n"
+            "2. **无重量级作者**：若作者信息明确说明无重量级作者，或所有作者都不符合上述严格标准，只需要输出'无任何重量级学者'。\n\n"
+            "3. **有重量级作者**：若存在符合条件的学者，只输出这些顶级学者，进一步总结每位重量级作者的元信息，包括姓名、机构、国家、职务、荣誉称号。每位重量级作者之间用 $$$分隔符$$$ 来隔开，输出格式参考如下：\n\n"
             "（输出格式参考）：\n"
             "$$$分隔符$$$\n"
             "重量级作者1\n"
             "姓名\n"
             "机构（当前最新任职单位）\n"
             "国家\n"
-            "职务（在行政单位或著名研究机构的职务或职称）\n"
-            "荣誉称号（所获得的学术头衔或国际重量级头衔，必须包含具体奖项名称如'图灵奖得主2018'、'菲尔兹奖得主2014'等）\n"
+            "职务（教授/研究员等学术职称）\n"
+            "荣誉称号（院士/Fellow/顶级奖项得主，必须包含具体奖项名称如'图灵奖得主2018'、'菲尔兹奖得主2014'等）\n"
             "$$$分隔符$$$\n"
             "重量级作者2\n"
             "姓名\n"
             "机构（当前最新任职单位）\n"
             "国家\n"
-            "职务（在行政单位或著名研究机构的职务或职称）\n"
-            "荣誉称号（所获得的学术头衔或国际重量级头衔）\n"
+            "职务（教授/研究员等学术职称）\n"
+            "荣誉称号（院士/Fellow/顶级奖项得主）\n"
 
             "直至所有的重量级作者都被记录下来。记住，无需任何前言后记。"),
         description="二次筛选重要学者的Prompt"
