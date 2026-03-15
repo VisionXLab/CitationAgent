@@ -752,7 +752,7 @@ class AuthorSearcher:
                 self.log_callback(f"⚠️ 有 {len(errors)} 个任务失败")
 
             # 过滤出成功的结果并排序
-            successful_results = [r for r in results if not isinstance(r, Exception)]
+            successful_results = [r for r in results if not isinstance(r, Exception) and r[1]]
             successful_results.sort(key=lambda x: x[0])  # 按count排序
 
             # 写入文件
