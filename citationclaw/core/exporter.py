@@ -14,6 +14,22 @@ class ResultExporter:
         self.log_callback = log_callback
 
     def highligh_renowned_scholar(self,flattened,renowned_scholar_excel_outputs):
+        ## 顶级奖项关键词（与 author_search_prompt2 保持一致）
+        TOP_PRIZES = [
+            # 中文
+            '诺贝尔奖', '图灵奖', '菲尔兹奖', '阿贝尔奖', '沃尔夫奖',
+            '克拉福德奖', '奈望林纳奖', '哥德尔奖', '富兰克林奖章',
+            '科学突破奖', '拉斯克奖', '邵逸夫奖', '院士',
+            # 英文
+            'Nobel Prize', 'Nobel Laureate', 'Nobel Prize Winner',
+            'Turing Award', 'Fields Medal', 'Abel Prize', 'Wolf Prize',
+            'Crafoord Prize', 'Nevanlinna Prize', 'IMU Abacus Medal',
+            'Gödel Prize', 'Godel Prize',
+            'ACM Prize in Computing', 'IEEE Medal of Honor',
+            'Franklin Medal', 'Breakthrough Prize',
+            'Lasker Award', 'Shaw Prize',
+        ]
+
         ## 标记学者
         def tag_scholar(df):
             for i in range(len(df)):
@@ -26,6 +42,8 @@ class ResultExporter:
                             df.at[i, '两院院士/其他院士/Fellow'] = '其他院士'
                         elif 'Fellow' in title or 'fellow' in title:
                             df.at[i, '两院院士/其他院士/Fellow'] = 'Fellow'
+                        elif any(prize in title for prize in TOP_PRIZES):
+                            df.at[i, '两院院士/其他院士/Fellow'] = '顶级奖项'
             return df
 
         ## 转换df，找到大佬级别

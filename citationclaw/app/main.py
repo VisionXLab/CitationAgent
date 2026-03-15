@@ -158,6 +158,7 @@ $$$分隔符$$$
     enable_citing_description: bool = True
     enable_dashboard: bool = True
     service_tier: str = "full"
+    min_citations_filter: int = 0
     citing_description_scope: str = "all"
     skip_author_search: bool = False
     specified_scholars: str = ""

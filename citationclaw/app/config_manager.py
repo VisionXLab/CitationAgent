@@ -140,6 +140,9 @@ class AppConfig(BaseModel):
     enable_citing_description: bool = Field(default=True, description="是否搜索引用描述（Phase 4）")
     enable_dashboard: bool = Field(default=True, description="是否生成 HTML 画像报告（Phase 5）")
 
+    # 引用阈值过滤（Phase 1 后）
+    min_citations_filter: int = Field(default=0, description="施引论文引用数阈值：0=不过滤，否则只处理引用数≥此值的论文")
+
     # 服务分层
     service_tier: str = Field(default="full", description="服务层级预置: full/advanced/basic")
     citing_description_scope: str = Field(default="all",

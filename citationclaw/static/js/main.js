@@ -566,6 +566,7 @@ function initIndexPage() {
             el('idx-author-verify').checked = cfg.enable_author_verification || false;
             el('idx-dashboard').checked = cfg.enable_dashboard !== false;
             el('idx-service-tier').value = cfg.service_tier || 'basic';
+            el('idx-min-citations').value = String(cfg.min_citations_filter || 0);
             el('idx-dashboard-model').value = cfg.dashboard_model || 'gemini-3-flash-preview-nothinking';
             el('idx-api-access-token').value = cfg.api_access_token || '';
             el('idx-api-user-id').value = cfg.api_user_id || '';
@@ -592,6 +593,7 @@ function initIndexPage() {
             enable_author_verification: el('idx-author-verify').checked,
             enable_dashboard: el('idx-dashboard').checked,
             service_tier: el('idx-service-tier').value,
+            min_citations_filter: parseInt(el('idx-min-citations').value) || 0,
             skip_author_search: false,
             // Derive citing-description settings directly from tier to ensure consistency
             ...({

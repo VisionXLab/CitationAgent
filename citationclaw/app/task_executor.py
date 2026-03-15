@@ -515,6 +515,13 @@ class TaskExecutor:
                     )
                     if self.should_cancel:
                         break
+
+                    # —— 引用数阈值过滤（Phase 1 后）——
+                    if config.min_citations_filter > 0:
+                        citing_file = self._filter_by_min_citations(
+                            citing_file, config.min_citations_filter
+                        )
+
                     citing_files.append((citing_file, canonical))
 
                     if not config.skip_author_search:
@@ -838,6 +845,42 @@ class TaskExecutor:
             raise
         finally:
             self.is_running = False
+
+
+    def _filter_by_min_citations(self, citing_file: Path, threshold: int) -> Path:
+        """过滤 JSONL 中引用数 < threshold 的施引论文，返回过滤后文件的路径。"""
+        import json as _json
+        filtered_file = citing_file.with_stem(citing_file.stem + f"_cit{threshold}+")
+        total, kept = 0, 0
+        with open(citing_file, 'r', encoding='utf-8') as fin, \
+             open(filtered_file, 'w', encoding='utf-8') as fout:
+            for line in fin:
+                line = line.strip()
+                if not line:
+                    continue
+                data = _json.loads(line)
+                filtered_data = {}
+                for page_id, page_content in data.items():
+                    paper_dict = page_content.get('paper_dict', {})
+                    filtered_papers = {}
+                    for paper_id, paper in paper_dict.items():
+                        total += 1
+                        cite_str = str(paper.get('citation', '') or '').strip()
+                        try:
+                            cite_num = int(cite_str.replace(',', ''))
+                        except ValueError:
+                            cite_num = 0
+                        if cite_num >= threshold:
+                            filtered_papers[paper_id] = paper
+                            kept += 1
+                    if filtered_papers:
+                        filtered_data[page_id] = {**page_content, 'paper_dict': filtered_papers}
+                if filtered_data:
+                    fout.write(_json.dumps(filtered_data, ensure_ascii=False) + '\n')
+        self.log_manager.info(
+            f"📊 引用数过滤（≥{threshold}）: {total} 篇 → {kept} 篇（过滤掉 {total - kept} 篇）"
+        )
+        return filtered_file
 
     def _filter_by_scholars(self, excel_file: Path, scholar_names: list, result_dir: Path, output_prefix: str) -> Path:
         """从 Excel 中过滤出含指定学者的行"""
