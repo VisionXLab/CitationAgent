@@ -555,6 +555,25 @@ class TaskExecutor:
                     else:
                         self.log_manager.info("⏭ 跳过 Phase 2（skip_author_search=True）")
 
+            # Guard: 检查 Phase 1 是否爬取到任何引用文献
+            _total_citing = 0
+            for _cf, _ in citing_files:
+                if not _cf.exists():
+                    continue
+                for _line in _cf.read_text(encoding="utf-8").splitlines():
+                    _line = _line.strip()
+                    if not _line:
+                        continue
+                    try:
+                        _data = _json.loads(_line)
+                        for _page_data in _data.values():
+                            _total_citing += len(_page_data.get("paper_dict", {}))
+                    except Exception:
+                        continue
+            if _total_citing == 0:
+                self.log_manager.warning("⚠️ Phase 1 未爬取到任何引用文献，任务结束")
+                return
+
             if not config.skip_author_search:
                 if not author_info_files:
                     self.log_manager.warning("没有成功处理的论文，任务结束")
@@ -651,7 +670,11 @@ class TaskExecutor:
                     df.to_json(json_file, orient="records", force_ascii=False, indent=2)
                     self.log_manager.info(f"📊 从 Phase 1 构建了 {len(rows)} 条记录")
                 else:
-                    self.log_manager.warning("没有成功处理的论文，任务结束")
+                    self.log_manager.warning("⚠️ 未找到任何引用文献记录，任务结束")
+                    empty_df = pd.DataFrame(columns=["Paper_Title", "Paper_Link", "Paper_Year",
+                                                     "Citations", "Citing_Paper", "Authors_with_Profile"])
+                    excel_file.parent.mkdir(parents=True, exist_ok=True)
+                    empty_df.to_excel(excel_file, index=False)
                     return
 
                 # verify/specified 模式：报告学者匹配结果
@@ -672,6 +695,7 @@ class TaskExecutor:
                 # 根据 citing_description_scope 确定 Phase 4 的输入
                 phase4_input = excel_file
                 _renowned_only_mode = False  # 是否需要事后合并回全量文件
+                _skip_phase4 = False  # 是否跳过 Phase 4（如：进阶模式下未检测到重量级学者）
                 if config.citing_description_scope == "renowned_only" and not config.skip_author_search:
                     self.log_manager.info("📋 Phase 4 范围: 仅院士/Fellow论文（去重，格式对齐）")
                     # 使用 top-tier 文件（仅院士/Fellow），排除其他知名学者
@@ -686,19 +710,25 @@ class TaskExecutor:
                         renowned_titles = set(
                             df_renowned_scholars['PaperTitle'].dropna().str.strip()
                         )
-                        # 过滤全量论文文件，保留大佬论文行并按 Paper_Title 去重
-                        # → 正确列名格式，且每篇论文只搜索一次
-                        df_phase4 = (
-                            df_full[df_full['Paper_Title'].str.strip().isin(renowned_titles)]
-                            .drop_duplicates(subset=['Paper_Title'])
-                            .reset_index(drop=True)
-                        )
-                        phase4_input = result_dir / f"{output_prefix}_temp_phase4_renowned.xlsx"
-                        df_phase4.to_excel(phase4_input, index=False)
-                        _renowned_only_mode = True
-                        self.log_manager.info(
-                            f"  → {len(df_phase4)} 篇院士/Fellow论文（去重），共 {df_full['Paper_Title'].nunique()} 篇"
-                        )
+                        if not renowned_titles:
+                            self.log_manager.warning(
+                                "⚠️ 未检测到重量级学者，跳过引用描述搜索（进阶模式下无重量级引用者）"
+                            )
+                            _skip_phase4 = True
+                        else:
+                            # 过滤全量论文文件，保留大佬论文行并按 Paper_Title 去重
+                            # → 正确列名格式，且每篇论文只搜索一次
+                            df_phase4 = (
+                                df_full[df_full['Paper_Title'].str.strip().isin(renowned_titles)]
+                                .drop_duplicates(subset=['Paper_Title'])
+                                .reset_index(drop=True)
+                            )
+                            phase4_input = result_dir / f"{output_prefix}_temp_phase4_renowned.xlsx"
+                            df_phase4.to_excel(phase4_input, index=False)
+                            _renowned_only_mode = True
+                            self.log_manager.info(
+                                f"  → {len(df_phase4)} 篇院士/Fellow论文（去重），共 {df_full['Paper_Title'].nunique()} 篇"
+                            )
                     else:
                         self.log_manager.warning("⚠️ 未找到院士/Fellow学者文件，将搜索全部论文")
                 elif config.citing_description_scope == "specified_only":
@@ -715,66 +745,70 @@ class TaskExecutor:
                     result_dir / f"{output_prefix}_temp_phase4_output.xlsx"
                     if _renowned_only_mode else citing_desc_excel
                 )
-                if config.test_mode:
-                    # 测试模式：直接添加伪造引用描述，不调用 LLM
-                    self.log_manager.info("🧪 [测试模式] Phase 4: 注入伪造引用描述")
-                    df = pd.read_excel(phase4_input)
-                    fake_descs = [
-                        "该论文在 Related Work 部分明确引用了目标论文，指出其在自注意力机制方面的奠基性贡献，并以此为基础展开研究。",
-                        "Introduction 章节中正面引用目标论文，称其为'近年来最具影响力的工作之一'，并借鉴其架构设计思路。",
-                        "Methodology 部分将目标论文作为主要对比基线，实验结果表明在多个指标上超越了目标论文的方法。",
-                        "Experiments 章节引用目标论文的评估框架，作为标准 benchmark 测试集的来源。",
-                        "Related Work 中将目标论文归类为预训练语言模型的代表性工作，对其局限性进行了客观分析。",
-                    ]
-                    df["Citing_Description"] = [
-                        fake_descs[i % len(fake_descs)] for i in range(len(df))
-                    ]
-                    _phase4_output.parent.mkdir(parents=True, exist_ok=True)
-                    df.to_excel(_phase4_output, index=False)
-                    self.log_manager.info(f"🧪 已生成伪造引用描述: {_phase4_output}")
-                else:
-                    self.log_manager.info("▶ Phase 4: 搜索引用描述")
-                    phase4_result = await self._run_skill(
-                        "phase4_citation_desc",
-                        config,
-                        input_excel=phase4_input,
-                        output_excel=_phase4_output,
-                        parallel_workers=config.parallel_author_search,
-                        quota_event=self.quota_exceeded_event,
-                    )
-                    if self.quota_exceeded_event.is_set():
-                        self._handle_quota_exceeded()
-                        return
-                    s = phase4_result.get("cache_stats", {})
-                    self.log_manager.info(
-                        f"引用描述记忆池: 共 {s.get('total_entries', 0)} 条 | "
-                        f"命中 {s.get('hits', 0)} | 新增 {s.get('updates', 0)}"
-                    )
+                if not _skip_phase4:
+                    if config.test_mode:
+                        # 测试模式：直接添加伪造引用描述，不调用 LLM
+                        self.log_manager.info("🧪 [测试模式] Phase 4: 注入伪造引用描述")
+                        df = pd.read_excel(phase4_input)
+                        fake_descs = [
+                            "该论文在 Related Work 部分明确引用了目标论文，指出其在自注意力机制方面的奠基性贡献，并以此为基础展开研究。",
+                            "Introduction 章节中正面引用目标论文，称其为'近年来最具影响力的工作之一'，并借鉴其架构设计思路。",
+                            "Methodology 部分将目标论文作为主要对比基线，实验结果表明在多个指标上超越了目标论文的方法。",
+                            "Experiments 章节引用目标论文的评估框架，作为标准 benchmark 测试集的来源。",
+                            "Related Work 中将目标论文归类为预训练语言模型的代表性工作，对其局限性进行了客观分析。",
+                        ]
+                        df["Citing_Description"] = [
+                            fake_descs[i % len(fake_descs)] for i in range(len(df))
+                        ]
+                        _phase4_output.parent.mkdir(parents=True, exist_ok=True)
+                        df.to_excel(_phase4_output, index=False)
+                        self.log_manager.info(f"🧪 已生成伪造引用描述: {_phase4_output}")
+                    else:
+                        self.log_manager.info("▶ Phase 4: 搜索引用描述")
+                        phase4_result = await self._run_skill(
+                            "phase4_citation_desc",
+                            config,
+                            input_excel=phase4_input,
+                            output_excel=_phase4_output,
+                            parallel_workers=config.parallel_author_search,
+                            quota_event=self.quota_exceeded_event,
+                        )
+                        if self.quota_exceeded_event.is_set():
+                            self._handle_quota_exceeded()
+                            return
+                        s = phase4_result.get("cache_stats", {})
+                        self.log_manager.info(
+                            f"引用描述记忆池: 共 {s.get('total_entries', 0)} 条 | "
+                            f"命中 {s.get('hits', 0)} | 新增 {s.get('updates', 0)}"
+                        )
 
                 # renowned_only 模式：将描述合并回全量论文文件，确保 Phase 5 能读到完整数据
-                if _renowned_only_mode and _phase4_output.exists():
+                if _renowned_only_mode and _phase4_output.exists() and not _skip_phase4:
                     self.log_manager.info("🔀 合并引用描述回全量论文文件...")
                     df_full = pd.read_excel(excel_file)
                     df_partial = pd.read_excel(_phase4_output)
-                    title_to_desc = (
-                        df_partial.set_index(df_partial['Paper_Title'].str.strip())['Citing_Description']
-                        .fillna('').to_dict()
-                    )
-                    df_full['Citing_Description'] = (
-                        df_full['Paper_Title'].str.strip().map(title_to_desc).fillna('')
-                    )
-                    citing_desc_excel.parent.mkdir(parents=True, exist_ok=True)
-                    df_full.to_excel(citing_desc_excel, index=False)
-                    # 清理临时文件
-                    try:
-                        phase4_input.unlink(missing_ok=True)
-                        _phase4_output.unlink(missing_ok=True)
-                    except Exception:
-                        pass
-                    n_with_desc = (df_full['Citing_Description'].str.strip() != '').sum()
-                    self.log_manager.info(
-                        f"  → 合并完成：{len(df_full)} 行，其中 {n_with_desc} 行有引用描述"
-                    )
+                    if df_partial.empty:
+                        self.log_manager.info("  → Phase 4 输出为空，跳过引用描述合并")
+                    else:
+                        title_to_desc = (
+                            df_partial.set_index(df_partial['Paper_Title'].str.strip())['Citing_Description']
+                            .fillna('').to_dict()
+                        )
+                        df_full['Citing_Description'] = (
+                            df_full['Paper_Title'].str.strip().map(title_to_desc).fillna('')
+                        )
+                        citing_desc_excel.parent.mkdir(parents=True, exist_ok=True)
+                        df_full.to_excel(citing_desc_excel, index=False)
+                        # 清理临时文件
+                        try:
+                            phase4_input.unlink(missing_ok=True)
+                            _phase4_output.unlink(missing_ok=True)
+                        except Exception:
+                            pass
+                        n_with_desc = (df_full['Citing_Description'].str.strip() != '').sum()
+                        self.log_manager.info(
+                            f"  → 合并完成：{len(df_full)} 行，其中 {n_with_desc} 行有引用描述"
+                        )
 
             # —— Phase 5：生成 HTML 画像报告（可选）——
             html_file = None
