@@ -208,6 +208,9 @@ class AuthorSearcher:
                     if self.cancel_event:
                         self.cancel_event.set()
                     return 'ERROR'
+                # If another concurrent task already hit quota limit, exit immediately without waiting
+                if self.cancel_event and self.cancel_event.is_set():
+                    return 'ERROR'
                 self.log_callback(f"⚠️ API配额超限，60秒后重试（第{quota_retry_count + 1}/3次）...")
                 if self.cancel_event:
                     try:
@@ -271,6 +274,9 @@ class AuthorSearcher:
                     self.log_callback("❌ API配额持续不足，已停止重试。")
                     if self.cancel_event:
                         self.cancel_event.set()
+                    return 'ERROR'
+                # If another concurrent task already hit quota limit, exit immediately without waiting
+                if self.cancel_event and self.cancel_event.is_set():
                     return 'ERROR'
                 self.log_callback(f"⚠️ API配额超限，60秒后重试（第{quota_retry_count + 1}/3次）...")
                 if self.cancel_event:
@@ -338,6 +344,9 @@ class AuthorSearcher:
                     if self.cancel_event:
                         self.cancel_event.set()
                     return 'ERROR'
+                # If another concurrent task already hit quota limit, exit immediately without waiting
+                if self.cancel_event and self.cancel_event.is_set():
+                    return 'ERROR'
                 self.log_callback(f"⚠️ API配额超限，60秒后重试（第{quota_retry_count + 1}/3次）...")
                 if self.cancel_event:
                     try:
@@ -403,6 +412,9 @@ class AuthorSearcher:
                     if self.cancel_event:
                         self.cancel_event.set()
                     return 'ERROR'
+                # If another concurrent task already hit quota limit, exit immediately without waiting
+                if self.cancel_event and self.cancel_event.is_set():
+                    return 'ERROR'
                 self.log_callback(f"⚠️ API配额超限，60秒后重试（第{quota_retry_count + 1}/3次）...")
                 if self.cancel_event:
                     try:
@@ -464,6 +476,9 @@ class AuthorSearcher:
                     self.log_callback("❌ API配额持续不足，已停止重试。")
                     if self.cancel_event:
                         self.cancel_event.set()
+                    return False
+                # If another concurrent task already hit quota limit, exit immediately without waiting
+                if self.cancel_event and self.cancel_event.is_set():
                     return False
                 self.log_callback(f"⚠️ API配额超限，60秒后重试（第{quota_retry_count + 1}/3次）...")
                 if self.cancel_event:
@@ -744,7 +759,14 @@ class AuthorSearcher:
         # 并行模式：等待所有任务完成
         if parallel_workers > 1:
             self.log_callback(f"等待所有并行任务完成...")
-            results = await asyncio.gather(*tasks, return_exceptions=True)
+            try:
+                results = await asyncio.wait_for(
+                    asyncio.gather(*tasks, return_exceptions=True),
+                    timeout=7200,  # 2小时上限，防止并行批次永久阻塞
+                )
+            except asyncio.TimeoutError:
+                self.log_callback("⚠️ 并行批次超时（2小时），强制结束")
+                results = []
 
             # 检查错误
             errors = [r for r in results if isinstance(r, Exception)]

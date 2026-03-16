@@ -62,6 +62,9 @@ class CitingDescriptionSearcher:
                             self.log(f"{log_prefix}❌ API配额持续不足，已停止重试。")
                             self.cancel_event.set()
                         return "NONE"
+                    # If another concurrent task already hit quota limit, exit immediately without waiting
+                    if self.cancel_event and self.cancel_event.is_set():
+                        return "NONE"
                     self.log(f"{log_prefix}⚠️ API配额超限，60秒后重试（第{quota_failures}/2次）...")
                     if self.cancel_event:
                         try:
