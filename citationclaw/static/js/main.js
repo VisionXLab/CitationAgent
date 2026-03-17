@@ -385,6 +385,9 @@ async function resultsShowFolders() {
                     <small class="text-muted">${folder.file_count} 个文件 &nbsp;·&nbsp; ${sizeMB} MB &nbsp;·&nbsp; ${date}</small>
                 </div>
                 <i class="bi bi-chevron-right text-muted flex-shrink-0" style="cursor:pointer" data-folder="${folder.name}" data-display="${folder.display_name}"></i>
+                ${folder.has_meta ? `<button class="btn btn-sm btn-outline-primary flex-shrink-0 ms-1" data-resume-folder="${folder.name}" title="从此文件夹恢复任务">
+                    <i class="bi bi-arrow-clockwise"></i> 恢复
+                </button>` : ''}
                 <button class="btn btn-sm btn-outline-danger flex-shrink-0 ms-1" data-delete="${folder.name}" title="删除此文件夹">
                     <i class="bi bi-trash"></i>
                 </button>
@@ -393,6 +396,36 @@ async function resultsShowFolders() {
                 const el = e.currentTarget;
                 resultsOpenFolder(el.dataset.folder, el.dataset.display);
             });
+            const resumeFolderBtn = item.querySelector('[data-resume-folder]');
+            if (resumeFolderBtn) {
+                resumeFolderBtn.addEventListener('click', async (e) => {
+                    e.stopPropagation();
+                    const folderName = e.currentTarget.dataset.resumeFolder;
+                    if (!confirm(`确定要从 "${folderName}" 恢复任务吗？已完成的阶段将自动跳过。`)) return;
+                    try {
+                        await saveIndexConfig();
+                        const r = await fetch('/api/task/resume-from-folder', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ folder: folderName })
+                        });
+                        const data = await r.json();
+                        if (data.status === 'success') {
+                            // 切换到 Home 面板显示运行状态
+                            document.querySelector('[data-spa-panel="home"]').click();
+                            const runBtn = document.getElementById('idx-run-btn');
+                            runBtn.disabled = true;
+                            runBtn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" style="animation:spin .8s linear infinite"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="2.5" stroke-dasharray="40" stroke-dashoffset="10"/></svg>&nbsp; 运行中...';
+                            document.getElementById('idx-cancel-btn').style.display = 'inline-flex';
+                            document.getElementById('idx-resume-btn').style.display = 'none';
+                        } else {
+                            alert('恢复失败: ' + data.message);
+                        }
+                    } catch (err) {
+                        alert('恢复失败：' + err.message);
+                    }
+                });
+            }
             item.querySelector('[data-delete]').addEventListener('click', async (e) => {
                 e.stopPropagation();
                 const name = e.currentTarget.dataset.delete;
@@ -550,6 +583,38 @@ function initIndexPage() {
     };
     let currentPhase = '处理中...';
 
+    // Search Model: select + 自定义输入联动
+    const _modelSelect = document.getElementById('idx-openai-model-select');
+    const _modelCustom = document.getElementById('idx-openai-model-custom');
+    const _modelHidden = document.getElementById('idx-openai-model');
+
+    function _syncModelHidden() {
+        if (_modelSelect.value === '__custom__') {
+            _modelCustom.style.display = '';
+            _modelHidden.value = _modelCustom.value;
+        } else {
+            _modelCustom.style.display = 'none';
+            _modelHidden.value = _modelSelect.value;
+        }
+    }
+    function _setModelFromValue(val) {
+        const opt = [..._modelSelect.options].find(o => o.value === val && o.value !== '__custom__');
+        if (opt) {
+            _modelSelect.value = val;
+            _modelCustom.style.display = 'none';
+        } else {
+            _modelSelect.value = '__custom__';
+            _modelCustom.style.display = '';
+            _modelCustom.value = val;
+        }
+        _modelHidden.value = val;
+    }
+    _modelSelect.addEventListener('change', () => {
+        if (_modelSelect.value === '__custom__') _modelCustom.focus();
+        _syncModelHidden();
+    });
+    _modelCustom.addEventListener('input', _syncModelHidden);
+
     // 加载配置并填充 Home 面板表单
     (async () => {
         try {
@@ -560,7 +625,7 @@ function initIndexPage() {
             el('idx-openai-key').value = cfg.openai_api_key || '';
             _syncApiKeyType(el('idx-openai-key'));
             el('idx-openai-url').value = cfg.openai_base_url || '';
-            el('idx-openai-model').value = cfg.openai_model || '';
+            _setModelFromValue(cfg.openai_model || 'gemini-3-flash-preview-search');
             el('idx-output-prefix').value = cfg.default_output_prefix || 'paper';
             el('idx-renowned-scholar').checked = cfg.enable_renowned_scholar_filter !== false;
             el('idx-author-verify').checked = cfg.enable_author_verification || false;
@@ -695,6 +760,10 @@ function initIndexPage() {
         };
     });
 
+    ws.on('task_cancelled_resumable', data => {
+        document.getElementById('idx-resume-btn').style.display = 'inline-flex';
+    });
+
     ws.on('quota_exceeded', data => {
         const msgEl = document.getElementById('quota-exceeded-message');
         if (msgEl && data.message) {
@@ -748,6 +817,7 @@ function initIndexPage() {
         runBtn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" style="animation:spin .8s linear infinite"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="2.5" stroke-dasharray="40" stroke-dashoffset="10"/></svg>&nbsp; 运行中...';
 
         document.getElementById('idx-cancel-btn').style.display = 'inline-flex';
+        document.getElementById('idx-resume-btn').style.display = 'none';
         document.getElementById('idx-progress-section').style.display = 'block';
         document.getElementById('idx-log-section').style.display = 'block';
         document.getElementById('idx-results-section').style.display = 'none';
@@ -805,6 +875,30 @@ function initIndexPage() {
         }
         resetRunBtn();
         GlobalProgress.hide();
+    });
+
+    // 恢复按钮
+    document.getElementById('idx-resume-btn').addEventListener('click', async () => {
+        // 先保存当前 UI 配置（用户可能改了模型等参数）
+        await saveIndexConfig();
+        const resumeBtn = document.getElementById('idx-resume-btn');
+        resumeBtn.style.display = 'none';
+        runBtn.disabled = true;
+        runBtn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" style="animation:spin .8s linear infinite"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="2.5" stroke-dasharray="40" stroke-dashoffset="10"/></svg>&nbsp; 运行中...';
+        document.getElementById('idx-cancel-btn').style.display = 'inline-flex';
+        startRunTimer();
+        try {
+            const resp = await fetch('/api/task/resume', { method: 'POST' });
+            const data = await resp.json();
+            if (data.status !== 'success') {
+                alert('恢复失败: ' + data.message);
+                resetRunBtn();
+            }
+        } catch (e) {
+            console.error('恢复失败:', e);
+            alert('恢复失败，请检查控制台');
+            resetRunBtn();
+        }
     });
 
     // 清空日志
