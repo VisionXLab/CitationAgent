@@ -1,5 +1,6 @@
 import asyncio
 import shutil
+from datetime import date
 from pathlib import Path
 from typing import List
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Request, HTTPException, UploadFile, File
@@ -34,7 +35,7 @@ task_executor = TaskExecutor(log_manager)
 @app.get("/")
 async def index(request: Request):
     """首页"""
-    return templates.TemplateResponse("index.html", {"request": request})
+    return templates.TemplateResponse("index.html", {"request": request, "now": date.today().strftime("%Y-%m-%d")})
 
 
 @app.get("/config")

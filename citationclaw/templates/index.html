@@ -1195,4 +1195,50 @@ function escHtml(s) {
   };
 })();
 </script>
+
+<!-- ═══ Startup Notice Modal ═══ -->
+<div class="modal fade" id="startupNoticeModal" tabindex="-1" aria-labelledby="startupNoticeLabel" aria-modal="true" role="dialog" data-bs-backdrop="static" data-bs-keyboard="false">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content" style="border-radius:12px;border:1px solid rgba(255,255,255,0.08);background:#1a1a2e">
+      <div class="modal-header" style="border-bottom:1px solid rgba(255,255,255,0.08);padding:20px 24px 16px">
+        <h5 class="modal-title" id="startupNoticeLabel" style="font-size:15px;font-weight:600;color:#e8e8f0">
+          <i class="bi bi-info-circle-fill" style="color:#a78bfa;margin-right:8px"></i>使用须知
+        </h5>
+        <span style="font-size:11px;color:#6b6b8a;margin-left:auto">作者提示 · {{ now }}</span>
+      </div>
+      <div class="modal-body" style="padding:20px 24px;color:#b0b0cc;font-size:13.5px;line-height:1.8">
+        <ol style="padding-left:18px;margin:0;display:flex;flex-direction:column;gap:12px">
+          <li>
+            CitationClaw 将消耗 Token，费用预估约 <strong style="color:#e8e8f0">2 引用 / 1 元</strong>，请根据论文引用量谨慎使用。
+          </li>
+          <li>
+            Web Search 功能依赖 V-API，请自行在第三方中转平台注册充值：
+            <a href="https://api.gpt.ge/register?aff=qH2n" target="_blank" rel="noopener" style="color:#a78bfa;text-decoration:none;border-bottom:1px dashed #a78bfa">
+              api.gpt.ge &nbsp;<i class="bi bi-box-arrow-up-right" style="font-size:11px"></i>
+            </a>
+          </li>
+          <li>
+            引用描述搜索部分存在一定<strong style="color:#e8e8f0">幻觉风险</strong>，建议对所得结果进行人工核验后再使用。
+          </li>
+          <li>
+            作者不对使用本工具产生的任何后果承担责任。
+          </li>
+        </ol>
+      </div>
+      <div class="modal-footer" style="border-top:1px solid rgba(255,255,255,0.08);padding:14px 24px">
+        <button type="button" class="btn btn-sm" id="startupNoticeOk"
+          style="background:linear-gradient(135deg,#7c3aed,#a78bfa);color:#fff;border:none;border-radius:8px;padding:6px 24px;font-size:13px;font-weight:500">
+          我知道了
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+<script>
+(function(){
+  var modal = new bootstrap.Modal(document.getElementById('startupNoticeModal'));
+  modal.show();
+  document.getElementById('startupNoticeOk').addEventListener('click', function(){ modal.hide(); });
+})();
+</script>
 {% endblock %}
