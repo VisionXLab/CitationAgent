@@ -35,6 +35,8 @@ CACHEABLE_FIELDS = [
 class AuthorInfoCache:
     """跨运行持久化施引论文作者信息缓存。"""
 
+    WRITE_EVERY = 10  # 每攒满 N 条更新才写盘，崩溃最多丢失 N-1 条
+
     def __init__(self, cache_file: Path = DEFAULT_CACHE_FILE):
         self.cache_file = cache_file
         self._data: dict = {}
@@ -42,6 +44,7 @@ class AuthorInfoCache:
         self._hits = 0        # 本次运行命中缓存次数
         self._misses = 0      # 本次运行未命中次数
         self._updates = 0     # 本次运行写入次数
+        self._pending = 0     # 距上次写盘后的待写条数
         self._load()
 
     # ─── 内部 ────────────────────────────────────────────────────────────────
@@ -110,7 +113,17 @@ class AuthorInfoCache:
             entry.update(to_write)
             entry["cached_at"] = datetime.now().isoformat()
             self._updates += 1
-            await self._save()
+            self._pending += 1
+            if self._pending >= self.WRITE_EVERY:
+                await self._save()
+                self._pending = 0
+
+    async def flush(self):
+        """强制写盘（Phase 结束时调用，确保最后不足 WRITE_EVERY 条的数据也落盘）。"""
+        async with self._lock:
+            if self._pending > 0:
+                await self._save()
+                self._pending = 0
 
     def has_field(self, paper_link: str, paper_title: str, field: str) -> bool:
         """判断缓存中是否已有指定字段。"""

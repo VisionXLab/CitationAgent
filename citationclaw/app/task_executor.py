@@ -630,6 +630,7 @@ class TaskExecutor:
                 )
 
                 # 打印本次运行的缓存统计
+                await author_cache.flush()   # 确保最后不足 WRITE_EVERY 条的数据落盘
                 final_stats = author_cache.stats()
                 self.log_manager.info(
                     f"💾 作者缓存统计：命中 {final_stats['hits']} 篇 / "

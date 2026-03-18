@@ -19,6 +19,8 @@ DEFAULT_CACHE_FILE = Path("data/cache/citing_description_cache.json")
 class CitingDescriptionCache:
     """跨运行持久化引用描述缓存。"""
 
+    WRITE_EVERY = 10  # 每攒满 N 条更新才写盘，崩溃最多丢失 N-1 条
+
     def __init__(self, cache_file: Path = DEFAULT_CACHE_FILE):
         self.cache_file = cache_file
         self._data: dict = {}
@@ -26,6 +28,7 @@ class CitingDescriptionCache:
         self._hits = 0
         self._misses = 0
         self._updates = 0
+        self._pending = 0     # 距上次写盘后的待写条数
         self._load()
 
     # ─── 内部 ────────────────────────────────────────────────────────────────
@@ -98,7 +101,17 @@ class CitingDescriptionCache:
                 "cached_at": datetime.now().isoformat(),
             }
             self._updates += 1
-            await self._save()
+            self._pending += 1
+            if self._pending >= self.WRITE_EVERY:
+                await self._save()
+                self._pending = 0
+
+    async def flush(self):
+        """强制写盘（Phase 结束时调用，确保最后不足 WRITE_EVERY 条的数据也落盘）。"""
+        async with self._lock:
+            if self._pending > 0:
+                await self._save()
+                self._pending = 0
 
     def has_description(self, paper_link: str, paper_title: str, citing_paper: str) -> bool:
         """判断缓存中是否已有指定条目。"""

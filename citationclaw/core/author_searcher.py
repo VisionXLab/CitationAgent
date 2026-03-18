@@ -226,13 +226,14 @@ class AuthorSearcher:
             is_timeout = 'timed out' in error_msg or 'timeout' in error_msg
             if retry_count < max_retries:
                 wait_time = min(2 ** retry_count, 30)  # 指数退避，最多等待30秒
-                if not is_timeout:
+                if is_timeout:
+                    self.log_callback(f"{log_prefix}⏰ 超时，{wait_time}s后重试({retry_count + 1}/{max_retries})")
+                else:
                     self.log_callback(f"{log_prefix}⚠️ 搜索API错误: {e}，{wait_time}秒后重试 (第{retry_count + 1}/{max_retries}次)，请耐心等待！")
                 await asyncio.sleep(wait_time)
                 return await self.search_fn(query, retry_count + 1, max_retries, log_prefix)
             else:
-                if not is_timeout:
-                    self.log_callback(f"❌ 搜索API错误（已达最大重试次数）: {e}")
+                self.log_callback(f"{log_prefix}❌ {'请求超时，作者信息将留空' if is_timeout else f'搜索API错误（已达最大重试次数）: {e}'}")
                 return 'ERROR'
 
     async def chat_fn(self, query: str, retry_count: int = 0, max_retries: int = 5, log_prefix: str = "", quota_retry_count: int = 0) -> str:
@@ -293,13 +294,14 @@ class AuthorSearcher:
             is_timeout = 'timed out' in error_msg or 'timeout' in error_msg
             if retry_count < max_retries:
                 wait_time = min(2 ** retry_count, 30)  # 指数退避，最多等待30秒
-                if not is_timeout:
+                if is_timeout:
+                    self.log_callback(f"{log_prefix}⏰ 超时，{wait_time}s后重试({retry_count + 1}/{max_retries})")
+                else:
                     self.log_callback(f"{log_prefix}⚠️ 二次筛选API错误: {e}，{wait_time}秒后重试 (第{retry_count + 1}/{max_retries}次)，请耐心等待！")
                 await asyncio.sleep(wait_time)
                 return await self.chat_fn(query, retry_count + 1, max_retries, log_prefix)
             else:
-                if not is_timeout:
-                    self.log_callback(f"❌ 二次筛选API错误（已达最大重试次数）: {e}")
+                self.log_callback(f"{log_prefix}❌ {'请求超时，作者信息将留空' if is_timeout else f'二次筛选API错误（已达最大重试次数）: {e}'}")
                 return 'ERROR'
 
     async def format_fn(self, query: str, retry_count: int = 0, max_retries: int = 5, log_prefix: str = "", quota_retry_count: int = 0) -> str:
@@ -362,13 +364,14 @@ class AuthorSearcher:
             is_timeout = 'timed out' in error_msg or 'timeout' in error_msg
             if retry_count < max_retries:
                 wait_time = min(2 ** retry_count, 30)  # 指数退避，最多等待30秒
-                if not is_timeout:
+                if is_timeout:
+                    self.log_callback(f"{log_prefix}⏰ 超时，{wait_time}s后重试({retry_count + 1}/{max_retries})")
+                else:
                     self.log_callback(f"{log_prefix}⚠️ 格式化输出重量级学者API错误: {e}，{wait_time}秒后重试 (第{retry_count + 1}/{max_retries}次)，请耐心等待！")
                 await asyncio.sleep(wait_time)
                 return await self.format_fn(query, retry_count + 1, max_retries, log_prefix)
             else:
-                if not is_timeout:
-                    self.log_callback(f"❌ 格式化输出重量级学者API错误（已达最大重试次数）: {e}")
+                self.log_callback(f"{log_prefix}❌ {'请求超时，作者信息将留空' if is_timeout else f'格式化输出重量级学者API错误（已达最大重试次数）: {e}'}")
                 return 'ERROR'
 
     async def verify_fn(self, query: str, retry_count: int = 0, max_retries: int = 5, log_prefix: str = "", quota_retry_count: int = 0) -> str:
@@ -430,13 +433,14 @@ class AuthorSearcher:
             is_timeout = 'timed out' in error_msg or 'timeout' in error_msg
             if retry_count < max_retries:
                 wait_time = min(2 ** retry_count, 30)  # 指数退避，最多等待30秒
-                if not is_timeout:
+                if is_timeout:
+                    self.log_callback(f"{log_prefix}⏰ 超时，{wait_time}s后重试({retry_count + 1}/{max_retries})")
+                else:
                     self.log_callback(f"{log_prefix}⚠️ 作者校验API错误: {e}，{wait_time}秒后重试 (第{retry_count + 1}/{max_retries}次)，请耐心等待！")
                 await asyncio.sleep(wait_time)
                 return await self.verify_fn(query, retry_count + 1, max_retries, log_prefix)
             else:
-                if not is_timeout:
-                    self.log_callback(f"❌ 作者校验API错误（已达最大重试次数）: {e}")
+                self.log_callback(f"{log_prefix}❌ {'请求超时，作者信息将留空' if is_timeout else f'作者校验API错误（已达最大重试次数）: {e}'}")
                 return 'ERROR'
 
     async def _check_self_citation_llm(

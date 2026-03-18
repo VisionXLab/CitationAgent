@@ -154,26 +154,39 @@ class DashboardGenerator:
             total_papers  — unique paper count
             descriptions  — list of non-empty Citing_Description strings
             citing_pairs  — list of {paper_title, citing_paper, description}
-            unique_citing_papers — deduplicated list of Citing_Paper values
+            unique_citing_papers — deduplicated list of citing paper titles (those with descriptions)
+            self_citation_count  — number of unique self-citing papers
+
+        NOTE: dedup key is normalized Paper_Title (lower-cased).
+        PageID / PaperID are per-paper sequential IDs that restart from 0 for every
+        target paper, so they collide massively in multi-paper searches and MUST NOT
+        be used as a global dedup key.
         """
         df = pd.read_excel(path)
         papers_by_key = {}
         descriptions = []
         citing_pairs = []
-        self_citing_keys = set()
+        self_citing_titles = set()
 
         for _, row in df.iterrows():
-            page_id = row.get('PageID', '')
-            paper_id = row.get('PaperID', '')
-            key = (str(page_id or ""), str(paper_id or ""))
+            title_raw = str(row.get('Paper_Title', '') or '').strip()
+            # Use normalized title as the global dedup key; fall back to link
+            key = title_raw.lower()
+            if not key:
+                key = str(row.get('Paper_Link', '') or '').strip().lower()
+            if not key:
+                continue  # cannot identify this row — skip
+
+            citing = str(row.get('Citing_Paper', '') or '').strip()
+
             is_self = row.get('Is_Self_Citation', False)
             if is_self and str(is_self).lower() not in ('false', '0', 'nan', 'none', ''):
-                self_citing_keys.add(key)
+                self_citing_titles.add(key)
 
             if key not in papers_by_key:
                 papers_by_key[key] = {
                     "id": key,
-                    "title": str(row.get('Paper_Title', '') or ''),
+                    "title": title_raw,
                     "year": self._parse_year(row.get('Paper_Year', None)),
                     "link": str(row.get('Paper_Link', '') or ''),
                     "citations": self._parse_citation_count(row.get('Citations', 0)),
@@ -181,15 +194,22 @@ class DashboardGenerator:
                     "institution": str(row.get('First_Author_Institution', '') or '').strip(),
                     "authors": str(row.get('Authors_with_Profile', '') or '').strip(),
                     "author_affiliation": str(row.get('Searched Author-Affiliation', '') or '').strip(),
+                    "citing_papers": set(),   # which target papers this citing paper belongs to
                 }
+            else:
+                # Keep the highest citation count seen across rows for the same title
+                new_cit = self._parse_citation_count(row.get('Citations', 0))
+                if new_cit > papers_by_key[key]["citations"]:
+                    papers_by_key[key]["citations"] = new_cit
+
+            if citing:
+                papers_by_key[key]["citing_papers"].add(citing)
 
             desc = str(row.get('Citing_Description', '') or '').strip()
-            citing = str(row.get('Citing_Paper', '') or '').strip()
-            paper_title = str(row.get('Paper_Title', '') or '').strip()
             if desc and desc.upper() not in ("NONE", ""):
                 descriptions.append(desc)
                 citing_pairs.append({
-                    "paper_title": paper_title,
+                    "paper_title": title_raw,
                     "citing_paper": citing,
                     "description": desc,
                 })
@@ -200,12 +220,12 @@ class DashboardGenerator:
         seen_citing = set()
         unique_citing_papers = []
         for cp in citing_pairs:
-            name = cp["paper_title"].strip()   # citing paper title (Paper_Title column)
+            name = cp["paper_title"].strip()
             if name and name not in seen_citing:
                 seen_citing.add(name)
                 unique_citing_papers.append(name)
 
-        self_citation_count = len(self_citing_keys)
+        self_citation_count = len(self_citing_titles)
         return papers, total_papers, descriptions, citing_pairs, unique_citing_papers, self_citation_count
 
     def _load_renowned_scholars(self, all_path: Path, top_path: Path):
@@ -901,7 +921,7 @@ body { font-family: 'Noto Sans SC', -apple-system, BlinkMacSystemFont, 'Segoe UI
   padding: 10px 14px; background: linear-gradient(90deg, var(--teal-light), transparent);
   border-left: 3px solid var(--teal); border-radius: 0 6px 6px 0; line-height: 1.7; }
 .citing-papers-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
-  gap: 8px; max-height: 320px; overflow-y: auto; padding-right: 4px; }
+  gap: 8px; max-height: 420px; overflow-y: auto; padding-right: 4px; }
 .citing-paper-item { display: flex; align-items: center; gap: 10px; padding: 8px 12px;
   border: 1px solid var(--border); border-radius: 6px; background: var(--bg); transition: background .15s, border-color .15s; }
 .citing-paper-item:hover { background: var(--teal-light); border-color: var(--teal-muted); }
@@ -1141,21 +1161,32 @@ a.author-pill:hover { background: var(--teal-light); border-color: var(--teal); 
             if desc and desc.upper() not in ("NONE", "NAN", "N/A", "NA", "") and desc not in desc_lookup[pt]:
                 desc_lookup[pt].append(desc)
 
-        # ── Citing papers list — always show ALL citing papers (from papers), not just those with descriptions
+        # ── Citing papers list — show first 30, rest hidden behind "expand" button
         n_citing = total_papers
-        SCOPE_MAX = 100  # cap display list to avoid oversized HTML
+        SCOPE_VISIBLE = 30   # items rendered initially (scroll within fixed height)
+        SCOPE_MAX = 200      # hard cap on DOM nodes to avoid huge HTML
         citing_list_items = ""
         for i, p in enumerate(papers[:SCOPE_MAX]):
+            hidden = ' class="scope-extra" style="display:none"' if i >= SCOPE_VISIBLE else ''
             citing_list_items += f"""
-        <div class="citing-paper-item">
+        <div class="citing-paper-item"{hidden}>
           <span class="citing-paper-num">{str(i+1).zfill(2)}</span>
           <span class="citing-paper-name">{p["title"]}</span>
         </div>"""
-        if total_papers > SCOPE_MAX:
+        # expand / overflow note
+        if total_papers > SCOPE_VISIBLE:
+            hidden_in_dom = min(total_papers, SCOPE_MAX) - SCOPE_VISIBLE
+            overflow_note = f"，完整数据见下载文件" if total_papers > SCOPE_MAX else ""
             citing_list_items += f"""
-        <div class="citing-paper-item" style="opacity:0.55;font-style:italic">
-          <span class="citing-paper-num">…</span>
-          <span class="citing-paper-name">另有 {total_papers - SCOPE_MAX} 篇，完整数据见下载文件</span>
+        <div id="scope-expand-row" style="grid-column:1/-1;text-align:center;padding:6px 0">
+          <button onclick="(function(){{
+            document.querySelectorAll('.scope-extra').forEach(function(el){{el.style.display=''}});
+            document.getElementById('scope-expand-row').style.display='none';
+          }})()" style="font-size:11px;padding:3px 14px;border:1px solid var(--border);border-radius:4px;
+            background:var(--surface);color:var(--teal);cursor:pointer">
+            展开全部 {n_citing} 篇 ▾
+          </button>
+          <span style="font-size:11px;color:var(--text-light);margin-left:8px">当前显示前 {SCOPE_VISIBLE} 篇{overflow_note}</span>
         </div>"""
 
         # ── Download bar
@@ -1556,11 +1587,20 @@ a.author-pill:hover { background: var(--teal-light); border-color: var(--teal); 
                 "country": _p.get("country", ""),
                 "institution": (_p.get("institution") or "")[:55],
             })
-        # Each citing paper links to ALL center nodes
+        # Each citing paper links only to the target papers it actually cites
         kg_links = []
-        for _i in range(len(kg_paper_list)):
-            for _ci in range(_n_centers):
-                kg_links.append({"source": f"p{_i}", "target": f"c{_ci}"})
+        for _i, _p in enumerate(kg_paper_list):
+            paper_citing_set = _p.get("citing_papers", set())
+            linked = False
+            for _ci, _ct in enumerate(canonical_titles or []):
+                if _ct in paper_citing_set:
+                    kg_links.append({"source": f"p{_i}", "target": f"c{_ci}"})
+                    linked = True
+            # Fallback: if citing_papers is empty (e.g. single-paper mode or legacy data),
+            # connect to all centers so the graph is never empty
+            if not linked:
+                for _ci in range(_n_centers):
+                    kg_links.append({"source": f"p{_i}", "target": f"c{_ci}"})
         # Connect center nodes to each other
         for _ci in range(_n_centers - 1):
             for _cj in range(_ci + 1, _n_centers):

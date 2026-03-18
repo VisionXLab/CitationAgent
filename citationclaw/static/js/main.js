@@ -273,7 +273,7 @@ async function loadConfig() {
         if (el('sleep-between-pages')) el('sleep-between-pages').value = config.sleep_between_pages || 10;
         if (el('parallel-author-search')) el('parallel-author-search').value = config.parallel_author_search || 10;
         if (el('resume-page')) el('resume-page').value = config.resume_page_count || 0;
-        if (el('enable-year-traverse')) el('enable-year-traverse').checked = config.enable_year_traverse || false;
+        // enable_year_traverse is intentionally NOT loaded from config — always starts unchecked each session
         if (el('debug-mode')) el('debug-mode').checked = config.debug_mode || false;
         if (el('test-mode')) el('test-mode').checked = config.test_mode || false;
         if (el('retry-max-attempts')) el('retry-max-attempts').value = config.retry_max_attempts || 3;
@@ -470,7 +470,7 @@ function collectConfig() {
         sleep_between_pages: parseInt(document.getElementById('sleep-between-pages').value) || 10,
         parallel_author_search: parseInt(document.getElementById('parallel-author-search').value) || 10,
         resume_page_count: parseInt(document.getElementById('resume-page').value) || 0,
-        enable_year_traverse: document.getElementById('enable-year-traverse').checked,
+        enable_year_traverse: document.getElementById('enable-year-traverse')?.checked ?? false,
         debug_mode: document.getElementById('debug-mode').checked,
         test_mode: document.getElementById('test-mode').checked,
         retry_max_attempts: parseInt(document.getElementById('retry-max-attempts').value) || 3,

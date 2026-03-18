@@ -135,11 +135,12 @@ class ConfigManager:
         self.config = self._load()
 
     def _load(self) -> AppConfig:
-        """加载配置"""
+        """加载配置（enable_year_traverse 始终重置为 False，不从文件读取）"""
         if self.config_path.exists():
             try:
                 with open(self.config_path, 'r', encoding='utf-8') as f:
                     data = json.load(f)
+                    data.pop("enable_year_traverse", None)  # 永不从磁盘恢复
                     return AppConfig(**data)
             except Exception as e:
                 print(f"加载配置失败: {e}, 使用默认配置")
@@ -147,9 +148,11 @@ class ConfigManager:
         return AppConfig()
 
     def save(self, config: AppConfig):
-        """保存配置"""
+        """保存配置（enable_year_traverse 不持久化，每次启动重置为 False）"""
+        data = config.model_dump()
+        data.pop("enable_year_traverse", None)
         with open(self.config_path, 'w', encoding='utf-8') as f:
-            json.dump(config.model_dump(), f, ensure_ascii=False, indent=2)
+            json.dump(data, f, ensure_ascii=False, indent=2)
         self.config = config
 
     def get(self) -> AppConfig:

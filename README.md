@@ -38,6 +38,7 @@ Input paper titles (or import from Google Scholar profiles), and generate a full
 
 ## 📢 News
 
+- **2026-03-18**: Released **beta v1.0.9** — Multi-paper dashboard dedup fix (title-based dedup key, correct KG edges); year-traverse no longer persisted across sessions; default parallel workers raised to 10; V-API Key registration link added; timeout log messages during LLM retries; SCOPE section scrollable with expand button; cache write throttling (every 10 items) to prevent large-file slowdowns.
 - **2026-03-18**: Released **beta v1.0.8** — UI improvements: default to Basic tier, maintenance notice for Advanced/Full, startup modal with usage notices, V-API Key labeling; fix SCOPE section showing incorrect citing paper count in multi-paper mode.
 - **2026-03-16**: Released **beta v1.0.7** — Reliability hardening: parallel quota-storm prevention (early-exit guards + 2h gather timeout), and empty/corrupt JSONL guards across all pipeline phases to ensure the pipeline always runs to completion.
 - **2026-03-15**: Released **beta v1.0.6** — English README as default, Chinese switch at top, and usage flow linked to Guidelines Quick Start.

@@ -16,7 +16,7 @@
   [![PyPI](https://img.shields.io/pypi/v/citationclaw?logo=pypi&logoColor=white&color=0073b7)](https://pypi.org/project/citationclaw/)
   [![PyPI-下载量](https://img.shields.io/pypi/dm/citationclaw)](https://pypi.org/project/citationclaw)
   ![Python](https://img.shields.io/badge/Python-3.10%2B-3776AB?logo=python&logoColor=white)
-  ![Version](https://img.shields.io/badge/版本-1.0.7-brightgreen)
+  ![Version](https://img.shields.io/badge/版本-1.0.9-brightgreen)
   ![Platform](https://img.shields.io/badge/平台-macOS%20%7C%20Linux%20%7C%20Windows-lightgrey)
   ![LLM](https://img.shields.io/badge/LLM-OpenAI%20Compatible-412991?logo=openai&logoColor=white)
   ![ScraperAPI](https://img.shields.io/badge/爬取-ScraperAPI-FF6B35)
@@ -33,6 +33,8 @@
 
 | 日期 | 版本 | 更新内容 |
 |------|------|---------|
+| 2026-03-18 | beta v1.0.9 | 🐛 多篇搜索去重修复（按标题去重，KG 边正确关联）；按年份遍历不再跨会话持久化；默认并发数提升至 10；V-API Key 注册链接直达；LLM 重试超时日志优化；SCOPE 区域可滚动展开；缓存每 10 条写一次，防止大文件性能劣化 |
+| 2026-03-18 | beta v1.0.8 | 🎨 UI 优化：默认基础层级、高级/全面维护提示、启动弹窗、V-API Key 说明；修复多篇模式下 SCOPE 计数错误 |
 | 2026-03-16 | beta v1.0.7 | 🛡️ 稳定性强化：并行任务配额风暴防护（早退守卫 + 2小时 gather 超时），各阶段空输出/损坏 JSONL 全面兜底，确保流程在极端情况下仍能跑通 |
 | 2026-03-15 | beta v1.0.6 | 🌐 文档升级：默认英文 README，顶部支持中英文切换；中文内容迁移至 `README.zh-CN.md`；”使用流程”改为直达 Guidelines Quick Start |
 | 2026-03-14 | v1.0.5 | 🤖 新增报告页与主界面 AI 智能助手（支持联网搜索）；修复报告页助手按钮无响应问题；优化助手按钮视觉（品牌图标 + 白色圆形设计）📦 PyPI 最新版本：`pip install citationclaw` 一行安装，自动打开浏览器，支持跨平台（macOS / Linux / Windows） |

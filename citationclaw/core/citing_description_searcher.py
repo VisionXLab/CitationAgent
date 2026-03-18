@@ -191,6 +191,8 @@ class CitingDescriptionSearcher:
                 i, desc = item
                 df.at[i, 'Citing_Description'] = desc
 
+        if self.cache is not None:
+            await self.cache.flush()
         output_excel.parent.mkdir(parents=True, exist_ok=True)
         df.to_excel(output_excel, index=False)
         self.log(f"引用描述已保存: {output_excel}")
