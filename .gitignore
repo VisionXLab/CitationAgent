@@ -17,13 +17,8 @@ build/
 venv/
 env/
 
-# Runtime outputs (keep result-template examples)
-data/result-*/
-!data/result-template1/
-!data/result-template2/
-
-# Runtime cache and config
-data/cache/
+# Runtime outputs and cache
+data/
 config.json
 .superpowers/
 

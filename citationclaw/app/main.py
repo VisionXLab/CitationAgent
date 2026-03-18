@@ -531,6 +531,78 @@ async def cancel_task():
     return {"status": "success", "message": "任务取消中..."}
 
 
+@app.post("/api/task/resume")
+async def resume_task():
+    """恢复被取消的任务"""
+    if task_executor.is_running:
+        return JSONResponse(status_code=400,
+            content={"status": "error", "message": "任务正在运行中"})
+    if not task_executor._resume_state:
+        return JSONResponse(status_code=400,
+            content={"status": "error", "message": "没有可恢复的任务"})
+
+    resume = task_executor._resume_state
+    config = config_manager.get()
+    task_executor.current_task = asyncio.create_task(
+        task_executor.execute_for_titles(
+            paper_groups=resume["paper_groups"],
+            config=config,
+            output_prefix=resume["output_prefix"],
+            _resume=resume,
+        )
+    )
+    return {
+        "status": "success",
+        "message": f"已恢复，已完成的阶段将自动跳过"
+    }
+
+
+class ResumeFolderRequest(BaseModel):
+    folder: str  # e.g. "result-20260317_155742"
+
+
+@app.post("/api/task/resume-from-folder")
+async def resume_from_folder(request: ResumeFolderRequest):
+    """从结果文件夹恢复任务"""
+    import json as _json
+
+    if task_executor.is_running:
+        return JSONResponse(status_code=400,
+            content={"status": "error", "message": "任务正在运行中"})
+
+    result_dir = Path("data") / request.folder
+    if not result_dir.is_dir():
+        return JSONResponse(status_code=400,
+            content={"status": "error", "message": f"文件夹不存在: {request.folder}"})
+
+    meta_file = result_dir / "_task_meta.json"
+    if not meta_file.exists():
+        return JSONResponse(status_code=400,
+            content={"status": "error", "message": "该文件夹缺少任务元数据（_task_meta.json），无法恢复"})
+
+    try:
+        meta = _json.loads(meta_file.read_text(encoding="utf-8"))
+    except Exception as e:
+        return JSONResponse(status_code=400,
+            content={"status": "error", "message": f"读取元数据失败: {e}"})
+
+    config = config_manager.get()
+    resume = {
+        "paper_groups": meta["paper_groups"],
+        "output_prefix": meta["output_prefix"],
+        "result_dir": str(result_dir),
+    }
+    task_executor.current_task = asyncio.create_task(
+        task_executor.execute_for_titles(
+            paper_groups=resume["paper_groups"],
+            config=config,
+            output_prefix=resume["output_prefix"],
+            _resume=resume,
+        )
+    )
+    return {"status": "success", "message": f"已从 {request.folder} 恢复任务，已完成的阶段将自动跳过"}
+
+
 @app.post("/api/task/year-traverse-respond")
 async def year_traverse_respond(request: YearTraverseResponse):
     """接收用户对年份遍历提示的响应"""
@@ -634,6 +706,7 @@ async def list_result_folders():
                 "file_count": len(files),
                 "modified": max((f.stat().st_mtime for f in files), default=sub.stat().st_mtime),
                 "size": sum(f.stat().st_size for f in files),
+                "has_meta": (sub / "_task_meta.json").exists(),
             })
 
     # 旧版扁平目录

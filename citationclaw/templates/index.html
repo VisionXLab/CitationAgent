@@ -156,13 +156,16 @@
       </div>
       <div class="col-md-3">
         <label class="form-label">Search Model</label>
-        <select id="idx-openai-model" class="form-select">
+        <select id="idx-openai-model-select" class="form-select">
           <option value="gemini-3-flash-preview-search" selected>gemini-3-flash-preview-search</option>
           <option value="gemini-3.1-pro-preview-search">gemini-3.1-pro-preview-search</option>
           <option value="gpt-5-search-api">gpt-5-search-api</option>
           <option value="deepseek-r1-search">deepseek-r1-search</option>
           <option value="deepseek-v3-search">deepseek-v3-search</option>
+          <option value="__custom__">自定义...</option>
         </select>
+        <input type="text" id="idx-openai-model-custom" class="form-control mt-1" placeholder="输入模型名称" style="display:none">
+        <input type="hidden" id="idx-openai-model">
       </div>
       <div class="col-md-3">
         <label class="form-label">输出文件前缀</label>
@@ -209,6 +212,9 @@
   </button>
   <button id="idx-cancel-btn" class="btn-agent-danger" style="display:none">
     <i class="bi bi-stop-fill"></i> 取消
+  </button>
+  <button id="idx-resume-btn" class="btn-agent-primary" style="display:none">
+    <i class="bi bi-arrow-clockwise"></i> 恢复
   </button>
 </div>
 
