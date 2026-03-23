@@ -50,13 +50,17 @@ class MinerUParser:
         if cached:
             return cached
 
-        if self._has_mineru:
-            result = self._parse_mineru(pdf_path, output_dir)
-            if result:
-                return result
+        # Use PyMuPDF as primary (fast, no extra deps, sufficient for author extraction)
+        # MinerU is optional enhancement for complex layouts (tables, OCR)
+        result = self._parse_pymupdf(pdf_path, output_dir)
+        if result:
+            return result
 
-        # Fallback to PyMuPDF
-        return self._parse_pymupdf(pdf_path, output_dir)
+        # Try MinerU if PyMuPDF failed (unlikely but possible for scanned PDFs)
+        if self._has_mineru:
+            return self._parse_mineru(pdf_path, output_dir)
+
+        return None
 
     def _load_cached(self, output_dir: Path) -> Optional[dict]:
         """Load previously parsed result from cache directory."""
