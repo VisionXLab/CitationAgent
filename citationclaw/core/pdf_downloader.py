@@ -165,13 +165,17 @@ class PDFDownloader:
         doi = paper.get("doi", "")
         if doi:
             sources.append({"name": "unpaywall", "fn": self._try_unpaywall})
-        # 5. Publisher + Cookie
+        # 5. Google Scholar paper_link (often points to publisher page)
+        paper_link = paper.get("paper_link", "")
+        if paper_link and "scholar.google" not in paper_link:
+            sources.append({"name": "gs_link", "fn": self._try_paper_link})
+        # 6. Publisher + Cookie
         if doi:
             sources.append({"name": "publisher", "fn": self._try_publisher_with_cookie})
-        # 6. Sci-Hub
+        # 7. Sci-Hub
         if doi:
             sources.append({"name": "sci-hub", "fn": self._try_scihub})
-        # 7. DOI redirect
+        # 8. DOI redirect
         if doi:
             sources.append({"name": "doi_redirect", "fn": self._try_doi_redirect})
         return sources
@@ -192,6 +196,30 @@ class PDFDownloader:
         resp = await self._client.get(url)
         if resp.status_code == 200 and resp.content[:5] == b"%PDF-":
             return resp.content
+        return None
+
+    async def _try_paper_link(self, paper: dict) -> Optional[bytes]:
+        """Try Google Scholar's paper_link — often a direct publisher URL."""
+        url = paper.get("paper_link", "")
+        if not url or "scholar.google" in url:
+            return None
+        try:
+            cookies = _get_cookies_for_url(url)
+            resp = await self._client.get(url, cookies=cookies)
+            if resp.status_code != 200:
+                return None
+            # Direct PDF
+            if resp.content[:5] == b"%PDF-":
+                return resp.content
+            # Try to extract PDF link from HTML
+            html = resp.text
+            pdf_url = _extract_pdf_url_from_html(html, str(resp.url))
+            if pdf_url:
+                pdf_resp = await self._client.get(pdf_url, cookies=cookies)
+                if pdf_resp.status_code == 200 and pdf_resp.content[:5] == b"%PDF-":
+                    return pdf_resp.content
+        except Exception:
+            pass
         return None
 
     async def _try_unpaywall(self, paper: dict) -> Optional[bytes]:

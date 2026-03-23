@@ -341,13 +341,14 @@ class TaskExecutor:
         )
         validator = AffiliationValidator()
 
-        # Build download-friendly dicts with all URL sources
+        # Build download-friendly dicts with all URL sources (including GS paper_link)
         dl_papers = []
         for paper, metadata, canonical in records_data:
             dl_papers.append({
                 "doi": (metadata or {}).get("doi", ""),
                 "pdf_url": (metadata or {}).get("pdf_url", ""),
                 "oa_pdf_url": (metadata or {}).get("oa_pdf_url", ""),
+                "paper_link": paper.get("paper_link", ""),  # GS link to publisher
                 "Paper_Title": paper.get("paper_title", ""),
                 "title": paper.get("paper_title", ""),
             })
@@ -362,12 +363,13 @@ class TaskExecutor:
 
         # Parse + extract authors + cross-validate (parallel, 5 workers for MinerU)
         if downloaded > 0:
-            self.log_manager.info(f"[MinerU] 解析 {downloaded} 篇 PDF + LLM 提取作者...")
+            self.log_manager.info(f"[MinerU] 解析 {downloaded} 篇 PDF (txt模式) + LLM 提取作者...")
             parse_sem = asyncio.Semaphore(3)  # MinerU is CPU-heavy
             validated_count = 0
+            parse_done = 0
 
             async def _parse_and_validate(idx: int):
-                nonlocal validated_count
+                nonlocal validated_count, parse_done
                 pdf_path = pdf_paths[idx]
                 if not pdf_path:
                     return
@@ -398,6 +400,12 @@ class TaskExecutor:
                         "source": parsed.get("source", ""),
                         "has_content_list": bool(parsed.get("content_list")),
                     })
+
+                    parse_done += 1
+                    self.log_manager.info(
+                        f"  [解析 {parse_done}/{downloaded}] {title[:50]}... "
+                        f"({parsed.get('source','?')})"
+                    )
 
                     # Extract authors from first page via LLM
                     pdf_authors = await author_extractor.extract(

@@ -95,7 +95,7 @@ class MinerUParser:
                 pdf_bytes_list=[pdf_bytes],
                 p_lang_list=["en"],
                 backend="pipeline",
-                parse_method="auto",
+                parse_method="txt",  # Fast text-only mode (no OCR/table/formula)
                 f_dump_md=True,
                 f_dump_content_list=True,
                 f_dump_model_output=False,
