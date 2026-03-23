@@ -1,0 +1,131 @@
+{% extends "base.html" %}
+
+{% block title %}任务执行 - CitationClaw{% endblock %}
+
+{% block content %}
+<div class="row">
+    <!-- 左侧: 实时日志 -->
+    <div class="col-md-8">
+        <div class="card shadow-lg">
+            <div class="card-header bg-info text-white">
+                <h5 class="mb-0">
+                    <i class="bi bi-terminal"></i> 任务日志
+                    <span class="badge bg-light text-dark float-end" id="ws-status">连接中...</span>
+                </h5>
+            </div>
+            <div class="card-body p-0">
+                <!-- 日志终端 -->
+                <div id="log-container" class="log-terminal">
+                    <div class="text-muted text-center p-4">
+                        <i class="bi bi-hourglass-split"></i> 等待日志输出...
+                    </div>
+                </div>
+            </div>
+            <div class="card-footer bg-light">
+                <button id="clear-logs-btn" class="btn btn-sm btn-outline-secondary">
+                    <i class="bi bi-trash"></i> 清空日志
+                </button>
+                <button id="auto-scroll-btn" class="btn btn-sm btn-outline-primary active">
+                    <i class="bi bi-arrow-down-square"></i> 自动滚动
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 右侧: 进度和控制 -->
+    <div class="col-md-4">
+        <!-- 进度卡片 -->
+        <div class="card shadow mb-3">
+            <div class="card-header bg-primary text-white">
+                <h6 class="mb-0"><i class="bi bi-graph-up"></i> 任务进度</h6>
+            </div>
+            <div class="card-body">
+                <div class="mb-3">
+                    <div class="progress" style="height: 30px;">
+                        <div id="progress-bar"
+                             class="progress-bar progress-bar-striped progress-bar-animated bg-success"
+                             role="progressbar"
+                             style="width: 0%"
+                             aria-valuenow="0"
+                             aria-valuemin="0"
+                             aria-valuemax="100">
+                            0%
+                        </div>
+                    </div>
+                </div>
+                <p id="progress-text" class="text-center text-muted mb-0">
+                    <i class="bi bi-hourglass"></i> 准备中...
+                </p>
+            </div>
+        </div>
+
+        <!-- 任务阶段 -->
+        <div class="card shadow mb-3">
+            <div class="card-header">
+                <h6 class="mb-0"><i class="bi bi-list-check"></i> 任务阶段</h6>
+            </div>
+            <div class="card-body">
+                <div class="list-group">
+                    <div class="list-group-item" id="stage-1">
+                        <i class="bi bi-circle text-muted"></i>
+                        阶段1: 抓取引用列表
+                    </div>
+                    <div class="list-group-item" id="stage-2">
+                        <i class="bi bi-circle text-muted"></i>
+                        阶段2: 搜索作者信息
+                    </div>
+                    <div class="list-group-item" id="stage-3">
+                        <i class="bi bi-circle text-muted"></i>
+                        阶段3: 导出结果
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 控制按钮 -->
+        <div class="card shadow">
+            <div class="card-header">
+                <h6 class="mb-0"><i class="bi bi-controller"></i> 任务控制</h6>
+            </div>
+            <div class="card-body">
+                <div class="d-grid gap-2">
+                    <!-- 初始选择按钮 -->
+                    <div id="initial-choice" style="display: block;">
+                        <button id="import-history-btn" class="btn btn-primary btn-lg mb-2">
+                            <i class="bi bi-folder-open"></i> 导入历史记录
+                        </button>
+                        <button id="start-scraping-btn" class="btn btn-success btn-lg">
+                            <i class="bi bi-play-circle"></i> 开始抓取
+                        </button>
+                        <div class="text-muted small mt-2 text-center">
+                            💡 如果已有抓取结果可导入历史记录，否则开始新的抓取
+                        </div>
+                    </div>
+
+                    <!-- 继续按钮（阶段1完成或导入后显示） -->
+                    <button id="continue-btn" class="btn btn-success btn-lg" style="display: none;">
+                        <i class="bi bi-play-fill"></i> 继续执行阶段2/3
+                    </button>
+
+                    <!-- 取消按钮（任务运行时显示） -->
+                    <button id="cancel-btn" class="btn btn-danger" style="display: none;">
+                        <i class="bi bi-stop-circle"></i> 取消任务
+                    </button>
+
+                    <a href="/results" class="btn btn-outline-primary">
+                        <i class="bi bi-file-earmark-text"></i> 查看结果
+                    </a>
+                    <a href="/config" class="btn btn-outline-secondary">
+                        <i class="bi bi-arrow-left"></i> 返回配置
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="/static/js/websocket.js"></script>
+<script src="/static/js/main.js"></script>
+{% endblock %}

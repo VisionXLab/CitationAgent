@@ -1,0 +1,151 @@
+import json
+import asyncio
+from pathlib import Path
+from typing import Callable, Optional
+import openai
+
+
+class AuthorSearcher:
+    def __init__(
+        self,
+        api_key: str,
+        base_url: str,
+        model: str,
+        log_callback: Callable,
+        progress_callback: Callable
+    ):
+        """
+        作者学术信息搜索器（兼容旧版OpenAI SDK 0.27.x）
+
+        Args:
+            api_key: OpenAI兼容API Key
+            base_url: API Base URL
+            model: 模型名称
+            log_callback: 日志回调函数
+            progress_callback: 进度回调函数
+        """
+        # 旧版OpenAI SDK使用全局配置
+        openai.api_key = api_key
+        openai.api_base = base_url  # 注意：旧版使用api_base而不是base_url
+
+        self.model = model
+        self.log_callback = log_callback
+        self.progress_callback = progress_callback
+
+    def search_fn(self, query: str) -> str:
+        """
+        调用搜索模型
+
+        Args:
+            query: 查询内容
+
+        Returns:
+            搜索结果,失败返回'ERROR'
+        """
+        try:
+            # 旧版SDK使用ChatCompletion.create
+            response = openai.ChatCompletion.create(
+                model=self.model,
+                messages=[
+                    {
+                        "role": "user",
+                        "content": query,
+                    },
+                ],
+                temperature=0.1,
+            )
+            return response.choices[0].message.content
+        except Exception as e:
+            # 检查是否是配额限制错误
+            error_msg = str(e).lower()
+            if 'rate' in error_msg or 'quota' in error_msg or 'limit' in error_msg:
+                self.log_callback("API配额超限,等待60秒...")
+                import time
+                time.sleep(60)
+                return self.search_fn(query)  # 重试
+            else:
+                self.log_callback(f"搜索API错误: {e}")
+                return 'ERROR'
+
+    async def search(
+        self,
+        input_file: Path,
+        output_file: Path,
+        sleep_seconds: float = 0.5,
+        cancel_check: Optional[Callable[[], bool]] = None
+    ):
+        """
+        搜索所有论文的作者信息
+
+        Args:
+            input_file: 输入JSONL文件(来自scraper)
+            output_file: 输出JSONL文件
+            sleep_seconds: 每条查询间隔(秒)
+            cancel_check: 取消检查函数
+        """
+        # 读取引用列表
+        with open(input_file, 'r', encoding='utf-8') as f:
+            data = [json.loads(line) for line in f]
+
+        # 统计总论文数
+        total_papers = 0
+        for d in data:
+            for page_id, page_content in d.items():
+                total_papers += len(page_content['paper_dict'])
+
+        self.log_callback(f"共需要搜索 {total_papers} 篇论文的作者信息")
+
+        # 确保输出目录存在
+        output_file.parent.mkdir(parents=True, exist_ok=True)
+
+        count = 0
+        with open(output_file, 'w', encoding='utf-8') as f:
+            for d in data:
+                for page_id, page_content in d.items():
+                    paper_dict = page_content['paper_dict']
+
+                    for paper_id, paper_content in paper_dict.items():
+                        # 检查是否取消
+                        if cancel_check and cancel_check():
+                            self.log_callback("任务已取消")
+                            return
+
+                        count += 1
+                        paper_title = paper_content['paper_title']
+                        self.log_callback(f"[{count}/{total_papers}] 搜索: {paper_title[:50]}...")
+
+                        # 构建记录
+                        record_dict = {
+                            'PageID': page_id,
+                            'PaperID': paper_id,
+                            'Paper_Title': paper_content['paper_title'],
+                            'Paper_Link': paper_content['paper_link'],
+                            'Citations': paper_content['citation'],
+                            'Authors_with_Profile': str(paper_content['authors']),
+                        }
+
+                        # 搜索1: 作者列表及对应单位
+                        prompt1 = '这是一篇论文。请你根据这个paper_link和paper_title,去搜索查阅这篇论文的作者列表,然后输出每个作者的名字及其对应的单位名称。'
+                        query1 = f'Paper_Link: {paper_content["paper_link"]}, Paper_Title: {paper_content["paper_title"]}.'
+                        query1 += '\n' + prompt1
+                        response1 = self.search_fn(query1)
+                        record_dict['Searched Author-Affiliation'] = response1
+
+                        # 搜索2: 逐个搜索作者信息
+                        prompt2 = '这是一篇论文及作者列表。请你根据这篇论文、作者名字和作者单位,去搜索该每位作者的个人信息,输出每位作者的谷歌学术累积引用(如有)、重大学术头衔(比如是否IEEE/ACM/ACL等学术Fellow、中国科学院院士、中国工程院院士、国外院士如欧洲科学院院士、诺贝尔奖得主、图灵奖得主,国家杰青、长江学者、优青、在国外著名机构（例如google，deepmind，meta，openai）就业的人士，或在AI领域的国际知名人物),行政职位(如国内外知名大学的校长或院长)。'
+                        query2 = f'Paper_Link: {paper_content["paper_link"]}, Paper_Title: {paper_content["paper_title"]}, Author-Affiliation: {response1}'
+                        query2 += '\n' + prompt2
+                        response2 = self.search_fn(query2)
+                        record_dict['Searched Author Information'] = response2
+
+                        # 写入jsonl
+                        f.write(json.dumps({count: record_dict}, ensure_ascii=False) + '\n')
+                        f.flush()
+
+                        # 更新进度
+                        self.progress_callback(count, total_papers)
+
+                        # 间隔
+                        await asyncio.sleep(sleep_seconds)
+
+        self.log_callback(f"作者信息搜索完成!共处理 {count} 篇论文")

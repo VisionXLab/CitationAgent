@@ -1,0 +1,1261 @@
+{% extends "base.html" %}
+
+{% block title %}CitationClaw{% endblock %}
+
+{% block content %}
+
+<!-- ═══ Global Floating Progress Bar ═══ -->
+<div id="global-progress" class="spa-global-progress" title="点击查看运行日志">
+  <div class="spa-global-progress-inner">
+    <div class="spa-global-progress-dot"></div>
+    <span id="global-progress-label" class="spa-global-progress-label">处理中...</span>
+    <div class="spa-global-progress-track">
+      <div id="global-progress-bar" class="spa-global-progress-bar"></div>
+    </div>
+    <span id="global-progress-pct" class="spa-global-progress-pct"></span>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════
+     Panel: Home (#spa-panel-home)
+     ═══════════════════════════════════════ -->
+<div id="spa-panel-home" class="spa-panel spa-panel-active">
+
+<!-- Hero -->
+<div class="agent-hero">
+  <div style="position:relative;z-index:1">
+    <div class="hero-eyebrow">CITATION CLAW</div>
+    <h1 class="hero-title">论文被引<span>画像分析</span></h1>
+    <p class="hero-desc" style="white-space:nowrap">
+      输入论文题目，智能体将自动检索引用关系、搜索学者画像，并生成多维分析报告。支持多篇同时分析。
+    </p>
+  </div>
+</div>
+
+<!-- Google Scholar 主页导入（可选） -->
+<div class="agent-card" id="scholar-import-card">
+  <div class="agent-card-label scholar-import-toggle" onclick="toggleScholarImport()">
+    <i class="bi bi-person-badge-fill" style="color:var(--accent)"></i>
+    &nbsp;从 Google Scholar 主页导入论文
+    <span style="color:var(--light);font-weight:400;text-transform:none;letter-spacing:0;margin-left:8px">（可选）</span>
+    <i id="scholar-chevron" class="bi bi-chevron-down" style="float:right;margin-top:2px"></i>
+  </div>
+
+  <div id="scholar-import-body" style="display:none; margin-top:14px;">
+    <div style="display:flex; gap:8px; margin-bottom:10px;">
+      <input id="scholar-url-input" type="text" class="form-control"
+             placeholder="https://scholar.google.com/citations?user=..."
+             style="flex:1;">
+      <button class="btn-agent-primary" id="scholar-fetch-btn"
+              onclick="fetchScholarPapers()">获取论文列表</button>
+    </div>
+
+    <div id="scholar-result-area" style="display:none;">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+        <div style="display:flex; gap:10px; font-size:13px; color:var(--light);">
+          <span id="scholar-paper-count"></span>
+          <a href="#" onclick="scholarSelectAll(true);return false;" style="color:var(--accent)">全选</a>
+          <a href="#" onclick="scholarSelectAll(false);return false;" style="color:var(--muted)">全不选</a>
+        </div>
+        <button class="btn-agent-primary btn-agent-sm"
+                onclick="addScholarSelected()">添加所选至分析列表</button>
+      </div>
+      <div id="scholar-paper-list" style="max-height:340px; overflow-y:auto;
+           border:1px solid var(--border); border-radius:8px;"></div>
+    </div>
+  </div>
+</div>
+
+<!-- Paper Input -->
+<div class="agent-card">
+  <div class="agent-card-label">
+    <i class="bi bi-file-text" style="color:var(--accent)"></i>&nbsp; 目标论文题目
+    <span style="color:var(--light);font-weight:400;text-transform:none;letter-spacing:0;margin-left:8px">按回车添加，支持多篇同时分析</span>
+  </div>
+  <div id="paper-list"></div>
+  <input type="text" id="paper-input" autocomplete="off"
+    placeholder="输入论文题目，按回车添加…">
+</div>
+
+<!-- Service Tier Card (promoted from collapse) -->
+<div class="agent-card mb-4">
+  <div class="agent-card-label">
+    <i class="bi bi-layers" style="color:var(--purple)"></i>&nbsp; 服务层级
+    <span style="color:var(--light);font-weight:400;text-transform:none;letter-spacing:0;margin-left:8px">选择分析深度与成本的平衡点</span>
+  </div>
+  <div style="margin-bottom:12px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+    <select id="idx-service-tier" class="form-select form-select-sm" style="width:auto;min-width:320px;font-size:13px">
+      <option value="basic" selected>基础服务 — 搜索学者 + 筛选大佬（无引文描述分析）</option>
+      <option value="advanced" disabled>进阶服务 — 【紧急维护】暂不可用</option>
+      <option value="full" disabled>全面服务 — 【紧急维护】暂不可用</option>
+    </select>
+  </div>
+  <div style="display:flex;flex-wrap:wrap;gap:16px;margin-top:4px">
+    <label style="display:flex;align-items:center;gap:7px;font-size:12.5px;color:var(--muted);cursor:pointer">
+      <input class="form-check-input" type="checkbox" id="idx-renowned-scholar" checked>
+      启用著名学者筛选
+    </label>
+    <label style="display:flex;align-items:center;gap:7px;font-size:12.5px;color:var(--muted);cursor:pointer">
+      <input class="form-check-input" type="checkbox" id="idx-author-verify">
+      启用作者信息验证
+    </label>
+    <label style="display:flex;align-items:center;gap:7px;font-size:12.5px;color:var(--muted);cursor:pointer">
+      <input class="form-check-input" type="checkbox" id="idx-dashboard" checked>
+      启用画像报告生成
+      <span style="font-size:11px;color:var(--light)">(Phase 5，需先启用著名学者筛选)</span>
+    </label>
+  </div>
+  <!-- 年份遍历开关（从高级选项提升到主配置区） -->
+  <div style="margin-top:12px;padding-top:10px;border-top:1px solid rgba(255,255,255,0.07)">
+    <label style="display:flex;align-items:center;gap:8px;cursor:pointer;flex-wrap:wrap">
+      <input class="form-check-input" type="checkbox" id="enable-year-traverse" role="switch">
+      <span style="font-size:12.5px;font-weight:600;color:var(--text)">按年份遍历</span>
+      <span class="badge bg-warning text-dark" style="font-size:0.68rem;font-weight:600">适合 &gt;1000 引</span>
+    </label>
+    <div style="font-size:11.5px;color:var(--muted);margin-top:4px;padding-left:26px">
+      逐年分段抓取，可突破 Google Scholar 1000 条限制。引用数超限时系统会自动提示。
+      <span style="color:#f0ad4e">⚠ 将额外消耗约数倍 API 额度。</span>
+    </div>
+  </div>
+</div>
+
+<!-- API Config Card -->
+<div class="agent-card mb-4" id="api-config-card">
+  <div class="agent-card-label" style="display:flex;align-items:center;justify-content:space-between">
+    <span><i class="bi bi-key" style="color:var(--accent)"></i>&nbsp; API 配置</span>
+    <a href="https://visionxlab.github.io/CitationClaw/guidelines.html" target="_blank"
+       style="font-size:12px;font-weight:500;color:var(--accent);text-decoration:none;display:flex;align-items:center;gap:4px;opacity:0.85"
+       onmouseover="this.style.opacity=1" onmouseout="this.style.opacity=0.85">
+      <i class="bi bi-book"></i> 配置指引
+    </a>
+  </div>
+  <div class="row g-3">
+    <div class="col-md-6">
+      <label class="form-label">ScraperAPI Key(s) <span style="color:var(--light);font-weight:400">(多个用英文逗号分隔)</span></label>
+      <input type="text" id="idx-scraper-keys" class="form-control" placeholder="key1,key2,key3">
+    </div>
+    <div class="col-md-6">
+      <label class="form-label">V-API Key <a href="https://api.gpt.ge/register?aff=qH2n" target="_blank" rel="noopener" style="font-weight:400;font-size:12px;color:var(--light);text-decoration:underline dotted">(前往第三方中转平台注册充值)</a></label>
+      <input type="text" id="idx-openai-key" class="form-control" placeholder="sk-..." autocomplete="off">
+    </div>
+  </div>
+  <div style="margin-top:12px">
+    <button class="btn-agent-sm" type="button"
+        data-bs-toggle="collapse" data-bs-target="#config-advanced"
+        aria-expanded="false" aria-controls="config-advanced"
+        id="idx-advanced-toggle">
+      <i class="bi bi-sliders"></i> 更多配置
+      <span style="font-size:11px;color:var(--light);margin-left:4px">Base URL / 模型 / 前缀 / 画像报告模型</span>
+    </button>
+  </div>
+  <div class="collapse" id="config-advanced">
+    <div class="row g-3" style="margin-top:4px">
+      <div class="col-md-6">
+        <label class="form-label">Base URL</label>
+        <input type="text" id="idx-openai-url" class="form-control" placeholder="https://api.gpt.ge/v1/">
+      </div>
+      <div class="col-md-3">
+        <label class="form-label">Search Model</label>
+        <select id="idx-openai-model" class="form-select">
+          <option value="gemini-3-flash-preview-search" selected>gemini-3-flash-preview-search</option>
+          <option value="gemini-3.1-pro-preview-search">gemini-3.1-pro-preview-search</option>
+          <option value="gpt-5-search-api">gpt-5-search-api</option>
+          <option value="deepseek-r1-search">deepseek-r1-search</option>
+          <option value="deepseek-v3-search">deepseek-v3-search</option>
+        </select>
+      </div>
+      <div class="col-md-3">
+        <label class="form-label">输出文件前缀</label>
+        <input type="text" id="idx-output-prefix" class="form-control" value="paper">
+      </div>
+      <div class="col-md-5" id="idx-dashboard-model-row">
+        <label class="form-label">画像报告模型 <span style="color:var(--light);font-weight:400">(Phase 5 LLM，无需 web search)</span></label>
+        <input type="text" id="idx-dashboard-model" class="form-control"
+            placeholder="gemini-3-flash-preview-nothinking">
+        <div class="form-text">推荐使用非 search 模型，与上方 Search Model 独立</div>
+      </div>
+      <div class="col-12" style="margin-top:8px">
+        <label class="form-label" style="font-size:12.5px">
+          <i class="bi bi-coin" style="color:var(--amber)"></i> 费用追踪
+          <span style="color:var(--light);font-weight:400;font-size:11px;margin-left:4px">
+            配置后可在运行结束时查看 LLM API 额度消耗。在中转站个人中心获取。
+          </span>
+        </label>
+        <div class="row g-2">
+          <div class="col-md-6">
+            <input type="text" id="idx-api-access-token" class="form-control form-control-sm"
+              placeholder="系统令牌（个人中心 → 生成令牌）" autocomplete="off">
+          </div>
+          <div class="col-md-3">
+            <input type="text" id="idx-api-user-id" class="form-control form-control-sm"
+              placeholder="用户数字 ID">
+          </div>
+        </div>
+      </div>
+      <div class="col-12" style="display:flex;align-items:center;gap:10px;justify-content:flex-end">
+        <button id="idx-save-config-btn" class="btn-agent-sm">
+          <i class="bi bi-check2"></i> 保存配置
+        </button>
+        <span id="idx-save-indicator">✓ 已保存</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Action Buttons -->
+<div style="display:flex;gap:10px;margin-bottom:20px">
+  <button id="idx-run-btn" class="btn-agent-primary" style="flex:1;justify-content:center;padding:12px">
+    <i class="bi bi-play-fill"></i> 开始分析
+  </button>
+  <button id="idx-cancel-btn" class="btn-agent-danger" style="display:none">
+    <i class="bi bi-stop-fill"></i> 取消
+  </button>
+</div>
+
+<!-- From-Cache Shortcut -->
+<div style="border:1px solid var(--border-color,#e5e7eb);border-radius:8px;padding:12px 14px;margin-bottom:16px;background:var(--surface-secondary,#f9fafb)">
+  <div style="font-size:12px;font-weight:600;color:var(--text-secondary,#6b7280);margin-bottom:8px;letter-spacing:.02em">
+    <i class="bi bi-database-check" style="margin-right:4px"></i>从缓存直接生成报告（跳过 Phase 1–4）
+  </div>
+  <div style="display:flex;gap:8px;align-items:center">
+    <input id="idx-cache-title" type="text" placeholder="输入已缓存的论文标题…"
+      style="flex:1;padding:7px 10px;border:1px solid var(--border-color,#d1d5db);border-radius:6px;font-size:13px;background:var(--surface,#fff);color:var(--text-primary,#111)" />
+    <button id="idx-cache-run-btn" class="btn-agent-secondary" style="white-space:nowrap;padding:7px 14px;font-size:13px">
+      <i class="bi bi-lightning-charge-fill"></i> 生成报告
+    </button>
+  </div>
+</div>
+
+<!-- Progress -->
+<div id="idx-progress-section" style="display:none;" class="agent-progress-wrap">
+  <div class="agent-progress-header">
+    <div class="agent-phase-label">
+      <div class="phase-dot"></div>
+      <span id="idx-phase-label">处理中...</span>
+    </div>
+    <span id="idx-progress-text" class="agent-progress-count"></span>
+  </div>
+  <div class="agent-progress-track">
+    <div id="idx-progress-bar" class="agent-progress-bar"></div>
+  </div>
+</div>
+
+<!-- Reasoning Log Panel -->
+<div id="idx-log-section" style="display:none;" class="reasoning-panel">
+  <div class="reasoning-panel-header">
+    <div class="rp-dots">
+      <div class="rp-dot r"></div>
+      <div class="rp-dot y"></div>
+      <div class="rp-dot g"></div>
+    </div>
+    <span class="rp-title">实时日志</span>
+    <div class="rp-thinking" id="rp-thinking-indicator">
+      <div class="think-dot"></div>
+      <div class="think-dot"></div>
+      <div class="think-dot"></div>
+      <span style="font-family:'Inter',sans-serif">Thinking and Searching</span>
+    </div>
+    <button id="idx-clear-log-btn" class="btn-agent-sm" style="margin-left:8px">清空</button>
+  </div>
+  <div class="reasoning-body" id="idx-log-container">
+    <div class="reasoning-empty">
+      <div class="reasoning-empty-icon">🤖</div>
+      <div class="reasoning-empty-text">等待智能体启动...</div>
+    </div>
+  </div>
+  <!-- 运行中心跳状态栏 -->
+  <div id="running-heartbeat" style="display:none;position:relative;overflow:hidden;padding:7px 16px;background:rgba(255,200,30,0.13);border-top:1px solid rgba(200,160,0,0.25);font-size:12.5px;color:#7a6200;justify-content:center;">
+    <span id="hb-msg">还在运行中，请耐心等待！</span>
+    <span class="hb-crawler">🦞</span>
+  </div>
+</div>
+
+<!-- Results -->
+<div id="idx-results-section" style="display:none;">
+  <div class="agent-results-card">
+    <div class="agent-results-header">
+      <i class="bi bi-check-circle-fill"></i> 分析完成 — 结果文件
+    </div>
+    <div class="agent-results-body" id="idx-results-body">
+    </div>
+  </div>
+</div>
+
+</div><!-- /spa-panel-home -->
+
+<!-- ═══════════════════════════════════════
+     Panel: Config (#spa-panel-config)
+     ═══════════════════════════════════════ -->
+<div id="spa-panel-config" class="spa-panel" style="display:none">
+<div class="row">
+    <div class="col-md-10 mx-auto">
+        <div class="card shadow-lg">
+            <div class="card-header bg-success text-white d-flex justify-content-between align-items-center">
+                <h5 class="mb-0"><i class="bi bi-gear-fill"></i> 完整配置</h5>
+                <span id="save-indicator" class="badge bg-light text-success" style="opacity: 0; transition: opacity 0.3s;">✓ 已保存</span>
+            </div>
+            <div class="card-body">
+                <!-- 已有结果文件提示 -->
+                <div id="existing-files-alert" class="alert alert-info" style="display: none;">
+                    <h6><i class="bi bi-info-circle"></i> 检测到已有结果文件</h6>
+                    <div id="existing-files-list" class="small mt-2"></div>
+                    <div class="mt-2 text-muted small">
+                        提示: 建议修改"输出文件前缀"以避免覆盖现有数据，或前往<a href="#" data-spa-panel="results">结果页面</a>删除旧文件
+                    </div>
+                </div>
+
+                <!-- 配置表单 -->
+                <form id="config-form">
+                    <h6 class="border-bottom pb-2 mb-3">ScraperAPI配置</h6>
+                    <div class="mb-3">
+                        <label for="scraper-api-keys" class="form-label">
+                            ScraperAPI Keys <span class="text-muted small">(多个用逗号分隔)</span>
+                        </label>
+                        <textarea
+                            class="form-control font-monospace"
+                            id="scraper-api-keys"
+                            rows="3"
+                            placeholder="key1,key2,key3"
+                        ></textarea>
+                        <div class="form-text">
+                            建议使用多个API Key轮换,降低被封概率
+                        </div>
+                    </div>
+
+                    <h6 class="border-bottom pb-2 mb-3 mt-4">OpenAI兼容API配置</h6>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="openai-api-key" class="form-label">API Key</label>
+                            <input
+                                type="text"
+                                class="form-control font-monospace"
+                                id="openai-api-key"
+                                placeholder="your-api-key"
+                            >
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label for="openai-model" class="form-label">模型名称</label>
+                            <input
+                                type="text"
+                                class="form-control"
+                                id="openai-model"
+                                placeholder="gemini-3-flash-preview-search"
+                            >
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="openai-base-url" class="form-label">Base URL</label>
+                        <input
+                            type="text"
+                            class="form-control"
+                            id="openai-base-url"
+                            placeholder="https://api.gpt.ge/v1/"
+                        >
+                    </div>
+
+                    <!-- API测试按钮和结果显示 -->
+                    <div class="mb-3">
+                        <label for="test-query" class="form-label">
+                            测试问题 <span class="text-muted small">(可自定义)</span>
+                        </label>
+                        <input
+                            type="text"
+                            class="form-control"
+                            id="test-query"
+                            value="请告诉我现在的准确日期和时间（年月日时分秒）。"
+                            placeholder="输入测试问题..."
+                        >
+                        <div class="form-text">
+                            建议使用需要实时联网才能回答的问题，以验证Web Search功能
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <button type="button" id="test-api-btn" class="btn btn-outline-primary">
+                            <i class="bi bi-lightning-fill"></i> 测试API连接和Web Search能力
+                        </button>
+                        <div id="api-test-result" class="mt-3" style="display: none;">
+                            <div class="alert" id="api-test-alert"></div>
+                        </div>
+                    </div>
+
+                    <h6 class="border-bottom pb-2 mb-3 mt-4">Prompt配置</h6>
+                    <div class="mb-3">
+                        <label for="author-search-prompt1" class="form-label">
+                            Prompt 1 <span class="text-muted small">(搜索作者列表及单位)</span>
+                        </label>
+                        <textarea
+                            class="form-control font-monospace"
+                            id="author-search-prompt1"
+                            rows="3"
+                            placeholder="输入搜索作者列表的prompt..."
+                        ></textarea>
+                        <div class="form-text">
+                            用于搜索论文作者列表及对应单位
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="author-search-prompt2" class="form-label">
+                            Prompt 2 <span class="text-muted small">(搜索作者详细信息)</span>
+                        </label>
+                        <textarea
+                            class="form-control font-monospace"
+                            id="author-search-prompt2"
+                            rows="4"
+                            placeholder="输入搜索作者详细信息的prompt..."
+                        ></textarea>
+                        <div class="form-text">
+                            用于搜索每位作者的详细学术信息（引用、头衔、职位等）
+                        </div>
+                    </div>
+
+                    <h6 class="border-bottom pb-2 mb-3 mt-4">二次筛选配置 <span class="text-muted small">(可选)</span></h6>
+                    <div class="mb-3">
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" id="enable-renowned-scholar" role="switch">
+                            <label class="form-check-label" for="enable-renowned-scholar">
+                                启用重要学者二次筛选 <span class="text-muted small">(院士、知名学者等)</span>
+                            </label>
+                        </div>
+                        <div class="form-text">
+                            开启后将使用cheaper model进行二次筛选,找出重要学者
+                        </div>
+                    </div>
+                    <div id="renowned-scholar-config" style="display: none;">
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="renowned-scholar-model" class="form-label">
+                                    筛选模型 <span class="text-muted small">(建议用cheaper model)</span>
+                                </label>
+                                <input
+                                    type="text"
+                                    class="form-control"
+                                    id="renowned-scholar-model"
+                                    value="gemini-3-flash-preview-nothinking"
+                                    placeholder="gemini-3-flash-preview-nothinking"
+                                >
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label for="renowned-scholar-prompt" class="form-label">
+                                筛选Prompt <span class="text-muted small">(二次筛选重要学者)</span>
+                            </label>
+                            <textarea
+                                class="form-control font-monospace"
+                                id="renowned-scholar-prompt"
+                                rows="4"
+                                placeholder="输入筛选prompt..."
+                            ></textarea>
+                            <div class="form-text">
+                                用于从作者列表中筛选出重要学者(院士、知名学者等)
+                            </div>
+                        </div>
+                    </div>
+
+                    <h6 class="border-bottom pb-2 mb-3 mt-4">作者信息校验配置 <span class="text-muted small">(可选)</span></h6>
+                    <div class="mb-3">
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" id="enable-author-verification" role="switch">
+                            <label class="form-check-label" for="enable-author-verification">
+                                启用作者信息真实性校验 <span class="text-muted small">(核查引用、头衔、职位等)</span>
+                            </label>
+                        </div>
+                        <div class="form-text">
+                            开启后将使用web search能力对作者信息进行真实性核验
+                        </div>
+                    </div>
+                    <div id="author-verification-config" style="display: none;">
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="author-verify-model" class="form-label">
+                                    校验模型 <span class="text-muted small">(建议支持web search)</span>
+                                </label>
+                                <input
+                                    type="text"
+                                    class="form-control"
+                                    id="author-verify-model"
+                                    value="gemini-3-pro-preview-search"
+                                    placeholder="gemini-3-pro-preview-search"
+                                >
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label for="author-verify-prompt" class="form-label">
+                                校验Prompt <span class="text-muted small">(作者信息真实性校验)</span>
+                            </label>
+                            <textarea
+                                class="form-control font-monospace"
+                                id="author-verify-prompt"
+                                rows="6"
+                                placeholder="输入校验prompt..."
+                            ></textarea>
+                            <div class="form-text">
+                                用于核验作者信息的真实性(姓名、单位、引用量、头衔、职位等)
+                            </div>
+                        </div>
+                    </div>
+
+                    <h6 class="border-bottom pb-2 mb-3 mt-4">输出配置</h6>
+                    <div class="row">
+                        <div class="col-md-4 mb-3">
+                            <label for="output-prefix" class="form-label">输出文件前缀</label>
+                            <input
+                                type="text"
+                                class="form-control"
+                                id="output-prefix"
+                                value="paper"
+                            >
+                            <div class="form-text">
+                                输出文件将命名为: {前缀}_author_information.xlsx
+                            </div>
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <label for="sleep-between-pages" class="form-label">
+                                翻页间隔（秒）
+                            </label>
+                            <input
+                                type="number"
+                                class="form-control"
+                                id="sleep-between-pages"
+                                value="10"
+                                min="1"
+                            >
+                            <div class="form-text">
+                                每页抓取后等待的秒数，降低被封概率
+                            </div>
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <label for="parallel-author-search" class="form-label">
+                                并行搜索数 <span class="text-muted small">(优化速度)</span>
+                            </label>
+                            <input
+                                type="number"
+                                class="form-control"
+                                id="parallel-author-search"
+                                value="1"
+                                min="1"
+                            >
+                            <div class="form-text">
+                                1=串行, 3-5=推荐并行数
+                            </div>
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <label for="resume-page" class="form-label">
+                                从第几页开始 <span class="text-muted small">(断点续爬)</span>
+                            </label>
+                            <input
+                                type="number"
+                                class="form-control"
+                                id="resume-page"
+                                value="0"
+                                min="0"
+                            >
+                            <div class="form-text">
+                                0表示从头开始,如果中断可设置从某页继续
+                            </div>
+                        </div>
+                    </div>
+
+                    <h6 class="border-bottom pb-2 mb-3 mt-4">重试配置</h6>
+                    <div class="row">
+                        <div class="col-md-4 mb-3">
+                            <label for="retry-max-attempts" class="form-label">最大重试次数</label>
+                            <input
+                                type="number"
+                                class="form-control"
+                                id="retry-max-attempts"
+                                value="3"
+                                min="-1"
+                            >
+                            <div class="form-text">
+                                所有错误类型统一使用此重试次数（-1 = 无限重试直到成功）
+                            </div>
+                        </div>
+                        <div class="col-md-8 mb-3">
+                            <label for="retry-intervals" class="form-label">
+                                重试间隔（秒） <span class="text-muted small">(逗号分隔)</span>
+                            </label>
+                            <input
+                                type="text"
+                                class="form-control font-monospace"
+                                id="retry-intervals"
+                                value="5,10,20"
+                                placeholder="5,10,20"
+                            >
+                            <div class="form-text">
+                                输入单个数值如 <code>10</code> 表示固定间隔10秒；输入 <code>5,10,20</code> 表示第1/2/3次分别等待5/10/20秒。超出部分重复最后一个值
+                            </div>
+                        </div>
+                    </div>
+
+                    <h6 class="border-bottom pb-2 mb-3 mt-4">ScraperAPI会话与过滤 <span class="text-muted small">(可选)</span></h6>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <div class="form-check form-switch">
+                                <input class="form-check-input" type="checkbox" id="scraper-session" role="switch">
+                                <label class="form-check-label" for="scraper-session">
+                                    会话保持 <span class="text-muted small">(固定代理IP翻页)</span>
+                                </label>
+                            </div>
+                            <div class="form-text">
+                                开启后同一任务内所有请求使用同一个代理IP，避免命中不同数据中心导致结果不一致
+                            </div>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <div class="form-check form-switch">
+                                <input class="form-check-input" type="checkbox" id="scholar-no-filter" role="switch">
+                                <label class="form-check-label" for="scholar-no-filter">
+                                    filter=0 <span class="text-muted small">(显示全部结果不过滤)</span>
+                                </label>
+                            </div>
+                            <div class="form-text">
+                                开启后在Google Scholar链接追加 <code>&filter=0</code>，禁止Google自动过滤相似结果
+                            </div>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <div class="form-check form-switch">
+                                <input class="form-check-input" type="checkbox" id="scraper-geo-rotate" role="switch">
+                                <label class="form-check-label" for="scraper-geo-rotate">
+                                    数据中心国家轮换 <span class="text-muted small">(需Business Plan及以上)</span>
+                                </label>
+                            </div>
+                            <div class="form-text">
+                                数据中心不一致重试时，通过 <code>country_code</code> 切换代理国家以命中不同数据中心。Hobby/Startup计划仅支持 us 和 eu
+                            </div>
+                        </div>
+                    </div>
+
+                    <h6 class="border-bottom pb-2 mb-3 mt-4">ScraperAPI代理模式 <span class="text-muted small">(可选，消耗更多额度)</span></h6>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <div class="form-check form-switch">
+                                <input class="form-check-input" type="checkbox" id="scraper-premium" role="switch">
+                                <label class="form-check-label" for="scraper-premium">
+                                    Premium代理 <span class="text-muted small">(消耗10x额度)</span>
+                                </label>
+                            </div>
+                            <div class="form-text">
+                                使用住宅代理IP，降低被封概率
+                            </div>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <div class="form-check form-switch">
+                                <input class="form-check-input" type="checkbox" id="scraper-ultra-premium" role="switch">
+                                <label class="form-check-label" for="scraper-ultra-premium">
+                                    Ultra Premium代理 <span class="text-muted small">(消耗75x额度)</span>
+                                </label>
+                            </div>
+                            <div class="form-text">
+                                最高质量代理，优先使用此项时Premium将被忽略
+                            </div>
+                        </div>
+                    </div>
+
+                    <h6 class="border-bottom pb-2 mb-3 mt-4">费用追踪 <span class="text-muted small">(可选)</span></h6>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="api-access-token" class="form-label">
+                                系统令牌 <span class="text-muted small">(在中转站个人中心生成)</span>
+                            </label>
+                            <input
+                                type="text"
+                                class="form-control font-monospace"
+                                id="api-access-token"
+                                placeholder="点击「生成令牌」获取"
+                                autocomplete="off"
+                            >
+                            <div class="form-text">
+                                用于查询 LLM API 额度变化，不可用于请求模型
+                            </div>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label for="api-user-id" class="form-label">
+                                用户数字 ID <span class="text-muted small">(在个人中心查看)</span>
+                            </label>
+                            <input
+                                type="text"
+                                class="form-control font-monospace"
+                                id="api-user-id"
+                                placeholder="如 49573"
+                            >
+                            <div class="form-text">
+                                查询额度时需要传入，两项都填写后运行结束将展示 LLM 费用摘要
+                            </div>
+                        </div>
+                    </div>
+
+                    <h6 class="border-bottom pb-2 mb-3 mt-4">高级选项</h6>
+                    <div class="mb-3">
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" id="debug-mode" role="switch">
+                            <label class="form-check-label" for="debug-mode">
+                                调试模式 <span class="text-muted small">(保存每页 HTML 和解析详情到 debug/ 目录)</span>
+                            </label>
+                        </div>
+                        <div class="form-text">
+                            开启后每页抓取完成都会在 <code>debug/</code> 目录下保存原始 HTML 和解析日志，方便排查抓取异常
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" id="test-mode" role="switch">
+                            <label class="form-check-label" for="test-mode">
+                                测试模式 <span class="text-muted small">(使用伪造数据，跳过真实 API 调用)</span>
+                            </label>
+                        </div>
+                        <div class="form-text">
+                            开启后使用 <code>test/mock_author_info.jsonl</code> 中的预设数据，不消耗任何 API 配额，用于验证曾用名合并、仪表盘渲染等效果
+                        </div>
+                    </div>
+
+                    <!-- 按钮组 -->
+                    <div class="d-grid gap-2 mt-4">
+                        <button type="submit" class="btn btn-primary btn-lg">
+                            <i class="bi bi-save"></i> 保存配置
+                        </button>
+                        <a href="#" data-spa-panel="home" class="btn btn-outline-secondary">
+                            <i class="bi bi-arrow-left"></i> 返回首页
+                        </a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+</div><!-- /spa-panel-config -->
+
+<!-- ═══════════════════════════════════════
+     Panel: Results (#spa-panel-results)
+     ═══════════════════════════════════════ -->
+<div id="spa-panel-results" class="spa-panel" style="display:none">
+<div class="row">
+    <div class="col-md-11 mx-auto">
+        <div class="card shadow-lg">
+            <div class="card-header bg-primary text-white d-flex align-items-center justify-content-between">
+                <h5 class="mb-0 d-flex align-items-center gap-2">
+                    <button id="results-back-btn" class="btn btn-sm btn-light me-1" style="display:none" onclick="resultsShowFolders()">
+                        <i class="bi bi-arrow-left"></i> 返回
+                    </button>
+                    <i class="bi bi-folder2-open"></i>
+                    <span id="results-panel-title">结果文件夹</span>
+                </h5>
+            </div>
+            <div class="card-body">
+                <!-- 加载提示 -->
+                <div id="loading-indicator" class="text-center p-4">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">加载中...</span>
+                    </div>
+                    <p class="mt-2 text-muted">正在加载...</p>
+                </div>
+
+                <!-- 空状态 -->
+                <div id="empty-state" class="text-center p-5" style="display:none;">
+                    <i class="bi bi-inbox" style="font-size: 4rem; color: #6c757d;"></i>
+                    <h5 class="mt-3 text-muted">暂无结果文件</h5>
+                    <p class="text-muted">请先执行任务生成结果</p>
+                    <a href="#" data-spa-panel="home" class="btn btn-primary mt-3">
+                        <i class="bi bi-play"></i> 开始新任务
+                    </a>
+                </div>
+
+                <!-- 文件夹列表 -->
+                <div id="results-folder-view" style="display:none;">
+                    <div id="results-folder-list" class="list-group list-group-flush"></div>
+                </div>
+
+                <!-- 文件列表 -->
+                <div id="results-file-view" style="display:none;">
+                    <div class="table-responsive">
+                        <table class="table table-hover table-striped">
+                            <thead class="table-light">
+                                <tr>
+                                    <th><i class="bi bi-file-earmark"></i> 文件名</th>
+                                    <th><i class="bi bi-tag"></i> 类型</th>
+                                    <th><i class="bi bi-hdd"></i> 大小</th>
+                                    <th><i class="bi bi-calendar"></i> 修改时间</th>
+                                    <th><i class="bi bi-download"></i> 操作</th>
+                                </tr>
+                            </thead>
+                            <tbody id="results-table"></tbody>
+                        </table>
+                    </div>
+                    <div class="alert alert-info mt-3">
+                        <i class="bi bi-info-circle"></i>
+                        共 <strong id="file-count">0</strong> 个文件
+                    </div>
+                </div>
+            </div>
+            <div class="card-footer">
+                <button id="refresh-btn" class="btn btn-outline-primary">
+                    <i class="bi bi-arrow-clockwise"></i> 刷新
+                </button>
+                <a href="#" data-spa-panel="home" class="btn btn-outline-secondary">
+                    <i class="bi bi-plus-circle"></i> 新建任务
+                </a>
+            </div>
+        </div>
+
+        <!-- 文件类型说明 -->
+        <div class="card mt-4">
+            <div class="card-header bg-light">
+                <h6 class="mb-0"><i class="bi bi-question-circle"></i> 文件类型说明</h6>
+            </div>
+            <div class="card-body">
+                <dl class="row mb-0">
+                    <dt class="col-sm-3">
+                        <span class="badge bg-success">.xlsx</span>
+                    </dt>
+                    <dd class="col-sm-9">
+                        Excel格式的最终结果,包含所有论文和作者信息,便于阅读和筛选
+                    </dd>
+
+                    <dt class="col-sm-3">
+                        <span class="badge bg-info">.json</span>
+                    </dt>
+                    <dd class="col-sm-9">
+                        JSON格式的最终结果,结构化数据,适合程序处理
+                    </dd>
+
+                    <dt class="col-sm-3">
+                        <span class="badge bg-warning">.jsonl</span>
+                    </dt>
+                    <dd class="col-sm-9">
+                        中间处理文件(引用列表原始数据、作者信息原始数据)
+                    </dd>
+                </dl>
+            </div>
+        </div>
+    </div>
+</div>
+</div><!-- /spa-panel-results -->
+
+<!-- API Key 提醒弹窗 -->
+<div class="modal fade" id="api-key-modal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered" style="max-width:420px">
+    <div class="modal-content">
+      <div class="modal-header" style="border-bottom:1px solid #e5e7eb;padding:16px 20px">
+        <h5 class="modal-title" style="font-size:15px;font-weight:600">
+          <i class="bi bi-key-fill" style="color:#2563eb;margin-right:6px"></i>请先填写 API Key
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body" style="padding:18px 20px">
+        <p style="margin-bottom:10px;color:#374151;font-size:14px">使用该功能前，请先在下方「API 配置」区域填写：</p>
+        <ul id="api-key-modal-missing" style="color:#dc3545;margin-bottom:0;padding-left:18px;font-size:14px"></ul>
+      </div>
+      <div class="modal-footer" style="padding:12px 20px;gap:8px">
+        <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">关闭</button>
+        <button type="button" class="btn btn-sm btn-primary" onclick="scrollToApiConfig()">前往填写</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ Year-Traverse Prompt Modal ═══ -->
+<div class="modal fade" id="yearTraverseModal" tabindex="-1" aria-labelledby="yearTraverseModalLabel" aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header border-0 pb-0">
+        <h5 class="modal-title" id="yearTraverseModalLabel">
+          <i class="bi bi-calendar-range text-warning"></i> 检测到超量引用
+        </h5>
+      </div>
+      <div class="modal-body">
+        <p>
+          该论文检测到 <strong id="yt-citation-count">—</strong> 篇引用，超过 Google Scholar 单次 1000 条的限制。
+        </p>
+        <div class="alert alert-warning py-2 mb-2" role="alert" style="font-size:0.88rem">
+          <i class="bi bi-exclamation-triangle-fill"></i>
+          <strong>按年份遍历</strong>将逐年分段抓取，可获取更完整数据，但会额外消耗约数倍 ScraperAPI 与 LLM 额度。
+        </div>
+        <p class="text-muted mb-0" style="font-size:0.85rem">
+          若不启用，本次将只抓取前 1000 条引用。
+        </p>
+      </div>
+      <div class="modal-footer border-0 pt-0">
+        <button type="button" class="btn btn-outline-secondary" id="yt-btn-skip">
+          直接开始（仅前 1000 条）
+        </button>
+        <button type="button" class="btn btn-warning" id="yt-btn-enable">
+          <i class="bi bi-calendar-check"></i> 开启年份遍历
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ Quota Exceeded Modal ═══ -->
+<div class="modal fade" id="quotaExceededModal" tabindex="-1" aria-labelledby="quotaExceededModalLabel" aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header border-0 pb-0">
+        <h5 class="modal-title" id="quotaExceededModalLabel">
+          <i class="bi bi-exclamation-triangle-fill text-danger"></i> API 配额不足，搜索已停止
+        </h5>
+      </div>
+      <div class="modal-body">
+        <p id="quota-exceeded-message">
+          API 配额不足，搜索已自动停止。
+        </p>
+        <div class="alert alert-info py-2 mb-0" role="alert" style="font-size:0.88rem">
+          <i class="bi bi-info-circle-fill"></i>
+          已处理的数据已保存至本地缓存，<strong>充值后重新运行将自动续跑</strong>，无需重复花费 Token。
+        </div>
+      </div>
+      <div class="modal-footer border-0 pt-0">
+        <button type="button" class="btn btn-primary" data-bs-dismiss="modal">我知道了</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script src="/static/js/websocket.js"></script>
+<script src="/static/js/main.js"></script>
+<script>
+// ── API Key 检查 ────────────────────────────────────────────────
+function checkApiKeysAndAlert(needScraper, needLLM) {
+    const scraperKeys = (document.getElementById('idx-scraper-keys').value || '')
+        .split(',').map(k => k.trim()).filter(Boolean);
+    const openaiKey = (document.getElementById('idx-openai-key').value || '').trim();
+    const missing = [];
+    if (needScraper && scraperKeys.length === 0) missing.push('ScraperAPI Key（用于抓取 Google Scholar）');
+    if (needLLM && !openaiKey) missing.push('LLM API Key（用于学者信息搜索与报告生成）');
+    if (missing.length === 0) return true;
+    document.getElementById('api-key-modal-missing').innerHTML =
+        missing.map(m => `<li>${m}</li>`).join('');
+    new bootstrap.Modal(document.getElementById('api-key-modal')).show();
+    return false;
+}
+function scrollToApiConfig() {
+    bootstrap.Modal.getInstance(document.getElementById('api-key-modal'))?.hide();
+    document.getElementById('api-config-card').scrollIntoView({behavior: 'smooth', block: 'center'});
+}
+
+// ── Scholar Profile Import ────────────────────────────────────
+function toggleScholarImport() {
+    const body = document.getElementById('scholar-import-body');
+    const icon = document.getElementById('scholar-chevron');
+    const open = body.style.display === 'none';
+    body.style.display = open ? 'block' : 'none';
+    icon.className = open ? 'bi bi-chevron-up' : 'bi bi-chevron-down';
+}
+
+async function fetchScholarPapers() {
+    if (!checkApiKeysAndAlert(true, false)) return;
+    const url = document.getElementById('scholar-url-input').value.trim();
+    if (!url) { alert('请输入 Google Scholar 主页链接'); return; }
+    const btn = document.getElementById('scholar-fetch-btn');
+    btn.disabled = true; btn.textContent = '获取中…';
+    document.getElementById('scholar-result-area').style.display = 'none';
+    // 直接将当前填写的两个 key 写入后端配置，无需手动保存
+    try {
+        const scraperKeys = (document.getElementById('idx-scraper-keys').value || '')
+            .split(',').map(k => k.trim()).filter(Boolean);
+        const openaiKey = document.getElementById('idx-openai-key').value || '';
+        if (scraperKeys.length || openaiKey) {
+            const cfgResp = await fetch('/api/config');
+            const existing = await cfgResp.json();
+            const patch = Object.assign({}, existing);
+            if (scraperKeys.length) patch.scraper_api_keys = scraperKeys;
+            if (openaiKey) patch.openai_api_key = openaiKey;
+            await fetch('/api/config', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(patch)
+            });
+        }
+    } catch(e) { console.error('自动保存配置失败:', e); }
+    try {
+        const res = await fetch('/api/scholar/papers', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({profile_url: url})
+        });
+        const data = await res.json();
+        if (!res.ok) { alert(data.error || '获取失败'); return; }
+        renderScholarPapers(data.papers);
+    } catch(e) { alert('网络错误: ' + e.message); }
+    finally { btn.disabled = false; btn.textContent = '获取论文列表'; }
+}
+
+function renderScholarPapers(papers) {
+    window._scholarPapers = papers;
+    const list = document.getElementById('scholar-paper-list');
+    list.innerHTML = papers.map((p, i) => `
+        <div class="scholar-paper-row">
+          <label>
+            <input type="checkbox" class="scholar-cb" data-idx="${i}">
+            <span class="scholar-paper-title">${escHtml(p.title)}</span>
+            <span class="scholar-paper-meta">
+              ${p.year || '—'} · ${p.citations.toLocaleString()} 引用
+            </span>
+          </label>
+        </div>`).join('');
+    document.getElementById('scholar-paper-count').textContent = `共 ${papers.length} 篇`;
+    document.getElementById('scholar-result-area').style.display = 'block';
+}
+
+function scholarSelectAll(checked) {
+    document.querySelectorAll('.scholar-cb').forEach(cb => cb.checked = checked);
+}
+
+function addScholarSelected() {
+    const selected = [...document.querySelectorAll('.scholar-cb:checked')]
+        .map(cb => window._scholarPapers[+cb.dataset.idx])
+        .filter(Boolean);
+    if (!selected.length) { alert('请至少勾选一篇论文'); return; }
+
+    const existing = new Set(
+        [...document.querySelectorAll('.paper-item-title')]
+        .map(el => el.textContent.trim().toLowerCase())
+    );
+    let added = 0;
+    selected.forEach(p => {
+        if (!existing.has(p.title.toLowerCase())) {
+            window.addPaper(p.title, []);
+            added++;
+        }
+    });
+    alert(added > 0
+        ? `已添加 ${added} 篇（跳过 ${selected.length - added} 篇重复）`
+        : '所选论文已全部在分析列表中');
+    document.querySelectorAll('.scholar-cb').forEach(cb => cb.checked = false);
+}
+
+function escHtml(s) {
+    return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+            .replace(/"/g,'&quot;');
+}
+</script>
+
+<!-- ═══ CitationClaw UI Assistant Widget ═══ -->
+<style>
+#cc-ui-fab{position:fixed;right:24px;bottom:24px;width:70px;height:70px;border-radius:50%;
+  background:#fff;border:none;cursor:pointer;
+  font-size:24px;display:flex;align-items:center;justify-content:center;
+  box-shadow:0 4px 20px rgba(0,0,0,0.18);z-index:10000;
+  transition:transform .2s,box-shadow .2s;color:#333}
+#cc-ui-fab:hover{transform:scale(1.1);box-shadow:0 6px 28px rgba(0,0,0,0.28)}
+#cc-ui-win{position:fixed;right:24px;bottom:88px;width:380px;height:500px;
+  background:#0d1421;border:1px solid rgba(66,153,225,0.35);border-radius:16px;
+  display:flex;flex-direction:column;z-index:9999;
+  box-shadow:0 12px 48px rgba(0,0,0,0.7);overflow:hidden;
+  animation:ccuiSlide .22s ease}
+@keyframes ccuiSlide{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:none}}
+#cc-ui-header{display:flex;align-items:center;justify-content:space-between;
+  padding:13px 16px;background:rgba(37,99,235,0.15);
+  border-bottom:1px solid rgba(66,153,225,0.2);flex-shrink:0}
+#cc-ui-header-title{color:#bee3f8;font-size:14px;font-weight:600;display:flex;align-items:center;gap:7px}
+#cc-ui-header-sub{color:rgba(180,210,255,0.5);font-size:10px;margin-top:1px}
+#cc-ui-close{background:none;border:none;color:rgba(180,210,255,0.5);
+  cursor:pointer;font-size:18px;padding:0 2px;line-height:1}
+#cc-ui-close:hover{color:#fff}
+#cc-ui-msgs{flex:1;overflow-y:auto;padding:14px 14px 6px;display:flex;
+  flex-direction:column;gap:9px;scroll-behavior:smooth}
+#cc-ui-msgs::-webkit-scrollbar{width:4px}
+#cc-ui-msgs::-webkit-scrollbar-thumb{background:rgba(66,153,225,0.3);border-radius:2px}
+.cc-ui-bubble{max-width:88%;padding:9px 13px;border-radius:12px;
+  font-size:12.5px;line-height:1.6;word-break:break-word;white-space:pre-wrap}
+.cc-ui-bubble.user{align-self:flex-end;background:rgba(37,99,235,0.35);color:#e2e8f0;border-bottom-right-radius:3px}
+.cc-ui-bubble.ai{align-self:flex-start;background:rgba(255,255,255,0.05);
+  color:#cbd5e0;border:1px solid rgba(66,153,225,0.12);border-bottom-left-radius:3px}
+.cc-ui-bubble.ai.typing::after{content:'▌';animation:ccuiBlink .7s step-end infinite}
+@keyframes ccuiBlink{0%,100%{opacity:1}50%{opacity:0}}
+.cc-ui-bubble.ai.md-rendered{white-space:normal}
+.cc-ui-bubble.ai p{margin:0 0 5px}.cc-ui-bubble.ai p:last-child{margin-bottom:0}
+.cc-ui-bubble.ai ul,.cc-ui-bubble.ai ol{padding-left:16px;margin:4px 0}
+.cc-ui-bubble.ai li{margin:2px 0}
+.cc-ui-bubble.ai strong{color:#e2e8f0;font-weight:600}
+.cc-ui-bubble.ai a{color:#63b3ed;text-decoration:underline}
+.cc-ui-bubble.ai code{background:rgba(0,0,0,0.25);padding:1px 5px;border-radius:3px;font-size:11px;font-family:monospace}
+.cc-ui-bubble.ai pre{background:rgba(0,0,0,0.3);border:1px solid rgba(66,153,225,0.2);padding:8px 10px;border-radius:6px;overflow-x:auto;margin:6px 0}
+.cc-ui-bubble.ai pre code{background:none;padding:0}
+.cc-ui-bubble.ai h1,.cc-ui-bubble.ai h2,.cc-ui-bubble.ai h3{font-size:13px;font-weight:700;margin:8px 0 4px;color:#bee3f8}
+#cc-ui-chips{display:flex;flex-wrap:wrap;gap:5px;padding:6px 12px;flex-shrink:0;
+  border-top:1px solid rgba(66,153,225,0.15)}
+.cc-ui-chip{font-size:11px;padding:4px 10px;border:1px solid rgba(66,153,225,0.3);
+  border-radius:20px;background:rgba(37,99,235,0.15);color:#93c5fd;cursor:pointer;transition:background .15s}
+.cc-ui-chip:hover{background:rgba(37,99,235,0.3)}
+#cc-ui-input-row{display:flex;gap:8px;padding:10px 12px;
+  border-top:1px solid rgba(66,153,225,0.15);flex-shrink:0}
+#cc-ui-input{flex:1;background:rgba(255,255,255,0.06);border:1px solid rgba(66,153,225,0.25);
+  border-radius:8px;padding:8px 12px;color:#e2e8f0;font-size:12.5px;resize:none;
+  outline:none;transition:border-color .2s;font-family:inherit}
+#cc-ui-input:focus{border-color:rgba(66,153,225,0.6)}
+#cc-ui-input::placeholder{color:rgba(180,210,255,0.3)}
+#cc-ui-send{background:linear-gradient(135deg,#2563eb,#1e40af);border:none;border-radius:8px;
+  padding:8px 14px;color:#fff;font-size:12px;cursor:pointer;
+  flex-shrink:0;transition:opacity .2s;font-family:inherit}
+#cc-ui-send:hover{opacity:0.85}
+#cc-ui-send:disabled{opacity:0.4;cursor:default}
+</style>
+
+<button id="cc-ui-fab" onclick="ccuiToggle()" title="CitationClaw 使用助手"><img src="/static/citationclaw_icon.png" style="width:56px;height:56px;border-radius:50%;object-fit:cover;pointer-events:none"></button>
+<div id="cc-ui-win" style="display:none">
+  <div id="cc-ui-header">
+    <div>
+      <div id="cc-ui-header-title">🦞 CitationClaw 使用助手</div>
+      <div id="cc-ui-header-sub">操作指引 · 常见问题</div>
+    </div>
+    <button id="cc-ui-close" onclick="ccuiToggle()">✕</button>
+  </div>
+  <div id="cc-ui-msgs">
+    <div class="cc-ui-bubble ai">你好！我是 CitationClaw 使用助手🦞<br>可以帮你了解如何配置、操作，以及解答常见问题。</div>
+  </div>
+  <div id="cc-ui-chips">
+    <span class="cc-ui-chip" onclick="ccuiAsk('如何配置 ScraperAPI？')">如何配置 ScraperAPI？</span>
+    <span class="cc-ui-chip" onclick="ccuiAsk('引用超过1000篇怎么办？')">超过1000篇怎么办？</span>
+    <span class="cc-ui-chip" onclick="ccuiAsk('各分析层级有什么区别？')">分析层级区别？</span>
+    <span class="cc-ui-chip" onclick="ccuiAsk('任务中断如何续爬？')">任务中断续爬？</span>
+  </div>
+  <div id="cc-ui-input-row">
+    <textarea id="cc-ui-input" rows="2" placeholder="问我如何使用 CitationClaw…（Enter 发送）"></textarea>
+    <button id="cc-ui-send" onclick="ccuiSend()">发送</button>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/marked@9/marked.min.js"></script>
+<script>
+(function(){
+  var isOpen = false, isStreaming = false, history = [];
+  function renderMd(el, text){
+    el.classList.add('md-rendered');
+    el.innerHTML = (typeof marked !== 'undefined') ? marked.parse(text) : text;
+  }
+
+  window.ccuiToggle = function(){
+    isOpen = !isOpen;
+    var win = document.getElementById('cc-ui-win');
+    var fab = document.getElementById('cc-ui-fab');
+    win.style.display = isOpen ? 'flex' : 'none';
+    fab.innerHTML = isOpen ? '✕' : '<img src="/static/citationclaw_icon.png" style="width:56px;height:56px;border-radius:50%;object-fit:cover;pointer-events:none">';
+    fab.style.fontSize = isOpen ? '18px' : '';
+    if (isOpen) { var inp = document.getElementById('cc-ui-input'); if(inp) inp.focus(); }
+  };
+
+  var inp = document.getElementById('cc-ui-input');
+  if (inp) inp.addEventListener('keydown', function(e){
+    if (e.key === 'Enter' && !e.shiftKey){ e.preventDefault(); ccuiSend(); }
+  });
+
+  function addBubble(role, text, streaming){
+    var msgs = document.getElementById('cc-ui-msgs');
+    var div = document.createElement('div');
+    div.className = 'cc-ui-bubble ' + role + (streaming ? ' typing' : '');
+    div.textContent = text;
+    msgs.appendChild(div);
+    msgs.scrollTop = msgs.scrollHeight;
+    return div;
+  }
+
+  window.ccuiAsk = function(q){
+    document.getElementById('cc-ui-input').value = q;
+    ccuiSend();
+  };
+
+  window.ccuiSend = function(){
+    if (isStreaming) return;
+    var inp = document.getElementById('cc-ui-input');
+    var msg = (inp.value || '').trim();
+    if (!msg) return;
+    inp.value = '';
+    addBubble('user', msg, false);
+    history.push({role:'user', content:msg});
+    var aiBubble = addBubble('ai', '', true);
+    isStreaming = true;
+    var sendBtn = document.getElementById('cc-ui-send');
+    if (sendBtn) sendBtn.disabled = true;
+    var fullText = '';
+
+    fetch('/api/chat/ui', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({messages: history})
+    }).then(function(res){
+      if (!res.ok){ return res.text().then(function(t){
+        aiBubble.classList.remove('typing');
+        aiBubble.textContent = '请求失败：' + t;
+        isStreaming = false; if(sendBtn) sendBtn.disabled = false;
+      }); }
+      var reader = res.body.getReader();
+      var decoder = new TextDecoder('utf-8');
+      function read(){
+        reader.read().then(function(r){
+          if (r.done){
+            aiBubble.classList.remove('typing');
+            renderMd(aiBubble, fullText);
+            if (fullText) history.push({role:'assistant', content:fullText});
+            isStreaming = false; if(sendBtn) sendBtn.disabled = false; return;
+          }
+          fullText += decoder.decode(r.value, {stream:true});
+          aiBubble.textContent = fullText;
+          document.getElementById('cc-ui-msgs').scrollTop = 9999;
+          read();
+        }).catch(function(err){
+          aiBubble.classList.remove('typing');
+          aiBubble.textContent = fullText + '\n[中断：' + err + ']';
+          isStreaming = false; if(sendBtn) sendBtn.disabled = false;
+        });
+      }
+      read();
+    }).catch(function(err){
+      aiBubble.classList.remove('typing');
+      aiBubble.textContent = '网络错误：' + err;
+      isStreaming = false; if(sendBtn) sendBtn.disabled = false;
+    });
+  };
+})();
+</script>
+
+<!-- ═══ Startup Notice Modal ═══ -->
+<div class="modal fade" id="startupNoticeModal" tabindex="-1" aria-labelledby="startupNoticeLabel" aria-modal="true" role="dialog" data-bs-backdrop="static" data-bs-keyboard="false">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content" style="border-radius:12px;border:1px solid rgba(255,255,255,0.08);background:#1a1a2e">
+      <div class="modal-header" style="border-bottom:1px solid rgba(255,255,255,0.08);padding:20px 24px 16px">
+        <h5 class="modal-title" id="startupNoticeLabel" style="font-size:15px;font-weight:600;color:#e8e8f0">
+          <i class="bi bi-info-circle-fill" style="color:#a78bfa;margin-right:8px"></i>使用须知
+        </h5>
+        <span style="font-size:11px;color:#6b6b8a;margin-left:auto">作者提示 · {{ now }}</span>
+      </div>
+      <div class="modal-body" style="padding:20px 24px;color:#b0b0cc;font-size:13.5px;line-height:1.8">
+        <ol style="padding-left:18px;margin:0;display:flex;flex-direction:column;gap:12px">
+          <li>
+            CitationClaw 将消耗 Token，费用预估约 <strong style="color:#e8e8f0">2 引用 / 1 元</strong>，请根据论文引用量谨慎使用。
+          </li>
+          <li>
+            Web Search 功能依赖 V-API，请自行在第三方中转平台注册充值：
+            <a href="https://api.gpt.ge/register?aff=qH2n" target="_blank" rel="noopener" style="color:#a78bfa;text-decoration:none;border-bottom:1px dashed #a78bfa">
+              api.gpt.ge &nbsp;<i class="bi bi-box-arrow-up-right" style="font-size:11px"></i>
+            </a>
+          </li>
+          <li>
+            引用描述搜索部分存在一定<strong style="color:#e8e8f0">幻觉风险</strong>，建议对所得结果进行人工核验后再使用。
+          </li>
+          <li>
+            作者不对使用本工具产生的任何后果承担责任。
+          </li>
+          <li>
+            现版本建议使用<strong style="color:#e8e8f0">单篇搜索</strong>，多篇搜索功能待完善。
+          </li>
+        </ol>
+      </div>
+      <div class="modal-footer" style="border-top:1px solid rgba(255,255,255,0.08);padding:14px 24px">
+        <button type="button" class="btn btn-sm" id="startupNoticeOk"
+          style="background:linear-gradient(135deg,#7c3aed,#a78bfa);color:#fff;border:none;border-radius:8px;padding:6px 24px;font-size:13px;font-weight:500">
+          我知道了
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+<script>
+(function(){
+  var modal = new bootstrap.Modal(document.getElementById('startupNoticeModal'));
+  modal.show();
+  document.getElementById('startupNoticeOk').addEventListener('click', function(){ modal.hide(); });
+})();
+</script>
+{% endblock %}

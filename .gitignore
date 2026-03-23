@@ -1,0 +1,41 @@
+# macOS
+.DS_Store
+
+# IDE
+.idea/
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+dist/
+build/
+.venv/
+venv/
+env/
+
+# Runtime outputs (keep result-template examples)
+data/result-*/
+!data/result-template1/
+!data/result-template2/
+
+# Runtime cache and config
+data/cache/
+config.json
+.superpowers/
+
+# Local-only files (PyPI publishing & Claude instructions)
+CLAUDE.md
+publish.sh
+pyproject.toml
+homepage-preview*.png
+teaser-full.png
+teaser-charts.png
+docs/assets/ui-full.png
+CitationClaw_icon.png
+.playwright-mcp/
+debug/
+docs/superpowers/

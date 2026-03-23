@@ -1,0 +1,438 @@
+{% extends "base.html" %}
+
+{% block title %}配置 - CitationClaw{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-10 mx-auto">
+        <div class="card shadow-lg">
+            <div class="card-header bg-success text-white d-flex justify-content-between align-items-center">
+                <h5 class="mb-0"><i class="bi bi-gear-fill"></i> 任务配置</h5>
+                <span id="save-indicator" class="badge bg-light text-success" style="opacity: 0; transition: opacity 0.3s;">✓ 已保存</span>
+            </div>
+            <div class="card-body">
+                <!-- URL显示 -->
+                {% if captured_url %}
+                <div class="alert alert-success">
+                    <strong><i class="bi bi-check-circle"></i> 已捕获引用列表URL:</strong><br>
+                    <code id="captured-url" class="text-break">{{ captured_url }}</code>
+                </div>
+                {% else %}
+                <div class="alert alert-warning">
+                    <i class="bi bi-exclamation-triangle"></i>
+                    <strong>提示:</strong> 未检测到URL,请先从首页启动浏览器捕获URL
+                </div>
+                {% endif %}
+
+                <!-- 已有结果文件提示 -->
+                <div id="existing-files-alert" class="alert alert-info" style="display: none;">
+                    <h6><i class="bi bi-info-circle"></i> 检测到已有结果文件</h6>
+                    <div id="existing-files-list" class="small mt-2"></div>
+                    <div class="mt-2 text-muted small">
+                        💡 提示: 建议修改"输出文件前缀"以避免覆盖现有数据，或前往<a href="/results">结果页面</a>删除旧文件
+                    </div>
+                </div>
+
+                <!-- 配置表单 -->
+                <form id="config-form">
+                    <h6 class="border-bottom pb-2 mb-3">ScraperAPI配置</h6>
+                    <div class="mb-3">
+                        <label for="scraper-api-keys" class="form-label">
+                            ScraperAPI Keys <span class="text-muted small">(多个用逗号分隔)</span>
+                        </label>
+                        <textarea
+                            class="form-control font-monospace"
+                            id="scraper-api-keys"
+                            rows="3"
+                            placeholder="key1,key2,key3"
+                        ></textarea>
+                        <div class="form-text">
+                            建议使用多个API Key轮换,降低被封概率
+                        </div>
+                    </div>
+
+                    <h6 class="border-bottom pb-2 mb-3 mt-4">OpenAI兼容API配置</h6>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="openai-api-key" class="form-label">V-API Key <a href="https://api.gpt.ge/register?aff=qH2n" target="_blank" rel="noopener" class="text-muted small" style="font-weight:400;text-decoration:underline dotted">(前往第三方中转平台注册充值)</a></label>
+                            <input
+                                type="text"
+                                class="form-control font-monospace"
+                                id="openai-api-key"
+                                placeholder="your-api-key"
+                            >
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label for="openai-model" class="form-label">模型名称</label>
+                            <input
+                                type="text"
+                                class="form-control"
+                                id="openai-model"
+                                placeholder="gemini-3-flash-preview-search"
+                            >
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="openai-base-url" class="form-label">Base URL</label>
+                        <input
+                            type="text"
+                            class="form-control"
+                            id="openai-base-url"
+                            placeholder="https://api.gpt.ge/v1/"
+                        >
+                    </div>
+
+                    <!-- API测试按钮和结果显示 -->
+                    <div class="mb-3">
+                        <label for="test-query" class="form-label">
+                            测试问题 <span class="text-muted small">(可自定义)</span>
+                        </label>
+                        <input
+                            type="text"
+                            class="form-control"
+                            id="test-query"
+                            value="请告诉我现在的准确日期和时间（年月日时分秒）。"
+                            placeholder="输入测试问题..."
+                        >
+                        <div class="form-text">
+                            建议使用需要实时联网才能回答的问题，以验证Web Search功能
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <button type="button" id="test-api-btn" class="btn btn-outline-primary">
+                            <i class="bi bi-lightning-fill"></i> 测试API连接和Web Search能力
+                        </button>
+                        <div id="api-test-result" class="mt-3" style="display: none;">
+                            <div class="alert" id="api-test-alert"></div>
+                        </div>
+                    </div>
+
+                    <h6 class="border-bottom pb-2 mb-3 mt-4">Prompt配置</h6>
+                    <div class="mb-3">
+                        <label for="author-search-prompt1" class="form-label">
+                            Prompt 1 <span class="text-muted small">(搜索作者列表及单位)</span>
+                        </label>
+                        <textarea
+                            class="form-control font-monospace"
+                            id="author-search-prompt1"
+                            rows="3"
+                            placeholder="输入搜索作者列表的prompt..."
+                        ></textarea>
+                        <div class="form-text">
+                            用于搜索论文作者列表及对应单位
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="author-search-prompt2" class="form-label">
+                            Prompt 2 <span class="text-muted small">(搜索作者详细信息)</span>
+                        </label>
+                        <textarea
+                            class="form-control font-monospace"
+                            id="author-search-prompt2"
+                            rows="4"
+                            placeholder="输入搜索作者详细信息的prompt..."
+                        ></textarea>
+                        <div class="form-text">
+                            用于搜索每位作者的详细学术信息（引用、头衔、职位等）
+                        </div>
+                    </div>
+
+                    <h6 class="border-bottom pb-2 mb-3 mt-4">二次筛选配置 <span class="text-muted small">(可选)</span></h6>
+                    <div class="mb-3">
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" id="enable-renowned-scholar" role="switch">
+                            <label class="form-check-label" for="enable-renowned-scholar">
+                                启用重要学者二次筛选 <span class="text-muted small">(院士、知名学者等)</span>
+                            </label>
+                        </div>
+                        <div class="form-text">
+                            开启后将使用cheaper model进行二次筛选,找出重要学者
+                        </div>
+                    </div>
+                    <div id="renowned-scholar-config" style="display: none;">
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="renowned-scholar-model" class="form-label">
+                                    筛选模型 <span class="text-muted small">(建议用cheaper model)</span>
+                                </label>
+                                <input
+                                    type="text"
+                                    class="form-control"
+                                    id="renowned-scholar-model"
+                                    value="gemini-3-flash-preview-nothinking"
+                                    placeholder="gemini-3-flash-preview-nothinking"
+                                >
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label for="renowned-scholar-prompt" class="form-label">
+                                筛选Prompt <span class="text-muted small">(二次筛选重要学者)</span>
+                            </label>
+                            <textarea
+                                class="form-control font-monospace"
+                                id="renowned-scholar-prompt"
+                                rows="4"
+                                placeholder="输入筛选prompt..."
+                            ></textarea>
+                            <div class="form-text">
+                                用于从作者列表中筛选出重要学者(院士、知名学者等)
+                            </div>
+                        </div>
+                    </div>
+
+                    <h6 class="border-bottom pb-2 mb-3 mt-4">作者信息校验配置 <span class="text-muted small">(可选)</span></h6>
+                    <div class="mb-3">
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" id="enable-author-verification" role="switch">
+                            <label class="form-check-label" for="enable-author-verification">
+                                启用作者信息真实性校验 <span class="text-muted small">(核查引用、头衔、职位等)</span>
+                            </label>
+                        </div>
+                        <div class="form-text">
+                            开启后将使用web search能力对作者信息进行真实性核验
+                        </div>
+                    </div>
+                    <div id="author-verification-config" style="display: none;">
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="author-verify-model" class="form-label">
+                                    校验模型 <span class="text-muted small">(建议支持web search)</span>
+                                </label>
+                                <input
+                                    type="text"
+                                    class="form-control"
+                                    id="author-verify-model"
+                                    value="gemini-3-pro-preview-search"
+                                    placeholder="gemini-3-pro-preview-search"
+                                >
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label for="author-verify-prompt" class="form-label">
+                                校验Prompt <span class="text-muted small">(作者信息真实性校验)</span>
+                            </label>
+                            <textarea
+                                class="form-control font-monospace"
+                                id="author-verify-prompt"
+                                rows="6"
+                                placeholder="输入校验prompt..."
+                            ></textarea>
+                            <div class="form-text">
+                                用于核验作者信息的真实性(姓名、单位、引用量、头衔、职位等)
+                            </div>
+                        </div>
+                    </div>
+
+                    <h6 class="border-bottom pb-2 mb-3 mt-4">输出配置</h6>
+                    <div class="row">
+                        <div class="col-md-4 mb-3">
+                            <label for="output-prefix" class="form-label">输出文件前缀</label>
+                            <input
+                                type="text"
+                                class="form-control"
+                                id="output-prefix"
+                                value="paper"
+                            >
+                            <div class="form-text">
+                                输出文件将命名为: {前缀}_author_information.xlsx
+                            </div>
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <label for="sleep-between-pages" class="form-label">
+                                翻页间隔（秒）
+                            </label>
+                            <input
+                                type="number"
+                                class="form-control"
+                                id="sleep-between-pages"
+                                value="10"
+                                min="1"
+                            >
+                            <div class="form-text">
+                                每页抓取后等待的秒数，降低被封概率
+                            </div>
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <label for="parallel-author-search" class="form-label">
+                                并行搜索数 <span class="text-muted small">(优化速度)</span>
+                            </label>
+                            <input
+                                type="number"
+                                class="form-control"
+                                id="parallel-author-search"
+                                value="1"
+                                min="1"
+                            >
+                            <div class="form-text">
+                                1=串行, 3-5=推荐并行数
+                            </div>
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <label for="resume-page" class="form-label">
+                                从第几页开始 <span class="text-muted small">(断点续爬)</span>
+                            </label>
+                            <input
+                                type="number"
+                                class="form-control"
+                                id="resume-page"
+                                value="0"
+                                min="0"
+                            >
+                            <div class="form-text">
+                                0表示从头开始,如果中断可设置从某页继续
+                            </div>
+                        </div>
+                    </div>
+
+                    <h6 class="border-bottom pb-2 mb-3 mt-4">重试配置</h6>
+                    <div class="row">
+                        <div class="col-md-4 mb-3">
+                            <label for="retry-max-attempts" class="form-label">最大重试次数</label>
+                            <input
+                                type="number"
+                                class="form-control"
+                                id="retry-max-attempts"
+                                value="3"
+                                min="-1"
+                            >
+                            <div class="form-text">
+                                所有错误类型统一使用此重试次数（-1 = 无限重试直到成功）
+                            </div>
+                        </div>
+                        <div class="col-md-8 mb-3">
+                            <label for="retry-intervals" class="form-label">
+                                重试间隔（秒） <span class="text-muted small">(逗号分隔)</span>
+                            </label>
+                            <input
+                                type="text"
+                                class="form-control font-monospace"
+                                id="retry-intervals"
+                                value="5,10,20"
+                                placeholder="5,10,20"
+                            >
+                            <div class="form-text">
+                                输入单个数值如 <code>10</code> 表示固定间隔10秒；输入 <code>5,10,20</code> 表示第1/2/3次分别等待5/10/20秒。超出部分重复最后一个值
+                            </div>
+                        </div>
+                    </div>
+
+                    <h6 class="border-bottom pb-2 mb-3 mt-4">ScraperAPI会话与过滤 <span class="text-muted small">(可选)</span></h6>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <div class="form-check form-switch">
+                                <input class="form-check-input" type="checkbox" id="scraper-session" role="switch">
+                                <label class="form-check-label" for="scraper-session">
+                                    会话保持 <span class="text-muted small">(固定代理IP翻页)</span>
+                                </label>
+                            </div>
+                            <div class="form-text">
+                                开启后同一任务内所有请求使用同一个代理IP，避免命中不同数据中心导致结果不一致
+                            </div>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <div class="form-check form-switch">
+                                <input class="form-check-input" type="checkbox" id="scholar-no-filter" role="switch">
+                                <label class="form-check-label" for="scholar-no-filter">
+                                    filter=0 <span class="text-muted small">(显示全部结果不过滤)</span>
+                                </label>
+                            </div>
+                            <div class="form-text">
+                                开启后在Google Scholar链接追加 <code>&filter=0</code>，禁止Google自动过滤相似结果
+                            </div>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <div class="form-check form-switch">
+                                <input class="form-check-input" type="checkbox" id="scraper-geo-rotate" role="switch">
+                                <label class="form-check-label" for="scraper-geo-rotate">
+                                    数据中心国家轮换 <span class="text-muted small">(需Business Plan及以上)</span>
+                                </label>
+                            </div>
+                            <div class="form-text">
+                                数据中心不一致重试时，通过 <code>country_code</code> 切换代理国家以命中不同数据中心。Hobby/Startup计划仅支持 us 和 eu
+                            </div>
+                        </div>
+                    </div>
+
+                    <h6 class="border-bottom pb-2 mb-3 mt-4">ScraperAPI代理模式 <span class="text-muted small">(可选，消耗更多额度)</span></h6>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <div class="form-check form-switch">
+                                <input class="form-check-input" type="checkbox" id="scraper-premium" role="switch">
+                                <label class="form-check-label" for="scraper-premium">
+                                    Premium代理 <span class="text-muted small">(消耗10x额度)</span>
+                                </label>
+                            </div>
+                            <div class="form-text">
+                                使用住宅代理IP，降低被封概率
+                            </div>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <div class="form-check form-switch">
+                                <input class="form-check-input" type="checkbox" id="scraper-ultra-premium" role="switch">
+                                <label class="form-check-label" for="scraper-ultra-premium">
+                                    Ultra Premium代理 <span class="text-muted small">(消耗75x额度)</span>
+                                </label>
+                            </div>
+                            <div class="form-text">
+                                最高质量代理，优先使用此项时Premium将被忽略
+                            </div>
+                        </div>
+                    </div>
+
+                    <h6 class="border-bottom pb-2 mb-3 mt-4">高级选项</h6>
+                    <div class="mb-3">
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" id="enable-year-traverse" role="switch">
+                            <label class="form-check-label" for="enable-year-traverse">
+                                启用按年份遍历 <span class="text-muted small">(突破Google Scholar 1000条限制)</span>
+                            </label>
+                        </div>
+                        <div class="form-text">
+                            开启后将按年份分别抓取，可突破单次最多1000条的限制，适用于引用数很多的论文
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" id="debug-mode" role="switch">
+                            <label class="form-check-label" for="debug-mode">
+                                调试模式 <span class="text-muted small">(保存每页 HTML 和解析详情到 debug/ 目录)</span>
+                            </label>
+                        </div>
+                        <div class="form-text">
+                            开启后每页抓取完成都会在 <code>debug/</code> 目录下保存原始 HTML 和解析日志，方便排查抓取异常
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" id="test-mode" role="switch">
+                            <label class="form-check-label" for="test-mode">
+                                🧪 测试模式 <span class="text-muted small">(使用伪造数据，跳过真实 API 调用)</span>
+                            </label>
+                        </div>
+                        <div class="form-text">
+                            开启后使用 <code>test/mock_author_info.jsonl</code> 中的预设数据，不消耗任何 API 配额，用于验证曾用名合并、仪表盘渲染等效果
+                        </div>
+                    </div>
+
+                    <!-- 按钮组 -->
+                    <div class="d-grid gap-2 mt-4">
+                        <button type="submit" class="btn btn-primary btn-lg">
+                            <i class="bi bi-save"></i> 保存配置
+                        </button>
+                        <button type="button" id="start-task-btn" class="btn btn-success btn-lg">
+                            <i class="bi bi-play-fill"></i> 开始任务
+                        </button>
+                        <a href="/" class="btn btn-outline-secondary">
+                            <i class="bi bi-arrow-left"></i> 返回首页
+                        </a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="/static/js/main.js"></script>
+{% endblock %}

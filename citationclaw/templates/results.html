@@ -1,0 +1,105 @@
+{% extends "base.html" %}
+
+{% block title %}结果 - CitationClaw{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-11 mx-auto">
+        <div class="card shadow-lg">
+            <div class="card-header bg-primary text-white">
+                <h5 class="mb-0">
+                    <i class="bi bi-file-earmark-spreadsheet"></i> 结果文件列表
+                </h5>
+            </div>
+            <div class="card-body">
+                <!-- 加载提示 -->
+                <div id="loading-indicator" class="text-center p-4">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">加载中...</span>
+                    </div>
+                    <p class="mt-2 text-muted">正在加载结果文件...</p>
+                </div>
+
+                <!-- 空状态 -->
+                <div id="empty-state" class="text-center p-5" style="display:none;">
+                    <i class="bi bi-inbox" style="font-size: 4rem; color: #6c757d;"></i>
+                    <h5 class="mt-3 text-muted">暂无结果文件</h5>
+                    <p class="text-muted">请先执行任务生成结果</p>
+                    <a href="/config" class="btn btn-primary mt-3">
+                        <i class="bi bi-play"></i> 开始新任务
+                    </a>
+                </div>
+
+                <!-- 文件表格 -->
+                <div id="results-table-container" style="display:none;">
+                    <div class="table-responsive">
+                        <table class="table table-hover table-striped">
+                            <thead class="table-light">
+                                <tr>
+                                    <th><i class="bi bi-file-earmark"></i> 文件名</th>
+                                    <th><i class="bi bi-tag"></i> 类型</th>
+                                    <th><i class="bi bi-hdd"></i> 大小</th>
+                                    <th><i class="bi bi-calendar"></i> 修改时间</th>
+                                    <th><i class="bi bi-download"></i> 操作</th>
+                                </tr>
+                            </thead>
+                            <tbody id="results-table">
+                                <!-- 动态插入 -->
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <!-- 统计信息 -->
+                    <div class="alert alert-info mt-3">
+                        <i class="bi bi-info-circle"></i>
+                        共找到 <strong id="file-count">0</strong> 个文件
+                    </div>
+                </div>
+            </div>
+            <div class="card-footer">
+                <button id="refresh-btn" class="btn btn-outline-primary">
+                    <i class="bi bi-arrow-clockwise"></i> 刷新列表
+                </button>
+                <a href="/config" class="btn btn-outline-secondary">
+                    <i class="bi bi-plus-circle"></i> 新建任务
+                </a>
+            </div>
+        </div>
+
+        <!-- 文件类型说明 -->
+        <div class="card mt-4">
+            <div class="card-header bg-light">
+                <h6 class="mb-0"><i class="bi bi-question-circle"></i> 文件类型说明</h6>
+            </div>
+            <div class="card-body">
+                <dl class="row mb-0">
+                    <dt class="col-sm-3">
+                        <span class="badge bg-success">.xlsx</span>
+                    </dt>
+                    <dd class="col-sm-9">
+                        Excel格式的最终结果,包含所有论文和作者信息,便于阅读和筛选
+                    </dd>
+
+                    <dt class="col-sm-3">
+                        <span class="badge bg-info">.json</span>
+                    </dt>
+                    <dd class="col-sm-9">
+                        JSON格式的最终结果,结构化数据,适合程序处理
+                    </dd>
+
+                    <dt class="col-sm-3">
+                        <span class="badge bg-warning">.jsonl</span>
+                    </dt>
+                    <dd class="col-sm-9">
+                        中间处理文件(引用列表原始数据、作者信息原始数据)
+                    </dd>
+                </dl>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="/static/js/main.js"></script>
+{% endblock %}
