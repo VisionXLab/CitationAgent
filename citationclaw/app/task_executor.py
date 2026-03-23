@@ -11,6 +11,11 @@ from citationclaw.core.metadata_cache import MetadataCache
 from citationclaw.core.self_citation import SelfCitationDetector
 from citationclaw.core.scholar_prefilter import ScholarPreFilter
 from citationclaw.core.scholar_search_agent import ScholarSearchAgent
+from citationclaw.core.pdf_downloader import PDFDownloader
+from citationclaw.core.pdf_mineru_parser import MinerUParser
+from citationclaw.core.pdf_parse_cache import PDFParseCache
+from citationclaw.core.pdf_author_extractor import PDFAuthorExtractor
+from citationclaw.core.affiliation_validator import AffiliationValidator
 from citationclaw.app.log_manager import LogManager
 from citationclaw.app.config_manager import AppConfig, ConfigManager, DATA_DIR
 from citationclaw.app.cost_tracker import CostTracker
@@ -320,6 +325,100 @@ class TaskExecutor:
                 self.log_manager.info(f"  → S2 补充了 {s2_enriched} 位作者的机构信息")
 
         await collector.close()
+
+        # ── Phase 2 · PDF 下载 + 解析 + 交叉验证 ──
+        self.log_manager.info("=" * 50)
+        self.log_manager.info("Phase 2 · PDF 并行下载 + MinerU 解析 + 作者交叉验证")
+        self.log_manager.info("=" * 50)
+
+        downloader = PDFDownloader()
+        parser = MinerUParser()
+        parse_cache = PDFParseCache()
+        author_extractor = PDFAuthorExtractor(
+            api_key=config.openai_api_key,
+            base_url=config.openai_base_url,
+            model=config.dashboard_model or config.openai_model,  # Use lightweight model
+        )
+        validator = AffiliationValidator()
+
+        # Build download-friendly dicts with all URL sources
+        dl_papers = []
+        for paper, metadata, canonical in records_data:
+            dl_papers.append({
+                "doi": (metadata or {}).get("doi", ""),
+                "pdf_url": (metadata or {}).get("pdf_url", ""),
+                "oa_pdf_url": (metadata or {}).get("oa_pdf_url", ""),
+                "Paper_Title": paper.get("paper_title", ""),
+                "title": paper.get("paper_title", ""),
+            })
+
+        # Parallel PDF download (10 workers)
+        self.log_manager.info(f"[PDF下载] 并行下载 {len(dl_papers)} 篇 (10 workers)...")
+        pdf_paths = await downloader.batch_download(
+            dl_papers, concurrency=10, log=self.log_manager.info
+        )
+        downloaded = sum(1 for p in pdf_paths if p)
+        self.log_manager.success(f"PDF 下载: {downloaded}/{len(dl_papers)} 篇成功")
+
+        # Parse + extract authors + cross-validate (parallel, 5 workers for MinerU)
+        if downloaded > 0:
+            self.log_manager.info(f"[MinerU] 解析 {downloaded} 篇 PDF + LLM 提取作者...")
+            parse_sem = asyncio.Semaphore(3)  # MinerU is CPU-heavy
+            validated_count = 0
+
+            async def _parse_and_validate(idx: int):
+                nonlocal validated_count
+                pdf_path = pdf_paths[idx]
+                if not pdf_path:
+                    return
+                paper, metadata, canonical = records_data[idx]
+                title = paper.get("paper_title", "")
+                pkey = parser.paper_key({"doi": (metadata or {}).get("doi", ""), "title": title})
+
+                async with parse_sem:
+                    # Check cache
+                    if parse_cache.has(pkey):
+                        cached_authors = parse_cache.get_authors(pkey)
+                        if cached_authors:
+                            api_authors = (metadata or {}).get("authors", [])
+                            merged = validator.validate(api_authors, cached_authors)
+                            if metadata:
+                                metadata["authors"] = merged
+                            validated_count += 1
+                            return
+
+                    # Parse PDF
+                    parsed = parser.parse(pdf_path, pkey)
+                    if not parsed:
+                        return
+
+                    # Store parse cache
+                    parse_cache.store(pkey, {
+                        "title": title,
+                        "source": parsed.get("source", ""),
+                        "has_content_list": bool(parsed.get("content_list")),
+                    })
+
+                    # Extract authors from first page via LLM
+                    pdf_authors = await author_extractor.extract(
+                        parsed.get("first_page_blocks", [])
+                    )
+                    if pdf_authors:
+                        parse_cache.store_authors(pkey, pdf_authors)
+
+                        # Cross-validate: PDF affiliation vs API affiliation
+                        api_authors = (metadata or {}).get("authors", [])
+                        merged = validator.validate(api_authors, pdf_authors)
+                        if metadata:
+                            metadata["authors"] = merged
+                        validated_count += 1
+
+            await asyncio.gather(*[_parse_and_validate(i) for i in range(len(records_data))])
+            self.log_manager.success(
+                f"交叉验证: {validated_count} 篇作者机构已更新 (PDF优先)"
+            )
+
+        await downloader.close()
 
         # ── Self-citation detection (before Phase 3, affects all downstream) ──
         self.log_manager.info("[自引检测] 标记自引论文...")

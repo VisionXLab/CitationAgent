@@ -6,6 +6,8 @@ from typing import Optional
 from citationclaw.skills.base import SkillContext, SkillResult
 from citationclaw.core.pdf_downloader import PDFDownloader
 from citationclaw.core.pdf_parser import PDFCitationParser
+from citationclaw.core.pdf_mineru_parser import MinerUParser
+from citationclaw.core.pdf_parse_cache import PDFParseCache
 from citationclaw.config.prompt_loader import PromptLoader
 
 
@@ -21,6 +23,8 @@ class CitationExtractSkill:
 
         downloader = PDFDownloader()
         parser = PDFCitationParser()
+        mineru_parser = MinerUParser()
+        parse_cache = PDFParseCache()
         prompt_loader = PromptLoader()
 
         papers = self._read_jsonl(input_file)
@@ -63,23 +67,39 @@ class CitationExtractSkill:
                             ctx.progress(i + 1, total)
                         continue
 
-                # Step 1: Download PDF
-                pdf_path = await downloader.download(paper, log=ctx.log)
-                if not pdf_path:
-                    paper["Citing_Description"] = "PDF不可用"
-                    paper["citing_desc_source"] = "unavailable"
-                    results.append(paper)
-                    stats["pdf_missing"] += 1
-                    if ctx.progress:
-                        ctx.progress(i + 1, total)
-                    continue
+                # Step 1: Check MinerU parse cache for pre-parsed content
+                pkey = mineru_parser.paper_key(paper)
+                cached_parsed = None
+                if parse_cache.has(pkey):
+                    parse_dir = parse_cache.get_parsed_dir(pkey)
+                    cached_parsed = mineru_parser._load_cached(parse_dir)
+
+                # Step 2: Download PDF if not cached
+                pdf_path = None
+                if not cached_parsed:
+                    pdf_path = await downloader.download(paper, log=ctx.log)
+                    if not pdf_path:
+                        paper["Citing_Description"] = "PDF不可用"
+                        paper["citing_desc_source"] = "unavailable"
+                        results.append(paper)
+                        stats["pdf_missing"] += 1
+                        if ctx.progress:
+                            ctx.progress(i + 1, total)
+                        continue
 
                 stats["pdf_found"] += 1
 
-                # Step 2: Parse citation contexts (local, no LLM)
-                contexts = parser.extract_citation_contexts(
-                    pdf_path, target_title, target_authors
-                )
+                # Step 3: Use cached MinerU content or fallback to PyMuPDF
+                if cached_parsed and cached_parsed.get("references_md"):
+                    # Use MinerU's parsed references for better citation context
+                    full_text = cached_parsed["full_md"]
+                    ref_id = parser._find_reference_id(full_text, target_title, target_authors)
+                    contexts_raw = parser._extract_contexts(full_text, ref_id, target_title)
+                    contexts = [{"section": parser._detect_section(c), "text": c.strip(), "source": "mineru_cache"} for c in contexts_raw]
+                else:
+                    contexts = parser.extract_citation_contexts(
+                        pdf_path, target_title, target_authors
+                    )
 
                 if contexts:
                     # Step 3: LLM extracts description from parsed text
