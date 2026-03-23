@@ -44,11 +44,16 @@ class PipelineAdapter:
         renowned_scholars: list,
         citing_paper: str,
         record_index: int,
+        api_authors_snapshot: Optional[list] = None,
+        pdf_authors_snapshot: Optional[list] = None,
     ) -> dict:
         """Convert new pipeline data into legacy {index: record} format.
 
         This produces the exact format Phase 3 Export expects:
           {"1": {"Paper_Title": ..., "Searched Author-Affiliation": ..., ...}}
+
+        api_authors_snapshot / pdf_authors_snapshot: original data before merge,
+        for transparency in Excel output.
         """
         authors = (metadata or {}).get("authors", [])
         sources = (metadata or {}).get("sources", [])
@@ -57,7 +62,6 @@ class PipelineAdapter:
         if not authors and paper.get("authors_raw"):
             import re as _re
             for key in paper["authors_raw"]:
-                # key format: "author_0_W Liang" → extract "W Liang"
                 match = _re.match(r'author_\d+_(.*)', key)
                 name = match.group(1) if match else key
                 if name:
@@ -65,8 +69,7 @@ class PipelineAdapter:
             if not sources:
                 sources = ["scholar"]
 
-        # Build author-affiliation string (name\naffiliation pairs)
-        # Tag PDF-validated affiliations with [PDF] marker
+        # Build author-affiliation string (merged/final version)
         affil_lines = []
         for a in authors:
             affil_lines.append(a.get("name", ""))
@@ -77,6 +80,22 @@ class PipelineAdapter:
             affil_lines.append(affil)
         searched_affiliation = "\n".join(affil_lines)
 
+        # Build API-only snapshot string (before PDF validation)
+        api_affil_str = ""
+        if api_authors_snapshot:
+            api_lines = []
+            for a in api_authors_snapshot:
+                api_lines.append(f"{a.get('name','')} | {a.get('affiliation','') or '未知'} | {ScholarSearchAgent._normalize_country(a.get('country',''))}")
+            api_affil_str = "\n".join(api_lines)
+
+        # Build PDF-only snapshot string
+        pdf_affil_str = ""
+        if pdf_authors_snapshot:
+            pdf_lines = []
+            for a in pdf_authors_snapshot:
+                pdf_lines.append(f"{a.get('name','')} | {a.get('affiliation','') or '未知'}")
+            pdf_affil_str = "\n".join(pdf_lines)
+
         # First author info (normalize country to Chinese)
         first_author = authors[0] if authors else {}
         first_inst = first_author.get("affiliation", "")
@@ -84,16 +103,20 @@ class PipelineAdapter:
             first_author.get("country", "")
         )
 
-        # Build author info summary
+        # Build author info summary (merged version with all details)
         author_info_parts = []
         for a in authors:
             parts = [a.get("name", "")]
             if a.get("affiliation"):
                 parts.append(f"机构: {a['affiliation']}")
-            if a.get("country"):
-                parts.append(f"国家: {a['country']}")
+            country = ScholarSearchAgent._normalize_country(a.get("country", ""))
+            if country:
+                parts.append(f"国家: {country}")
             if a.get("h_index"):
                 parts.append(f"h-index: {a['h_index']}")
+            src = a.get("affiliation_source", "")
+            if src:
+                parts.append(f"来源: {src}")
             author_info_parts.append(", ".join(parts))
         searched_info = "\n".join(author_info_parts)
 
@@ -136,5 +159,7 @@ class PipelineAdapter:
             "Data_Sources": ",".join(sources),
             "pdf_url": (metadata or {}).get("pdf_url", ""),
             "doi": (metadata or {}).get("doi", ""),
+            "API_Authors_Raw": api_affil_str,
+            "PDF_Authors_Raw": pdf_affil_str,
         }
         return {str(record_index): record}

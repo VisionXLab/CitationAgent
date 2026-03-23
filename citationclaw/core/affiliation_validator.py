@@ -57,6 +57,9 @@ class AffiliationValidator:
                 if pdf_affil:
                     enriched["affiliation"] = pdf_affil
                     enriched["affiliation_source"] = "pdf"
+                    # Infer country from affiliation if API didn't provide one
+                    if not enriched.get("country"):
+                        enriched["country"] = self._infer_country(pdf_affil)
                 else:
                     enriched["affiliation_source"] = "api"
                 # Also grab email if PDF has it
@@ -64,6 +67,9 @@ class AffiliationValidator:
                     enriched["email"] = pdf_match["email"]
             else:
                 enriched["affiliation_source"] = "api"
+                # Infer country from API affiliation if missing
+                if not enriched.get("country") and enriched.get("affiliation"):
+                    enriched["country"] = self._infer_country(enriched["affiliation"])
 
             merged.append(enriched)
 
@@ -71,15 +77,67 @@ class AffiliationValidator:
         for pdf_a in pdf_authors:
             pdf_keys = self._name_keys(pdf_a.get("name", ""))
             if not (pdf_keys & matched_pdf_names):
+                pdf_affil = pdf_a.get("affiliation", "")
                 merged.append({
                     "name": pdf_a["name"],
-                    "affiliation": pdf_a.get("affiliation", ""),
+                    "affiliation": pdf_affil,
                     "email": pdf_a.get("email", ""),
-                    "country": "",
+                    "country": self._infer_country(pdf_affil),
                     "affiliation_source": "pdf_only",
                 })
 
         return merged
+
+    @staticmethod
+    def _infer_country(affiliation: str) -> str:
+        """Infer country from institution name using keyword matching."""
+        if not affiliation:
+            return ""
+        aff = affiliation.lower()
+        # Chinese institutions
+        cn_kw = ["大学", "university of china", "chinese academy", "中国", "beijing",
+                 "shanghai", "tsinghua", "peking", "zhejiang", "fudan", "nanjing",
+                 "wuhan", "harbin", "beihang", "huazhong", "sjtu", "ustc",
+                 "sun yat-sen", "southeast university", "tongji", "xidian",
+                 "national university of defense", "中科院", "北京", "上海",
+                 "深圳", "广州", "杭州", "南京", "武汉", "成都", "西安"]
+        if any(k in aff for k in cn_kw):
+            return "CN"
+        # US institutions
+        us_kw = ["mit", "stanford", "harvard", "berkeley", "carnegie mellon",
+                 "princeton", "yale", "columbia university", "cornell", "ucla",
+                 "university of california", "university of michigan",
+                 "university of washington", "georgia tech", "uiuc",
+                 "university of illinois", "notre dame", "michigan state",
+                 "google", "openai", "meta ai", "microsoft research",
+                 "nvidia", "apple", "amazon", "ibm research"]
+        if any(k in aff for k in us_kw):
+            return "US"
+        # UK
+        if any(k in aff for k in ["oxford", "cambridge", "imperial college",
+                                   "university of london", "ucl", "edinburgh",
+                                   "manchester", "leicester"]):
+            return "GB"
+        # Others
+        _country_kw = {
+            "CA": ["university of toronto", "mcgill", "waterloo", "montreal"],
+            "DE": ["tu munich", "max planck", "heidelberg", "berlin"],
+            "FR": ["inria", "grenoble", "paris", "sorbonne", "cnrs"],
+            "JP": ["university of tokyo", "kyoto", "osaka", "riken"],
+            "KR": ["kaist", "seoul national", "postech", "yonsei"],
+            "SG": ["nus", "nanyang", "singapore"],
+            "AU": ["university of sydney", "melbourne", "monash", "anu"],
+            "CH": ["eth zurich", "epfl"],
+            "IT": ["pavia", "politecnico di milano", "roma", "torino"],
+            "IN": ["iit", "iisc", "indian institute"],
+            "HK": ["hong kong"],
+            "IL": ["technion", "hebrew university", "weizmann", "tel aviv"],
+            "NL": ["delft", "amsterdam", "leiden", "eindhoven"],
+        }
+        for code, kws in _country_kw.items():
+            if any(k in aff for k in kws):
+                return code
+        return ""
 
     @staticmethod
     def _name_keys(name: str) -> set:

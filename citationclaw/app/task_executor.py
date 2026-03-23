@@ -341,6 +341,13 @@ class TaskExecutor:
         )
         validator = AffiliationValidator()
 
+        # Snapshot API authors BEFORE PDF cross-validation (for Excel comparison)
+        import copy
+        api_snapshots: dict = {}  # idx → list of author dicts (deep copy)
+        pdf_snapshots: dict = {}  # idx → list of pdf-extracted author dicts
+        for idx, (paper, metadata, canonical) in enumerate(records_data):
+            api_snapshots[idx] = copy.deepcopy((metadata or {}).get("authors", []))
+
         # Build download-friendly dicts with all URL sources (including GS paper_link)
         dl_papers = []
         for paper, metadata, canonical in records_data:
@@ -382,6 +389,7 @@ class TaskExecutor:
                     if parse_cache.has(pkey):
                         cached_authors = parse_cache.get_authors(pkey)
                         if cached_authors:
+                            pdf_snapshots[idx] = cached_authors  # Save snapshot
                             api_authors = (metadata or {}).get("authors", [])
                             merged = validator.validate(api_authors, cached_authors)
                             if metadata:
@@ -413,6 +421,7 @@ class TaskExecutor:
                     )
                     if pdf_authors:
                         parse_cache.store_authors(pkey, pdf_authors)
+                        pdf_snapshots[idx] = pdf_authors  # Save snapshot
 
                         # Cross-validate: PDF affiliation vs API affiliation
                         api_authors = (metadata or {}).get("authors", [])
@@ -581,6 +590,8 @@ class TaskExecutor:
                     renowned_scholars=paper_scholars,
                     citing_paper=canonical,
                     record_index=record_idx,
+                    api_authors_snapshot=api_snapshots.get(i),
+                    pdf_authors_snapshot=pdf_snapshots.get(i),
                 )
                 f.write(_json.dumps(record, ensure_ascii=False) + "\n")
 
