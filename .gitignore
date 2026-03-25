@@ -35,13 +35,8 @@ CLAUDE.md
 .playwright-mcp/
 debug/
 
-# Docs build artifacts (keep final outputs)
-docs/node_modules/
-docs/package.json
-docs/package-lock.json
-docs/*.js
-docs/*.html
-docs/.~*
+# Docs (shared externally, not needed in repo)
+docs/
 
 # Office temp files
 ~$*
