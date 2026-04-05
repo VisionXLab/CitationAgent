@@ -1204,20 +1204,12 @@ class PDFDownloader:
                 query_parts.append(f"Authors: {authors}")
             query = " ".join(query_parts)
 
-            # Use search-grounded model if available.
-            # Strategy: if user's model already has search, use it directly.
-            # Otherwise try known search models, falling back to user's model
-            # (some providers support search grounding on any model).
+            # Use user's configured model directly — don't override.
+            # Most modern LLMs (Gemini, GPT, DeepSeek) can suggest arXiv/repo
+            # URLs from training knowledge even without explicit search grounding.
+            # Overriding to a search model causes 401 when user's plan doesn't
+            # include it, and the configured model shares the same API key.
             search_model = self._llm_model
-            if "search" not in search_model.lower():
-                # Prefer search-enabled variant of the same model family
-                base = search_model.lower()
-                if "gemini" in base:
-                    search_model = "gemini-2.5-flash-preview-04-17-search"
-                elif "gpt" in base:
-                    search_model = self._llm_model  # GPT doesn't have search variant, use as-is
-                else:
-                    search_model = self._llm_model  # Unknown provider, try configured model
 
             if log:
                 log(f"    [LLM搜索] 搜索替代PDF: {title[:50]}...")
