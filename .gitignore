@@ -35,6 +35,13 @@ CLAUDE.md
 .playwright-mcp/
 debug/
 
+# Test/benchmark scripts with API keys (DO NOT COMMIT)
+test_papers.py
+run_benchmark.py
+benchmark_papers.py
+benchmark_result.txt
+run_benchmark_baseline.py
+
 # Docs (shared externally, not needed in repo)
 docs/
 
