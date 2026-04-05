@@ -620,6 +620,7 @@ class PDFDownloader:
         self._llm_base_url = llm_base_url
         self._llm_model = llm_model
         self._cdp_debug_port = cdp_debug_port
+        self._llm_search_disabled = False  # Auto-disable on auth failure
 
     @staticmethod
     def _make_client(timeout: float = 30.0):
@@ -1188,7 +1189,7 @@ class PDFDownloader:
         Requires: self._llm_key + self._llm_base_url (V-API or similar).
         Uses search-grounded model (e.g. gemini-3-flash-preview-search).
         """
-        if not self._llm_key:
+        if not self._llm_key or self._llm_search_disabled:
             return None
 
         try:
@@ -1203,18 +1204,20 @@ class PDFDownloader:
                 query_parts.append(f"Authors: {authors}")
             query = " ".join(query_parts)
 
-            # Use search-grounded model if available, otherwise fall back to configured model
-            # gemini-*-search models have Google Search grounding built in
+            # Use search-grounded model if available.
+            # Strategy: if user's model already has search, use it directly.
+            # Otherwise try known search models, falling back to user's model
+            # (some providers support search grounding on any model).
             search_model = self._llm_model
             if "search" not in search_model.lower():
-                # Try to use a search-enabled variant
-                for candidate in [
-                    "gemini-3-flash-preview-search",
-                    "gemini-2.0-flash-search",
-                    "gemini-2.5-flash-preview-04-17-search",
-                ]:
-                    search_model = candidate
-                    break
+                # Prefer search-enabled variant of the same model family
+                base = search_model.lower()
+                if "gemini" in base:
+                    search_model = "gemini-2.5-flash-preview-04-17-search"
+                elif "gpt" in base:
+                    search_model = self._llm_model  # GPT doesn't have search variant, use as-is
+                else:
+                    search_model = self._llm_model  # Unknown provider, try configured model
 
             if log:
                 log(f"    [LLM搜索] 搜索替代PDF: {title[:50]}...")
@@ -1304,8 +1307,15 @@ class PDFDownloader:
             return None
 
         except Exception as e:
-            if log:
-                log(f"    [LLM搜索] 异常: {str(e)[:60]}")
+            err_str = str(e)
+            # Auto-disable on auth/billing errors (don't retry every paper)
+            if "401" in err_str or "403" in err_str or "insufficient" in err_str.lower():
+                self._llm_search_disabled = True
+                if log:
+                    log(f"    [LLM搜索] 认证失败，本次运行已禁用 LLM 搜索: {err_str[:60]}")
+            else:
+                if log:
+                    log(f"    [LLM搜索] 异常: {err_str[:60]}")
             return None
 
     # ── CDP: IEEE Xplore ────────────────────────────────────────────────
