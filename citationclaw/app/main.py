@@ -134,6 +134,7 @@ class ConfigUpdate(BaseModel):
     dashboard_model: str = "gemini-3-flash-preview-nothinking"
     s2_api_key: str = ""
     mineru_api_token: str = ""
+    cdp_debug_port: int = 0
     api_access_token: str = ""
     api_user_id: str = ""
 

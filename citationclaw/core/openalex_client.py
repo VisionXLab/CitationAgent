@@ -25,6 +25,10 @@ class OpenAlexClient:
         results = data.get("results", [])
         if not results:
             return None
+        # Validate title match to avoid returning wrong paper's metadata
+        result_title = results[0].get("title", "")
+        if result_title and title and not self._titles_match(title, result_title):
+            return None
         return self._parse_work(results[0])
 
     @staticmethod

@@ -4,18 +4,23 @@ Core logic ported from PaperRadar's smart_download_pdf (proven high success rate
 Added: GS sidebar PDF link, GS "all versions" scraping, MinerU Cloud parse cache.
 
 Download priority (tried in order):
-  0. Cache (instant)
-  1. GS sidebar PDF link (direct from Google Scholar)
-  2. CVF open access (CVPR/ICCV/WACV direct URL construction)
-  3. openAccessPdf / S2 direct (non-arxiv, non-doi)
-  4. S2 page citation_pdf_url (publisher PDF from S2 HTML)
-  5. DBLP conference lookup (NeurIPS/ICML/ICLR/AAAI)
-  6. Sci-Hub (3 mirrors)
-  7. arXiv PDF
-  8. GS paper_link + smart transform (CVF/OpenReview/MDPI/IEEE/Springer/ACL)
-  9. Publisher page + Chrome Cookie (IEEE stamp 3-hop, etc.)
- 10. DOI redirect
- 11. GS "All versions" page (scrape cluster for additional links)
+  0.  Cache (instant)
+  1.  GS sidebar PDF link (direct from Google Scholar)
+  2.  Unpaywall (free OA discovery — high coverage)
+  3.  OpenAlex OA PDF
+  4.  CVF open access (CVPR/ICCV/WACV direct URL construction)
+  5.  openAccessPdf / S2 direct (non-arxiv, non-doi)
+  6.  S2 API re-lookup
+  7.  DBLP conference lookup (NeurIPS/ICML/ICLR/AAAI)
+  8.  Sci-Hub (3 mirrors)
+  9.  arXiv PDF
+  10. GS paper_link + smart transform (CVF/OpenReview/MDPI/IEEE/Springer/ACL)
+  11. ScraperAPI publisher download (IEEE/Springer/Elsevier — anti-bot bypass)
+  12. CDP browser session (IEEE/Elsevier — real browser with auth)
+  13. LLM search for alternative PDF (preprints, author pages, repos)
+  14. curl + socks5 + Chrome Cookie (legacy fallback)
+  15. DOI redirect
+  16. ScraperAPI + LLM smart fallback (last resort for unknown pages)
 """
 import hashlib
 import re
@@ -60,6 +65,93 @@ _SOURCE_LABELS = {
     "oa_pdf": "OpenAlex开放获取",
     "unpaywall": "Unpaywall",
     "scraper_smart": "ScraperAPI智能下载",
+    "llm_search": "LLM搜索替代版",
+    "scraper_ieee": "ScraperAPI+IEEE",
+    "scraper_springer": "ScraperAPI+Springer",
+    "scraper_elsevier": "ScraperAPI+Elsevier",
+    "scraper_publisher": "ScraperAPI+出版商",
+    "cdp_ieee": "CDP-IEEE",
+    "cdp_elsevier": "CDP-Elsevier",
+}
+
+# ── Publisher detection helpers ───────────────────────────────────────
+def _detect_publisher(url: str) -> str:
+    """Detect publisher from URL. Returns: ieee/springer/elsevier/acm/wiley/unknown."""
+    if not url:
+        return "unknown"
+    host = urlparse(url).netloc.lower()
+    if "ieee" in host:
+        return "ieee"
+    if "springer" in host or "springerlink" in host:
+        return "springer"
+    if "sciencedirect" in host or "elsevier" in host:
+        return "elsevier"
+    if "acm.org" in host:
+        return "acm"
+    if "wiley" in host:
+        return "wiley"
+    return "unknown"
+
+
+def _publisher_from_doi(doi: str) -> str:
+    """Guess publisher from DOI prefix."""
+    if not doi:
+        return "unknown"
+    doi_lower = doi.lower()
+    if doi_lower.startswith("10.1109/"):
+        return "ieee"
+    if doi_lower.startswith("10.1007/"):
+        return "springer"
+    if doi_lower.startswith("10.1016/"):
+        return "elsevier"
+    if doi_lower.startswith("10.1145/"):
+        return "acm"
+    if doi_lower.startswith("10.1002/"):
+        return "wiley"
+    return "unknown"
+
+
+# ScraperAPI profiles per publisher (optimized for anti-bot bypass)
+_SCRAPER_PUBLISHER_PROFILES = {
+    "ieee": {
+        # IEEE: Cloudflare + Akamai, JS-heavy stamp page, multi-hop
+        "render": "true",
+        "ultra_premium": "true",
+        "country_code": "us",
+        # session needed for cookie persistence across stamp hops
+        "keep_headers": "true",
+    },
+    "elsevier": {
+        # ScienceDirect: PerimeterX bot detection, React SPA.
+        # render=true often causes 500; premium+us is more reliable.
+        # ultra_premium needed for full bypass but not all plans support it.
+        "premium": "true",
+        "country_code": "us",
+    },
+    "springer": {
+        # Springer: lighter protection, residential IP usually sufficient
+        "render": "true",
+        "premium": "true",
+        "country_code": "us",
+    },
+    "acm": {
+        # ACM DL: moderate protection
+        "render": "true",
+        "premium": "true",
+        "country_code": "us",
+    },
+    "wiley": {
+        # Wiley: Cloudflare
+        "render": "true",
+        "ultra_premium": "true",
+        "country_code": "us",
+    },
+    "_default": {
+        # Unknown publisher: try premium + render
+        "render": "true",
+        "premium": "true",
+        "country_code": "us",
+    },
 }
 
 # ── Proxy detection (same as PaperRadar: skip socks, use HTTP) ─────────
@@ -278,13 +370,248 @@ def _build_cvf_candidates(doi: str, venue: str, year, title: str, first_author: 
     return [f"{base}/content/{conf}{year}/papers/{safe_author}_{safe_title}_{conf}_{year}_paper.pdf"]
 
 
+# ── PDF title verification (catch wrong-paper downloads) ─────────────
+def _pdf_title_matches(pdf_data: bytes, expected_title: str, threshold: float = 0.4) -> bool:
+    """Quick check: does the PDF's first page contain the expected title?
+
+    Extracts text from the first page via PyMuPDF (fast, no full parse).
+    Uses word-overlap ratio to handle minor differences.
+    Returns True if enough title words appear on the first page.
+    Returns True (accept) if PyMuPDF is unavailable or extraction fails.
+
+    Enhanced checks:
+    - Acronyms/unique identifiers in the title (e.g. "USOD", "BERT") must appear
+    - Longer titles (>8 words) use a stricter threshold (0.5) to avoid
+      false positives from papers in overlapping fields
+    """
+    if not expected_title or len(expected_title) < 10:
+        return True  # Too short to verify meaningfully
+    try:
+        import fitz
+        import io
+        doc = fitz.open(stream=pdf_data, filetype="pdf")
+        if len(doc) == 0:
+            doc.close()
+            return True
+        first_page_text = doc[0].get_text().lower()
+        doc.close()
+        if not first_page_text or len(first_page_text) < 50:
+            return True  # Can't verify — accept
+
+        # Word-overlap check
+        _stop = {'a', 'an', 'the', 'of', 'in', 'on', 'for', 'and', 'or', 'to',
+                 'with', 'by', 'is', 'are', 'from', 'at', 'as', 'its', 'via', 'using'}
+        title_words = set(re.sub(r'[^\w\s]', ' ', expected_title.lower()).split()) - _stop
+        if not title_words or len(title_words) < 2:
+            return True
+
+        matched = sum(1 for w in title_words if w in first_page_text)
+        ratio = matched / len(title_words)
+
+        # Stricter threshold for long titles (papers in overlapping fields
+        # share many common words like "detection", "feature", "object")
+        effective_threshold = 0.5 if len(title_words) > 8 else threshold
+
+        if ratio < effective_threshold:
+            return False
+
+        # Acronym/identifier check: if the title contains distinctive
+        # uppercase terms (e.g. "USOD", "BERT", "ResNet"), require at least
+        # one to appear. These are strong unique identifiers.
+        acronyms = re.findall(r'\b[A-Z][A-Z0-9]{2,}\b', expected_title)
+        # Also catch CamelCase identifiers like "ResNet", "AlphaGo"
+        acronyms += re.findall(r'\b[A-Z][a-z]+[A-Z][a-zA-Z]*\b', expected_title)
+        if acronyms:
+            # At least one distinctive identifier must appear
+            if not any(a.lower() in first_page_text for a in acronyms):
+                return False
+
+        return True
+    except ImportError:
+        return True  # PyMuPDF not installed — skip verification
+    except Exception:
+        return True  # Any error — accept the PDF (don't block downloads)
+
+
+# ── CDP (Chrome DevTools Protocol) helpers ────────────────────────────
+# Download PDFs via a live, authenticated browser session.
+# Requires: websocket-client (pip install websocket-client)
+#         + browser with --remote-debugging-port.
+# Graceful degradation: if websocket-client not installed, CDP is skipped.
+
+try:
+    import websocket as _websocket_mod
+except ImportError:
+    _websocket_mod = None
+
+# ScienceDirect pdfDownload metadata regex
+_SD_PDF_DOWNLOAD_RE = re.compile(
+    r'"pdfDownload":\{"isPdfFullText":(?:true|false),'
+    r'"urlMetadata":\{"queryParams":\{"md5":"([^"]+)","pid":"([^"]+)"\},'
+    r'"pii":"([^"]+)","pdfExtension":"([^"]+)","path":"([^"]+)"\}\}'
+)
+
+
+def _cdp_available() -> bool:
+    return _websocket_mod is not None
+
+
+_cdp_browser_launched = False  # Only auto-launch once per process
+
+
+def _cdp_ensure_browser(debug_port: int) -> bool:
+    """Ensure a debug browser is running. Auto-launch if needed (once per process)."""
+    global _cdp_browser_launched
+    if not _cdp_available():
+        return False
+    if _cdp_check_connection(debug_port):
+        return True
+    if _cdp_browser_launched:
+        return False  # Already tried, don't retry
+
+    # Auto-launch Edge or Chrome with remote debugging
+    _cdp_browser_launched = True
+    import platform
+    if platform.system() == "Windows":
+        browser_paths = [
+            "C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe",
+            "C:/Program Files/Microsoft/Edge/Application/msedge.exe",
+            "C:/Program Files/Google/Chrome/Application/chrome.exe",
+            "C:/Program Files (x86)/Google/Chrome/Application/chrome.exe",
+        ]
+    elif platform.system() == "Darwin":
+        browser_paths = [
+            "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+            "/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge",
+        ]
+    else:
+        browser_paths = [
+            "/usr/bin/google-chrome", "/usr/bin/chromium-browser",
+            "/usr/bin/microsoft-edge",
+        ]
+
+    binary = None
+    for p in browser_paths:
+        if Path(p).exists():
+            binary = p
+            break
+    if not binary:
+        return False
+
+    profile_dir = Path("runtime/debug_browser_profile")
+    profile_dir.mkdir(parents=True, exist_ok=True)
+    try:
+        subprocess.Popen([
+            binary,
+            f"--remote-debugging-port={debug_port}",
+            f"--user-data-dir={profile_dir.resolve()}",
+            "--profile-directory=Default",
+            "--new-window", "about:blank",
+        ])
+    except Exception:
+        return False
+
+    import time as _t
+    for _ in range(10):
+        _t.sleep(1)
+        if _cdp_check_connection(debug_port):
+            return True
+    return False
+
+
+def _cdp_check_connection(debug_port: int, timeout: int = 3) -> bool:
+    try:
+        from urllib.request import Request, urlopen
+        req = Request(f"http://127.0.0.1:{debug_port}/json/version")
+        with urlopen(req, timeout=timeout) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+            return "Browser" in data or "webSocketDebuggerUrl" in data
+    except Exception:
+        return False
+
+
+def _cdp_list_tabs(debug_port: int) -> list:
+    try:
+        from urllib.request import Request, urlopen
+        raw = urlopen(Request(f"http://127.0.0.1:{debug_port}/json/list"), timeout=10).read().decode()
+        return json.loads(raw)
+    except Exception:
+        return []
+
+
+def _cdp_open_page(debug_port: int, url: str) -> dict:
+    from urllib.request import Request, urlopen
+    raw = urlopen(
+        Request(f"http://127.0.0.1:{debug_port}/json/new?{quote(url, safe=':/?&=%')}", method="PUT"),
+        timeout=20,
+    ).read().decode()
+    return json.loads(raw)
+
+
+def _cdp_close_page(debug_port: int, page_id: str):
+    try:
+        from urllib.request import Request, urlopen
+        urlopen(Request(f"http://127.0.0.1:{debug_port}/json/close/{page_id}"), timeout=5)
+    except Exception:
+        pass
+
+
+def _cdp_call(ws_url: str, method: str, params: dict = None, msg_id: int = 1, timeout: int = 180) -> dict:
+    ws = _websocket_mod.create_connection(ws_url, timeout=timeout, suppress_origin=True)
+    try:
+        ws.send(json.dumps({"id": msg_id, "method": method, "params": params or {}}))
+        while True:
+            msg = json.loads(ws.recv())
+            if msg.get("id") == msg_id:
+                return msg
+    finally:
+        ws.close()
+
+
+def _cdp_evaluate(ws_url: str, expression: str, await_promise: bool = False, msg_id: int = 1):
+    msg = _cdp_call(ws_url, "Runtime.evaluate", {
+        "expression": expression, "returnByValue": True, "awaitPromise": await_promise,
+    }, msg_id=msg_id)
+    return msg.get("result", {}).get("result", {}).get("value")
+
+
+def _cdp_fetch_pdf_in_context(ws_url: str, pdf_url: str) -> Optional[bytes]:
+    """Execute fetch() inside a page context to download a PDF. Returns bytes or None."""
+    import base64
+    _cdp_evaluate(ws_url, f'window.__pdfUrl = {json.dumps(pdf_url)};', msg_id=40)
+    js = '''
+fetch(window.__pdfUrl, {credentials: "include"})
+  .then(r => { if (!r.ok) return "ERR:HTTP_" + r.status; return r.arrayBuffer(); })
+  .then(buf => {
+    if (typeof buf === "string") return buf;
+    const bytes = new Uint8Array(buf);
+    const chunk = 0x8000;
+    let binary = "";
+    for (let i = 0; i < bytes.length; i += chunk) {
+      binary += String.fromCharCode.apply(null, bytes.subarray(i, i + chunk));
+    }
+    return btoa(binary);
+  })
+  .catch(e => "ERR:" + e.message)
+'''
+    try:
+        value = _cdp_evaluate(ws_url, js.strip(), await_promise=True, msg_id=50)
+        if not value or (isinstance(value, str) and value.startswith("ERR:")):
+            return None
+        data = base64.b64decode(value)
+        return data if data[:5] == b"%PDF-" else None
+    except Exception:
+        return None
+
+
 # ═══════════════════════════════════════════════════════════════════════
 class PDFDownloader:
     """Smart multi-source PDF downloader with caching."""
 
     def __init__(self, cache_dir: Optional[Path] = None, email: Optional[str] = None,
                  scraper_api_keys: Optional[list] = None,
-                 llm_api_key: str = "", llm_base_url: str = "", llm_model: str = ""):
+                 llm_api_key: str = "", llm_base_url: str = "", llm_model: str = "",
+                 cdp_debug_port: int = 0):
         self._cache_dir = cache_dir or DEFAULT_CACHE_DIR
         self._cache_dir.mkdir(parents=True, exist_ok=True)
         self._email = email or "citationclaw@research.tool"
@@ -292,6 +619,8 @@ class PDFDownloader:
         self._llm_key = llm_api_key
         self._llm_base_url = llm_base_url
         self._llm_model = llm_model
+        self._cdp_debug_port = cdp_debug_port
+        self._llm_search_disabled = False  # Auto-disable on auth failure
 
     @staticmethod
     def _make_client(timeout: float = 30.0):
@@ -431,6 +760,312 @@ class PDFDownloader:
             return "DOI+Cookie"
         return "出版商+Cookie"
 
+    # ── ScraperAPI publisher download (IEEE/Springer/Elsevier bypass) ───
+    def _scraper_build_url(self, target_url: str, publisher: str,
+                           session_number: Optional[int] = None) -> Optional[str]:
+        """Build ScraperAPI URL with publisher-specific profile."""
+        if not self._scraper_keys:
+            return None
+        key = self._scraper_keys[0]
+        profile = _SCRAPER_PUBLISHER_PROFILES.get(
+            publisher, _SCRAPER_PUBLISHER_PROFILES["_default"]
+        )
+        params = [f"api_key={key}", f"url={quote(target_url)}"]
+        for k, v in profile.items():
+            params.append(f"{k}={v}")
+        if session_number is not None:
+            params.append(f"session_number={session_number}")
+        return "https://api.scraperapi.com?" + "&".join(params)
+
+    async def _scraper_publisher_download(self, url: str, doi: str = "",
+                                          log=None) -> Optional[bytes]:
+        """Download PDF from publisher via ScraperAPI with anti-bot bypass.
+
+        Uses publisher-specific profiles (ultra_premium, render, session)
+        to handle Cloudflare, Akamai, PerimeterX protections.
+
+        Strategy per publisher:
+          IEEE:     render stamp page → extract iframe src → download PDF
+          Springer: render /content/pdf/ page with residential IP
+          Elsevier: render ScienceDirect → extract pdfLink from React state
+          Others:   render page → extract citation_pdf_url / PDF links
+        """
+        if not self._scraper_keys:
+            return None
+
+        # Determine publisher from URL or DOI
+        publisher = _detect_publisher(url)
+        if publisher == "unknown" and doi:
+            publisher = _publisher_from_doi(doi)
+        if publisher == "unknown":
+            return None  # Only use for known publishers (cost control)
+
+        import random
+        session_num = random.randint(100000, 999999)
+        source_label = f"scraper_{publisher}"
+
+        from citationclaw.core.http_utils import make_async_client
+        client = make_async_client(timeout=90.0)
+
+        try:
+            # ── Step 1: Prepare URLs ──
+            # original_url = the article page (renderable by ScraperAPI)
+            # transformed_url = direct PDF endpoint (may work with session)
+            original_url = url
+            transformed_url = _transform_url(url)
+
+            # ── Step 2: Render the ARTICLE PAGE (not the download URL) ──
+            # ScraperAPI renders JS, bypasses WAF — we extract PDF link from result.
+            # Sending a download endpoint (like pdfft) causes 500 on ScraperAPI.
+            scraper_url = self._scraper_build_url(original_url, publisher, session_num)
+            if not scraper_url:
+                await client.aclose()
+                return None
+
+            if log:
+                log(f"    [ScraperAPI] {publisher.upper()} 渲染: {original_url[:80]}...")
+
+            resp = await client.get(scraper_url)
+            if resp.status_code != 200:
+                if log:
+                    log(f"    [ScraperAPI] {publisher.upper()} 渲染 HTTP {resp.status_code}")
+                # Don't give up yet — try transformed URL directly through ScraperAPI
+                if transformed_url != original_url:
+                    scraper_url2 = self._scraper_build_url(transformed_url, publisher, session_num)
+                    if scraper_url2:
+                        if log:
+                            log(f"    [ScraperAPI] {publisher.upper()} 直接下载: {transformed_url[:80]}...")
+                        resp2 = await client.get(scraper_url2)
+                        if resp2.status_code == 200 and resp2.content[:5] == b"%PDF-" and len(resp2.content) > 1000:
+                            await client.aclose()
+                            return resp2.content
+                await client.aclose()
+                return None
+
+            # Direct PDF response from rendered page?
+            if resp.content[:5] == b"%PDF-" and len(resp.content) > 1000:
+                await client.aclose()
+                return resp.content
+
+            html = resp.text
+            if len(html) < 200:
+                await client.aclose()
+                return None
+
+            # ── Step 3: Publisher-specific PDF link extraction from rendered HTML ──
+            pdf_link = None
+
+            if publisher == "ieee":
+                pdf_link = self._extract_ieee_pdf(html, original_url)
+            elif publisher == "elsevier":
+                pdf_link = self._extract_elsevier_pdf(html, original_url)
+            elif publisher == "springer":
+                pdf_link = self._extract_springer_pdf(html, original_url, doi)
+
+            # Generic fallback: citation_pdf_url, pdfUrl, etc.
+            if not pdf_link:
+                pdf_link = _extract_pdf_url_from_html(html, original_url)
+
+            # Use transformed URL as fallback candidate
+            if not pdf_link and transformed_url != original_url:
+                pdf_link = transformed_url
+
+            # LLM fallback for stubborn pages
+            if not pdf_link and self._llm_key and len(html) > 1000:
+                pdf_link = await self._llm_find_pdf_link(html, original_url)
+
+            if not pdf_link:
+                if log:
+                    log(f"    [ScraperAPI] {publisher.upper()} 未找到PDF链接")
+                await client.aclose()
+                return None
+
+            if log:
+                log(f"    [ScraperAPI] {publisher.upper()} PDF链接: {pdf_link[:80]}...")
+
+            # ── Step 4: Download PDF (through ScraperAPI to maintain session) ──
+            # Use same session for cookie persistence (important for IEEE multi-hop)
+            pdf_scraper_url = self._scraper_build_url(pdf_link, publisher, session_num)
+            if pdf_scraper_url:
+                pdf_resp = await client.get(pdf_scraper_url)
+                if pdf_resp.status_code == 200 and pdf_resp.content[:5] == b"%PDF-":
+                    if len(pdf_resp.content) > 1000:
+                        await client.aclose()
+                        return pdf_resp.content
+
+                # IEEE: stamp may return another HTML with inner iframe
+                if (pdf_resp.status_code == 200 and publisher == "ieee"
+                        and pdf_resp.content[:5] != b"%PDF-"):
+                    inner_link = self._extract_ieee_pdf(pdf_resp.text, pdf_link)
+                    if inner_link:
+                        inner_url = self._scraper_build_url(inner_link, publisher, session_num)
+                        if inner_url:
+                            inner_resp = await client.get(inner_url)
+                            if (inner_resp.status_code == 200
+                                    and inner_resp.content[:5] == b"%PDF-"
+                                    and len(inner_resp.content) > 1000):
+                                await client.aclose()
+                                return inner_resp.content
+
+            # ── Step 5: Try direct download (some PDF URLs are public) ──
+            try:
+                direct_resp = await client.get(pdf_link)
+                if (direct_resp.status_code == 200
+                        and direct_resp.content[:5] == b"%PDF-"
+                        and len(direct_resp.content) > 1000):
+                    await client.aclose()
+                    return direct_resp.content
+            except Exception:
+                pass
+
+            await client.aclose()
+            return None
+
+        except Exception as e:
+            if log:
+                log(f"    [ScraperAPI] {publisher.upper()} 异常: {str(e)[:60]}")
+            try:
+                await client.aclose()
+            except Exception:
+                pass
+            return None
+
+    @staticmethod
+    def _extract_ieee_pdf(html: str, base_url: str) -> Optional[str]:
+        """Extract PDF URL from IEEE Xplore rendered HTML.
+
+        IEEE flow: abstract page → stamp.jsp → iframe with getPDF.jsp → iel7/*.pdf
+        ScraperAPI with render=true gives us the fully rendered stamp page.
+        """
+        parsed = urlparse(base_url)
+        base_origin = f"{parsed.scheme}://{parsed.netloc}"
+
+        def _abs(u):
+            if u.startswith("//"):
+                return f"https:{u}"
+            if u.startswith("/"):
+                return f"{base_origin}{u}"
+            return u
+
+        # 1. Direct PDF URL in JSON config (pdfUrl / stampUrl)
+        for pat in [r'"pdfUrl"\s*:\s*"(.*?)"', r'"stampUrl"\s*:\s*"(.*?)"',
+                    r'"pdfPath"\s*:\s*"(.*?)"']:
+            m = re.search(pat, html)
+            if m:
+                return _abs(m.group(1))
+
+        # 2. iframe/embed src pointing to PDF or getPDF
+        for pat in [r'<iframe[^>]+src=["\']([^"\']*(?:getPDF|\.pdf)[^"\']*)["\']',
+                    r'<embed[^>]+src=["\']([^"\']*(?:getPDF|\.pdf)[^"\']*)["\']',
+                    r'src=["\']([^"\']*getPDF\.jsp[^"\']*)["\']']:
+            m = re.search(pat, html, re.I)
+            if m:
+                return _abs(m.group(1))
+
+        # 3. Direct link to iel7/ielx7 PDF storage
+        m = re.search(r'"(https?://[^"]*iel[x7][^"]*\.pdf[^"]*)"', html)
+        if m:
+            return m.group(1)
+
+        # 4. citation_pdf_url meta tag
+        m = re.search(r'<meta\s+name=["\']citation_pdf_url["\']\s+content=["\'](.*?)["\']', html, re.I)
+        if m:
+            return _abs(m.group(1))
+
+        # 5. arnumber-based stamp construction
+        m = re.search(r'"arnumber"\s*:\s*"?(\d+)"?', html)
+        if m:
+            return f"https://ieeexplore.ieee.org/stampPDF/getPDF.jsp?arnumber={m.group(1)}"
+
+        return None
+
+    @staticmethod
+    def _extract_elsevier_pdf(html: str, base_url: str) -> Optional[str]:
+        """Extract PDF URL from ScienceDirect rendered HTML.
+
+        ScienceDirect is a React SPA. After JS render, PDF links appear in:
+        - JSON state: pdfLink, linkToPdf
+        - Meta tags: citation_pdf_url
+        - Download button data attributes
+        """
+        parsed = urlparse(base_url)
+        base_origin = f"{parsed.scheme}://{parsed.netloc}"
+
+        def _abs(u):
+            if u.startswith("//"):
+                return f"https:{u}"
+            if u.startswith("/"):
+                return f"{base_origin}{u}"
+            return u
+
+        # 1. React state / JSON embedded PDF link
+        for pat in [r'"pdfLink"\s*:\s*"(.*?)"',
+                    r'"linkToPdf"\s*:\s*"(.*?)"',
+                    r'"pdfUrl"\s*:\s*"(.*?)"',
+                    r'"pdfDownloadUrl"\s*:\s*"(.*?)"']:
+            m = re.search(pat, html)
+            if m:
+                url = m.group(1).replace('\\u002F', '/')
+                return _abs(url)
+
+        # 2. citation_pdf_url meta
+        m = re.search(r'<meta\s+name=["\']citation_pdf_url["\']\s+content=["\'](.*?)["\']', html, re.I)
+        if m:
+            return _abs(m.group(1))
+
+        # 3. pdfft download URL pattern
+        m = re.search(r'href=["\'](https?://[^"\']*?/pii/[^"\']*?/pdfft[^"\']*)["\']', html, re.I)
+        if m:
+            return m.group(1)
+
+        # 4. PII-based construction if we can find the PII
+        m = re.search(r'/pii/(S\d{15,})', base_url)
+        if m:
+            return f"https://www.sciencedirect.com/science/article/pii/{m.group(1)}/pdfft?isDTMRedir=true&download=true"
+
+        return None
+
+    @staticmethod
+    def _extract_springer_pdf(html: str, base_url: str, doi: str = "") -> Optional[str]:
+        """Extract PDF URL from Springer rendered HTML.
+
+        Springer is simpler — /content/pdf/DOI.pdf usually works with proper IP.
+        Also handles SpringerLink chapter downloads.
+        """
+        parsed = urlparse(base_url)
+        base_origin = f"{parsed.scheme}://{parsed.netloc}"
+
+        def _abs(u):
+            if u.startswith("//"):
+                return f"https:{u}"
+            if u.startswith("/"):
+                return f"{base_origin}{u}"
+            return u
+
+        # 1. citation_pdf_url meta
+        m = re.search(r'<meta\s+name=["\']citation_pdf_url["\']\s+content=["\'](.*?)["\']', html, re.I)
+        if m:
+            return _abs(m.group(1))
+
+        # 2. Direct PDF link in page
+        m = re.search(r'href=["\'](https?://link\.springer\.com/content/pdf/[^"\']+)["\']', html, re.I)
+        if m:
+            return m.group(1)
+
+        # 3. Download PDF button link
+        for pat in [r'href=["\']([^"\']*?\.pdf[^"\']*)["\'][^>]*>.*?(?:Download|PDF)',
+                    r'data-article-pdf=["\']([^"\']+)["\']']:
+            m = re.search(pat, html, re.I | re.S)
+            if m:
+                return _abs(m.group(1))
+
+        # 4. DOI-based construction
+        if doi:
+            clean_doi = doi.replace("https://doi.org/", "").replace("http://doi.org/", "").strip()
+            return f"https://link.springer.com/content/pdf/{clean_doi}.pdf"
+
+        return None
+
     # ── ScraperAPI + LLM smart fallback (for stubborn publisher pages) ──
     async def _smart_scraper_download(self, url: str) -> Optional[bytes]:
         """Last-resort: use ScraperAPI to render publisher page, then find PDF link.
@@ -539,14 +1174,400 @@ class PDFDownloader:
             pass
         return None
 
+    async def _llm_search_alternative_pdf(self, title: str, doi: str = "",
+                                           authors: str = "", log=None) -> Optional[bytes]:
+        """Use search-grounded LLM to find alternative PDF source.
+
+        When publisher PDFs are blocked (paywall, anti-bot), uses a search-enabled
+        LLM model to find freely accessible versions:
+          - arXiv / preprint versions
+          - Author homepage PDFs
+          - University/institutional repository copies
+          - ResearchGate / Academia.edu
+          - Conference preprint servers
+
+        Requires: self._llm_key + self._llm_base_url (V-API or similar).
+        Uses search-grounded model (e.g. gemini-3-flash-preview-search).
+        """
+        if not self._llm_key or self._llm_search_disabled:
+            return None
+
+        try:
+            from openai import AsyncOpenAI
+            from citationclaw.core.http_utils import make_async_client
+
+            # Build search query
+            query_parts = [f'"{title}"']
+            if doi:
+                query_parts.append(f"DOI: {doi}")
+            if authors:
+                query_parts.append(f"Authors: {authors}")
+            query = " ".join(query_parts)
+
+            # Use user's configured model directly — don't override.
+            # Most modern LLMs (Gemini, GPT, DeepSeek) can suggest arXiv/repo
+            # URLs from training knowledge even without explicit search grounding.
+            # Overriding to a search model causes 401 when user's plan doesn't
+            # include it, and the configured model shares the same API key.
+            search_model = self._llm_model
+
+            if log:
+                log(f"    [LLM搜索] 搜索替代PDF: {title[:50]}...")
+
+            # Search-grounded models need longer timeout (they search the web)
+            import httpx as _httpx
+            http_client = _httpx.AsyncClient(timeout=90.0, trust_env=True)
+            client = AsyncOpenAI(
+                api_key=self._llm_key,
+                base_url=self._llm_base_url.rstrip("/") + "/" if self._llm_base_url else None,
+                http_client=http_client,
+            )
+
+            prompt = (
+                f"I need to find a freely accessible PDF for this academic paper:\n"
+                f"Title: {title}\n"
+            )
+            if doi:
+                prompt += f"DOI: {doi}\n"
+            if authors:
+                prompt += f"Authors: {authors}\n"
+            prompt += (
+                f"\nSearch for this paper and find a direct PDF download URL from any of these sources:\n"
+                f"1. arXiv.org preprint\n"
+                f"2. Author's personal/lab homepage\n"
+                f"3. University institutional repository\n"
+                f"4. ResearchGate or Academia.edu\n"
+                f"5. Conference preprint server\n"
+                f"6. PubMed Central (PMC)\n"
+                f"7. Any other open access repository\n"
+                f"\nIMPORTANT: The URL must be a DIRECT link to a .pdf file or a page that serves PDF.\n"
+                f"Do NOT return publisher URLs (sciencedirect.com, ieee.org, springer.com, wiley.com).\n"
+                f"Do NOT return DOI URLs (doi.org).\n"
+                f"\nOutput format: one URL per line, most promising first.\n"
+                f"If no free PDF found, output only: NONE"
+            )
+
+            resp = await client.chat.completions.create(
+                model=search_model,
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0.0,
+            )
+
+            result_text = resp.choices[0].message.content.strip()
+
+            if not result_text or result_text == "NONE":
+                if log:
+                    log(f"    [LLM搜索] 未找到替代PDF源")
+                return None
+
+            # Extract URLs from response
+            import re
+            urls = re.findall(r'https?://[^\s<>"\')\]]+', result_text)
+
+            # Filter out publisher/DOI URLs
+            _blocked_domains = ['doi.org', 'sciencedirect.com', 'ieee.org',
+                                'springer.com', 'wiley.com', 'elsevier.com',
+                                'acm.org', 'tandfonline.com']
+            urls = [u.rstrip('.,;)') for u in urls
+                    if not any(d in u.lower() for d in _blocked_domains)]
+
+            if not urls:
+                if log:
+                    log(f"    [LLM搜索] 未找到可用的替代URL")
+                return None
+
+            if log:
+                log(f"    [LLM搜索] 找到 {len(urls)} 个候选URL")
+
+            # Try downloading each candidate
+            dl_client = self._make_client(timeout=30.0)
+            async with dl_client as c:
+                for i, url in enumerate(urls[:5]):  # Try top 5
+                    try:
+                        if log:
+                            log(f"    [LLM搜索] 尝试 ({i+1}): {url[:70]}...")
+                        data = await self._try_url(c, url)
+                        if data and len(data) > 1000 and data[:5] == b"%PDF-":
+                            if log:
+                                log(f"    [LLM搜索] 下载成功: {len(data)//1024}KB")
+                            return data
+                    except Exception:
+                        pass
+
+            if log:
+                log(f"    [LLM搜索] 所有候选URL均失败")
+            return None
+
+        except Exception as e:
+            err_str = str(e)
+            # Auto-disable on auth/billing errors (don't retry every paper)
+            if "401" in err_str or "403" in err_str or "insufficient" in err_str.lower():
+                self._llm_search_disabled = True
+                if log:
+                    log(f"    [LLM搜索] 认证失败，本次运行已禁用 LLM 搜索: {err_str[:60]}")
+            else:
+                if log:
+                    log(f"    [LLM搜索] 异常: {err_str[:60]}")
+            return None
+
+    # ── CDP: IEEE Xplore ────────────────────────────────────────────────
+    async def _try_cdp_ieee(self, paper: dict, log=None) -> Optional[bytes]:
+        """Download IEEE paper via CDP browser session.
+
+        Reuses an existing authenticated IEEE tab, or opens stamp.jsp and
+        waits for user to complete authentication if needed.
+        Uses in-page fetch() to download getPDF.jsp with session cookies.
+        """
+        if not _cdp_ensure_browser(self._cdp_debug_port):
+            return None
+
+        link = paper.get("paper_link", "")
+        m = re.search(r'/document/(\d+)', link)
+        if not m:
+            m = re.search(r'arnumber=(\d+)', link)
+        if not m:
+            return None
+        arnumber = m.group(1)
+
+        port = self._cdp_debug_port
+        get_pdf_url = f"https://ieeexplore.ieee.org/stampPDF/getPDF.jsp?tp=&arnumber={arnumber}&ref="
+
+        def _sync():
+            import time as _t
+
+            # Strategy 1: reuse existing IEEE tab
+            for t in _cdp_list_tabs(port):
+                if t.get("type") == "page" and "ieeexplore.ieee.org" in t.get("url", ""):
+                    ws = t.get("webSocketDebuggerUrl", "")
+                    if ws:
+                        data = _cdp_fetch_pdf_in_context(ws, get_pdf_url)
+                        if data:
+                            return data
+                    break
+
+            # Strategy 2: open stamp page, handle auth
+            stamp_url = f"https://ieeexplore.ieee.org/stamp/stamp.jsp?tp=&arnumber={arnumber}"
+            page = _cdp_open_page(port, stamp_url)
+            ws_url = page.get("webSocketDebuggerUrl", "")
+            if not ws_url:
+                return None
+
+            _t.sleep(8)
+
+            current = _cdp_evaluate(ws_url, "window.location.href", msg_id=5)
+            if current and "login" in str(current).lower():
+                if log:
+                    log("  [CDP-IEEE] 需要登录 — 请在浏览器窗口完成认证")
+                deadline = _t.time() + 120
+                while _t.time() < deadline:
+                    _t.sleep(3)
+                    try:
+                        url_now = _cdp_evaluate(ws_url, "window.location.href", msg_id=50)
+                    except Exception:
+                        _t.sleep(2)
+                        for tab in _cdp_list_tabs(port):
+                            if (tab.get("type") == "page"
+                                    and "ieeexplore.ieee.org" in tab.get("url", "")
+                                    and "login" not in tab.get("url", "").lower()):
+                                ws_url = tab.get("webSocketDebuggerUrl", ws_url)
+                                url_now = tab.get("url", "")
+                                break
+                        else:
+                            continue
+                    if url_now and "login" not in str(url_now).lower() and "ieeexplore" in str(url_now).lower():
+                        break
+                else:
+                    return None
+
+                _cdp_call(ws_url, "Page.navigate", {"url": stamp_url}, msg_id=6)
+                _t.sleep(8)
+
+            data = _cdp_fetch_pdf_in_context(ws_url, get_pdf_url)
+            try:
+                _cdp_call(ws_url, "Page.navigate", {"url": "about:blank"}, msg_id=99)
+            except Exception:
+                pass
+            return data
+
+        try:
+            return await asyncio.to_thread(_sync)
+        except Exception:
+            return None
+
+    # ── CDP: Elsevier / ScienceDirect ─────────────────────────────────
+    async def _try_cdp_elsevier(self, paper: dict, log=None) -> Optional[bytes]:
+        """Download Elsevier paper via CDP browser session.
+
+        Opens article page, extracts pdfDownload metadata from rendered HTML,
+        navigates to pdfft URL. User passes Cloudflare Turnstile if prompted.
+        Extracts PDF via Edge/Chrome PDF viewer or in-page fetch().
+        """
+        if not _cdp_ensure_browser(self._cdp_debug_port):
+            return None
+
+        link = paper.get("paper_link", "")
+        m = re.search(r'/pii/([A-Z0-9]+)', link)
+        if not m:
+            return None
+        target_pii = m.group(1)
+
+        port = self._cdp_debug_port
+        article_url = link or f"https://www.sciencedirect.com/science/article/pii/{target_pii}"
+
+        def _sync():
+            import time as _t
+
+            # Get or create a ScienceDirect tab
+            ws_url = None
+            for t in _cdp_list_tabs(port):
+                if t.get("type") == "page" and "sciencedirect.com" in t.get("url", ""):
+                    ws_url = t.get("webSocketDebuggerUrl", "")
+                    break
+
+            if ws_url:
+                try:
+                    _cdp_call(ws_url, "Page.navigate", {"url": article_url}, msg_id=1)
+                except Exception:
+                    ws_url = None
+
+            if not ws_url:
+                page = _cdp_open_page(port, article_url)
+                ws_url = page.get("webSocketDebuggerUrl", "")
+                if not ws_url:
+                    return None
+
+            _t.sleep(10)
+
+            # Extract pdfDownload metadata (with Cloudflare retry, up to 60s)
+            pdfft_url = None
+            deadline_meta = _t.time() + 60
+            attempt = 0
+            while _t.time() < deadline_meta:
+                attempt += 1
+                html = _cdp_evaluate(ws_url, "document.documentElement.outerHTML", msg_id=10)
+                if not html:
+                    _t.sleep(3)
+                    continue
+
+                # Cloudflare challenge page?
+                if "challenge-platform" in html or "Just a moment" in html or len(html) < 5000:
+                    if log and attempt <= 3:
+                        log("  [CDP-Elsevier] Cloudflare 验证 — 请在浏览器中完成验证")
+                    _t.sleep(5)
+                    continue
+
+                mm = _SD_PDF_DOWNLOAD_RE.search(html)
+                if not mm:
+                    if _t.time() + 10 < deadline_meta:
+                        _t.sleep(5)
+                        continue
+                    return None
+
+                md5, pid, found_pii, ext, path = mm.groups()
+                if found_pii != target_pii:
+                    _cdp_call(ws_url, "Page.navigate", {"url": article_url}, msg_id=11)
+                    _t.sleep(10)
+                    continue
+
+                pdfft_url = f"https://www.sciencedirect.com/{path}/{found_pii}{ext}?md5={md5}&pid={pid}"
+                break
+
+            if not pdfft_url:
+                return None
+
+            # Navigate to pdfft (may trigger Cloudflare Turnstile)
+            if log:
+                log("  [CDP-Elsevier] 导航到 PDF 下载页")
+            _cdp_call(ws_url, "Page.navigate", {"url": pdfft_url}, msg_id=15)
+
+            # Wait for PDF viewer to appear (up to 120s)
+            deadline_pdf = _t.time() + 120
+            last_msg = 0
+            while _t.time() < deadline_pdf:
+                _t.sleep(3)
+                viewer = None
+                pdf_page = None
+                for t in _cdp_list_tabs(port):
+                    # Edge PDF viewer
+                    if t.get("type") == "webview" and "edge_pdf" in t.get("url", ""):
+                        viewer = t
+                    # Chrome/Edge tab with PDF content
+                    if t.get("type") == "page" and "pdf.sciencedirectassets.com" in t.get("url", ""):
+                        pdf_page = t
+
+                if viewer and pdf_page:
+                    try:
+                        orig_url = _cdp_evaluate(
+                            viewer["webSocketDebuggerUrl"],
+                            'document.querySelector("embed").getAttribute("original-url")',
+                            msg_id=30,
+                        )
+                        if orig_url and "pdf" in orig_url.lower():
+                            if (target_pii.upper() in orig_url.upper()
+                                    or target_pii.upper() in pdf_page.get("url", "").upper()):
+                                data = _cdp_fetch_pdf_in_context(pdf_page["webSocketDebuggerUrl"], orig_url)
+                                if data:
+                                    return data
+                    except Exception:
+                        pass
+
+                # Fallback: try fetching pdfft directly in page context
+                if pdf_page:
+                    try:
+                        data = _cdp_fetch_pdf_in_context(pdf_page["webSocketDebuggerUrl"], pdfft_url)
+                        if data:
+                            return data
+                    except Exception:
+                        pass
+
+                now = _t.time()
+                if log and now - last_msg > 15:
+                    log(f"  [CDP-Elsevier] 等待 PDF... ({int(deadline_pdf - now)}s)")
+                    last_msg = now
+
+            return None
+
+        try:
+            return await asyncio.to_thread(_sync)
+        except Exception:
+            return None
+
     # ── Main download method (PaperRadar-style smart download) ────────
+    _RETRY_ATTEMPTS = 2      # total attempts = 1 + retries
+    _RETRY_DELAY = 8         # seconds between retries
+
     async def download(self, paper: dict, log=None) -> Optional[Path]:
-        """Smart multi-source PDF download. Returns cached path or None."""
+        """Smart multi-source PDF download with automatic retry.
+
+        On first failure, waits and retries the full cascade once.
+        Transient errors (rate limits, timeouts, mirror flakiness) often
+        resolve on the second attempt.
+        """
         title = paper.get("Paper_Title", paper.get("title", "?"))[:40]
         cached = self._cache_path(paper)
         if cached.exists() and cached.stat().st_size > 0:
             if log:
                 log(f"    [PDF缓存] {title}")
+            return cached
+
+        for attempt in range(1 + self._RETRY_ATTEMPTS):
+            result = await self._download_once(paper, log=log)
+            if result:
+                return result
+            if attempt < self._RETRY_ATTEMPTS:
+                if log:
+                    log(f"    [PDF重试] {self._RETRY_DELAY}s 后重试 ({attempt+1}/{self._RETRY_ATTEMPTS}): {title}")
+                await asyncio.sleep(self._RETRY_DELAY)
+
+        if log:
+            log(f"    [PDF] 所有来源均失败 (含{self._RETRY_ATTEMPTS}次重试): {title}")
+        return None
+
+    async def _download_once(self, paper: dict, log=None) -> Optional[Path]:
+        """Single attempt: try all sources in cascade order."""
+        title = paper.get("Paper_Title", paper.get("title", "?"))[:40]
+        cached = self._cache_path(paper)
+        if cached.exists() and cached.stat().st_size > 0:
             return cached
 
         doi = (paper.get("doi") or "").replace("https://doi.org/", "").replace("http://doi.org/", "").strip()
@@ -568,20 +1589,42 @@ class PDFDownloader:
         # Ordered download attempts
         attempts = []
 
-        def _ok(data: Optional[bytes], source: str) -> bool:
-            """Check if download succeeded, save to cache."""
-            if data and len(data) > 1000 and data[:5] == b"%PDF-":
-                cached.write_bytes(data)
-                if log:
-                    label = _SOURCE_LABELS.get(source, source)
-                    log(f"    [PDF✓] {label} ({len(data)//1024}KB): {title}")
-                return True
-            return False
+        def _ok(data: Optional[bytes], source: str, skip_verify: bool = False) -> bool:
+            """Check if download succeeded, verify content, save to cache.
+
+            Performs a lightweight title check on the first page to catch
+            wrong-paper downloads (e.g. OpenAlex returning a mismatched OA PDF).
+            skip_verify=True for trusted sources (arXiv, Sci-Hub by DOI, cache).
+            """
+            if not (data and len(data) > 1000 and data[:5] == b"%PDF-"):
+                return False
+            # ── Title verification (catch wrong-paper downloads) ──
+            if not skip_verify and full_title and len(full_title) > 10:
+                if not _pdf_title_matches(data, full_title):
+                    if log:
+                        try:
+                            log(f"    [PDF SKIP] {_SOURCE_LABELS.get(source, source)} 标题不匹配，跳过: {title}")
+                        except UnicodeEncodeError:
+                            pass
+                    return False
+            cached.write_bytes(data)
+            if log:
+                label = _SOURCE_LABELS.get(source, source)
+                try:
+                    log(f"    [PDF OK] {label} ({len(data)//1024}KB): {title}")
+                except UnicodeEncodeError:
+                    log(f"    [PDF OK] {label} ({len(data)//1024}KB)")
+            return True
+
+        # Detect publisher early (used by multiple steps)
+        _pub_from_link = _detect_publisher(paper_link)
+        _pub_from_doi = _publisher_from_doi(doi)
+        _is_publisher_paper = (_pub_from_link != "unknown" or _pub_from_doi != "unknown")
 
         try:
             async with self._make_client(timeout=45.0) as client:
 
-                # 0. GS sidebar PDF link (highest priority — GS already found the PDF)
+                # ── 0. GS sidebar PDF link (highest priority — GS already found the PDF)
                 if gs_pdf_link:
                     url = _transform_url(gs_pdf_link)
                     cookies = _get_cookies_for_url(url)
@@ -589,13 +1632,19 @@ class PDFDownloader:
                     if _ok(data, "gs_pdf"):
                         return cached
 
-                # 1. OpenAlex OA PDF
+                # ── 1. Unpaywall (moved up — best free OA discovery service)
+                if doi:
+                    data = await self._try_unpaywall(client, doi)
+                    if _ok(data, "unpaywall"):
+                        return cached
+
+                # ── 2. OpenAlex OA PDF
                 if oa_pdf_url:
                     data = await self._try_url(client, oa_pdf_url)
                     if _ok(data, "oa_pdf"):
                         return cached
 
-                # 2. CVF open access (construct URL from metadata)
+                # ── 3. CVF open access (construct URL from metadata)
                 first_author = ""
                 authors_raw = paper.get("authors_raw") or {}
                 if isinstance(authors_raw, dict):
@@ -610,13 +1659,13 @@ class PDFDownloader:
                     if _ok(data, "cvf"):
                         return cached
 
-                # 3. openAccessPdf (non-arxiv direct link)
+                # ── 4. openAccessPdf (non-arxiv direct link)
                 if pdf_url and "arxiv.org" not in pdf_url and "doi.org" not in pdf_url:
                     data = await self._try_url(client, pdf_url)
                     if _ok(data, "openaccess"):
                         return cached
 
-                # 4. S2 API lookup (PaperRadar-style: always try if we have s2_id)
+                # ── 5. S2 API lookup (PaperRadar-style: always try if we have s2_id)
                 if s2_id:
                     s2_data = await self._fetch_s2_data(client, s2_id, "")
                     if s2_data:
@@ -632,7 +1681,7 @@ class PDFDownloader:
                         if not doi:
                             doi = ext.get("DOI", "")
 
-                # 5. DBLP conference lookup
+                # ── 6. DBLP conference lookup
                 if full_title:
                     dblp_url = await self._fetch_dblp_pdf(client, full_title)
                     if dblp_url:
@@ -640,19 +1689,19 @@ class PDFDownloader:
                         if _ok(data, "dblp"):
                             return cached
 
-                # 6. Sci-Hub
+                # ── 7. Sci-Hub
                 if doi:
                     data = await self._try_scihub(client, doi)
-                    if _ok(data, "scihub"):
+                    if _ok(data, "scihub", skip_verify=True):
                         return cached
 
-                # 7. arXiv
+                # ── 8. arXiv
                 if arxiv_id:
                     data = await self._try_url(client, f"https://arxiv.org/pdf/{arxiv_id}")
-                    if _ok(data, "arxiv"):
+                    if _ok(data, "arxiv", skip_verify=True):
                         return cached
 
-                # 8. GS paper_link + smart URL transform
+                # ── 9. GS paper_link + smart URL transform
                 if paper_link and "scholar.google" not in paper_link:
                     transformed = _transform_url(paper_link)
                     cookies = _get_cookies_for_url(transformed)
@@ -666,45 +1715,85 @@ class PDFDownloader:
                         if _ok(data, "gs_link"):
                             return cached
 
-                # 9. curl + socks5 + Chrome cookies (for IEEE/Springer/ScienceDirect)
-                # httpx can't use socks5h, but curl can — bypasses Cloudflare
-                if paper_link and "scholar.google" not in paper_link:
-                    data = await self._curl_publisher_download(paper_link)
-                    if _ok(data, self._publisher_label(paper_link)):
-                        return cached
-
-                # 10. DOI landing with cookie (via curl if socks available)
+                # ── 10. DOI redirect (cheap attempt before expensive ScraperAPI)
                 if doi:
                     doi_url = f"https://doi.org/{doi}"
-                    data = await self._curl_publisher_download(doi_url)
-                    if _ok(data, self._publisher_label(doi_url)):
-                        return cached
                     cookies = _get_cookies_for_url(doi_url)
                     data = await self._try_url(client, doi_url, cookies)
                     if _ok(data, "doi"):
                         return cached
 
-                # 10. Unpaywall
-                if doi:
-                    data = await self._try_unpaywall(client, doi)
-                    if _ok(data, "unpaywall"):
-                        return cached
-
         except Exception:
             pass
 
-        # 11. ScraperAPI + LLM smart fallback (last resort for stubborn pages)
-        if paper_link and "scholar.google" not in paper_link:
+        # ── 11. ScraperAPI publisher download (IEEE/Springer/Elsevier anti-bot bypass)
+        # Uses ultra_premium/premium + render + session for JS/WAF bypass.
+        # Tried on paper_link first, then DOI URL if different publisher.
+        if _is_publisher_paper and self._scraper_keys:
+            if paper_link and "scholar.google" not in paper_link:
+                data = await self._scraper_publisher_download(paper_link, doi, log=log)
+                if _ok(data, f"scraper_{_pub_from_link if _pub_from_link != 'unknown' else _pub_from_doi}"):
+                    return cached
+
+            # Also try DOI-resolved URL if paper_link didn't work
+            if doi and not (paper_link and _pub_from_link != "unknown"):
+                doi_url = f"https://doi.org/{doi}"
+                data = await self._scraper_publisher_download(doi_url, doi, log=log)
+                if _ok(data, f"scraper_{_pub_from_doi}"):
+                    return cached
+
+        # ── 12. CDP browser session (IEEE/Elsevier — real browser with auth)
+        # Uses Chrome DevTools Protocol to download via authenticated browser.
+        # Requires: cdp_debug_port > 0 and websocket-client installed.
+        if self._cdp_debug_port and _cdp_available():
+            if paper_link and "ieeexplore.ieee.org" in paper_link:
+                data = await self._try_cdp_ieee(paper, log=log)
+                if _ok(data, "cdp_ieee"):
+                    return cached
+            if paper_link and ("sciencedirect.com" in paper_link or _pub_from_doi == "elsevier"):
+                data = await self._try_cdp_elsevier(paper, log=log)
+                if _ok(data, "cdp_elsevier"):
+                    return cached
+
+        # ── 13. LLM search for alternative PDF (preprints, author pages, repos)
+        # Uses search-grounded model to find freely accessible versions.
+        # Works for ALL users regardless of IP — finds arXiv/repo versions.
+        if self._llm_key and full_title:
+            # Build author hint from paper data
+            _author_hint = ""
+            _authors_raw = paper.get("authors_raw") or {}
+            if isinstance(_authors_raw, dict):
+                names = [re.sub(r'author_\d+_', '', k) for k in list(_authors_raw.keys())[:3]]
+                _author_hint = ", ".join(names) if names else ""
+            data = await self._llm_search_alternative_pdf(
+                full_title, doi=doi, authors=_author_hint, log=log)
+            if _ok(data, "llm_search"):
+                return cached
+
+        # ── 14. curl + socks5 + Chrome cookies (legacy fallback)
+        try:
+            if paper_link and "scholar.google" not in paper_link:
+                data = await self._curl_publisher_download(paper_link)
+                if _ok(data, self._publisher_label(paper_link)):
+                    return cached
+            if doi:
+                doi_url = f"https://doi.org/{doi}"
+                data = await self._curl_publisher_download(doi_url)
+                if _ok(data, self._publisher_label(doi_url)):
+                    return cached
+        except Exception:
+            pass
+
+        # ── 15. ScraperAPI + LLM smart fallback (last resort for non-publisher pages)
+        if paper_link and "scholar.google" not in paper_link and not _is_publisher_paper:
             data = await self._smart_scraper_download(paper_link)
             if data and len(data) > 1000 and data[:5] == b"%PDF-":
                 cached.write_bytes(data)
                 if log:
-                    log(f"    [PDF✓] ScraperAPI智能下载 ({len(data)//1024}KB): {title}")
+                    log(f"    [PDF OK] ScraperAPI智能下载 ({len(data)//1024}KB): {title}")
                 return cached
 
-        if log:
-            log(f"    [PDF] 所有来源均失败: {title}")
-        return None
+        return None  # All sources exhausted for this attempt
 
     # ── Helper: fetch S2 data by ID or title ──────────────────────────
     _s2_dl_lock = asyncio.Lock()  # Serialize S2 API calls in downloader

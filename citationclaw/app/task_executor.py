@@ -167,17 +167,22 @@ class TaskExecutor:
                     return
                 title = paper["paper_title"]
                 paper_link = paper.get("paper_link", "")
-                cached = await metadata_cache.get(title=title)
-                if cached:
-                    metadata = cached
-                    api_hits += 1
-                else:
-                    # S2-first: search by title, then by URL if title miss
-                    metadata = await collector.collect(title, paper_url=paper_link)
-                    if metadata:
-                        await metadata_cache.update(metadata.get("doi", ""), title, metadata)
-                    api_queries += 1
-                results_slots[idx] = metadata
+                try:
+                    cached = await metadata_cache.get(title=title)
+                    if cached:
+                        metadata = cached
+                        api_hits += 1
+                    else:
+                        # S2-first: search by title, then by URL if title miss
+                        metadata = await collector.collect(title, paper_url=paper_link)
+                        if metadata:
+                            await metadata_cache.update(metadata.get("doi", ""), title, metadata)
+                        api_queries += 1
+                    results_slots[idx] = metadata
+                except Exception as e:
+                    # Don't let one paper's API failure crash the entire batch
+                    self.log_manager.warning(f"  metadata 查询异常 ({title[:40]}): {str(e)[:60]}")
+                    results_slots[idx] = None
 
         try:
             tasks = [
@@ -394,6 +399,7 @@ class TaskExecutor:
             llm_api_key=config.openai_api_key,
             llm_base_url=config.openai_base_url,
             llm_model=getattr(config, 'dashboard_model', '') or config.openai_model,
+            cdp_debug_port=getattr(config, 'cdp_debug_port', 0),
         )
         parser = MinerUParser(
             log_callback=self.log_manager.info,
@@ -428,19 +434,26 @@ class TaskExecutor:
             })
 
         # Parallel PDF download — skip self-citations (saves time + bandwidth)
+        # Use 5 workers (not 10) to avoid rate-limiting on S2/Sci-Hub/LLM APIs
+        _DL_CONCURRENCY = 5
         need_download = sum(1 for i in range(len(dl_papers)) if not self_cite_map.get(i, False))
         self.log_manager.info(
             f"[PDF下载] 并行下载 {need_download} 篇非自引论文 "
-            f"(跳过 {self_cite_count} 篇自引) (10 workers)..."
+            f"(跳过 {self_cite_count} 篇自引) ({_DL_CONCURRENCY} workers)..."
         )
 
         # Set self-citation papers to None (skip download)
         async def _dl_if_needed(idx, paper):
             if self_cite_map.get(idx, False):
                 return None  # Skip self-citation
-            return await downloader.download(paper, log=self.log_manager.info)
+            try:
+                return await downloader.download(paper, log=self.log_manager.info)
+            except Exception as e:
+                title = paper.get("Paper_Title", "?")[:40]
+                self.log_manager.warning(f"  PDF 下载异常 ({title}): {str(e)[:60]}")
+                return None
 
-        sem = asyncio.Semaphore(10)
+        sem = asyncio.Semaphore(_DL_CONCURRENCY)
         async def _dl_with_sem(idx, paper):
             async with sem:
                 return await _dl_if_needed(idx, paper)
