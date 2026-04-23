@@ -51,19 +51,19 @@
                         </div>
                     </div>
 
-                    <h6 class="border-bottom pb-2 mb-3 mt-4">OpenAI兼容API配置</h6>
+                    <h6 class="border-bottom pb-2 mb-3 mt-4">Gemini 官方 API 配置</h6>
                     <div class="row">
                         <div class="col-md-6 mb-3">
-                            <label for="openai-api-key" class="form-label">V-API Key <a href="https://api.gpt.ge/register?aff=qH2n" target="_blank" rel="noopener" class="text-muted small" style="font-weight:400;text-decoration:underline dotted">(前往第三方中转平台注册充值)</a></label>
+                            <label for="openai-api-key" class="form-label">Gemini API Key <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener" class="text-muted small" style="font-weight:400;text-decoration:underline dotted">(前往 Google AI Studio 申请)</a></label>
                             <input
                                 type="text"
                                 class="form-control font-monospace"
                                 id="openai-api-key"
-                                placeholder="your-api-key"
+                                placeholder="AIza..."
                             >
                         </div>
                         <div class="col-md-6 mb-3">
-                            <label for="openai-model" class="form-label">模型名称</label>
+                            <label for="openai-model" class="form-label">Search Model <span class="text-muted small">(-search 后缀启用 google_search 工具)</span></label>
                             <input
                                 type="text"
                                 class="form-control"
@@ -73,12 +73,12 @@
                         </div>
                     </div>
                     <div class="mb-3">
-                        <label for="openai-base-url" class="form-label">Base URL</label>
+                        <label for="openai-base-url" class="form-label">Base URL <span class="text-muted small">(Gemini 官方 API 忽略此字段，保留作历史兼容)</span></label>
                         <input
                             type="text"
                             class="form-control"
                             id="openai-base-url"
-                            placeholder="https://api.gpt.ge/v1/"
+                            placeholder="（无需填写）"
                         >
                     </div>
 

@@ -1110,12 +1110,11 @@ class TaskExecutor:
         返回包含姓名和单位的完整文本，失败时返回空字符串（自引过滤将被跳过）。
         """
         try:
-            from openai import AsyncOpenAI
-            client = AsyncOpenAI(
-                api_key=config.openai_api_key,
+            from citationclaw.core.gemini_client import AsyncGeminiClient
+            client = AsyncGeminiClient(
+                api_key=(config.gemini_api_key or config.openai_api_key),
                 base_url=config.openai_base_url,
                 timeout=60.0,
-                max_retries=2,
             )
             q = (f"请搜索论文《{title}》的所有作者，"
                  f"列出每位作者的姓名及其所在单位/机构。")

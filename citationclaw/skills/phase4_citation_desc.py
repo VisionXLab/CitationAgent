@@ -19,7 +19,7 @@ class CitationDescriptionSkill:
 
         desc_cache = kwargs.get("desc_cache") or CitingDescriptionCache()
         desc_searcher = CitingDescriptionSearcher(
-            api_key=config.openai_api_key,
+            api_key=(config.gemini_api_key or config.openai_api_key),
             base_url=config.openai_base_url,
             model=config.openai_model,
             log_callback=ctx.log,

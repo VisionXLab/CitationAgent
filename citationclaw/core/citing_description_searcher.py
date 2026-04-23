@@ -5,8 +5,7 @@ import asyncio
 import pandas as pd
 from pathlib import Path
 from typing import Callable, Optional
-from openai import AsyncOpenAI
-import httpx
+from citationclaw.core.gemini_client import AsyncGeminiClient
 from citationclaw.core.citing_description_cache import CitingDescriptionCache
 
 
@@ -21,15 +20,10 @@ class CitingDescriptionSearcher:
         cache: Optional[CitingDescriptionCache] = None,
         cancel_event: Optional[asyncio.Event] = None,
     ):
-        http_client = httpx.AsyncClient(
-            limits=httpx.Limits(max_connections=50, max_keepalive_connections=10),
-            timeout=30.0
-        )
-        self.client = AsyncOpenAI(
+        self.client = AsyncGeminiClient(
             api_key=api_key,
             base_url=base_url,
-            http_client=http_client,
-            max_retries=2,
+            timeout=30.0,
         )
         self.model = model
         self.log = log_callback

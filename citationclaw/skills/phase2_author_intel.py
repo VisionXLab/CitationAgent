@@ -21,7 +21,7 @@ class AuthorIntelSkill:
         quota_event = kwargs.get("quota_event")
 
         searcher = AuthorSearcher(
-            api_key=config.openai_api_key,
+            api_key=(config.gemini_api_key or config.openai_api_key),
             base_url=config.openai_base_url,
             model=config.openai_model,
             log_callback=ctx.log,

@@ -69,6 +69,7 @@ async def get_config():
 class ConfigUpdate(BaseModel):
     """配置更新模型"""
     scraper_api_keys: list[str]
+    gemini_api_key: str = ""
     openai_api_key: str
     openai_base_url: str
     openai_model: str
@@ -407,7 +408,7 @@ _UI_SYSTEM_PROMPT = """你是 CitationClaw🦞 使用助手，帮助用户操作
 
 ## 关键配置
 - **ScraperAPI Key**：用于爬取 Google Scholar（免费账户有1000积分试用）
-- **LLM API Key + Base URL**：推荐 V-API，Search Model 必须支持实时 web search
+- **Gemini API Key**：使用 Google AI Studio 申请的官方 Gemini API Key；Search Model 通过 -search 后缀自动启用 google_search 工具
 - **分析层级**：基础版（仅统计）/ 进阶版（院士才查引用原句）/ 全面版（所有施引文献查引用原句）
 
 ## 常见问题
@@ -433,9 +434,10 @@ class ChatUIRequest(BaseModel):
 async def chat_ui(request: ChatUIRequest):
     """前端操作引导助手（轻量级，流式返回）"""
     config = config_manager.get()
-    if not config.openai_api_key or not config.openai_base_url:
+    api_key = config.gemini_api_key or config.openai_api_key
+    if not api_key:
         return JSONResponse(status_code=400,
-                            content={"error": "未配置 LLM API"})
+                            content={"error": "未配置 Gemini API Key"})
 
     messages_to_send = [{"role": "system", "content": _UI_SYSTEM_PROMPT}] + [
         {"role": m["role"], "content": m["content"]} for m in request.messages
@@ -443,9 +445,8 @@ async def chat_ui(request: ChatUIRequest):
 
     def _stream():
         try:
-            from openai import OpenAI
-            client = OpenAI(api_key=config.openai_api_key,
-                            base_url=config.openai_base_url, timeout=60.0)
+            from citationclaw.core.gemini_client import GeminiClient
+            client = GeminiClient(api_key=api_key, timeout=60.0)
             stream = client.chat.completions.create(
                 model=config.dashboard_model,
                 messages=messages_to_send,
@@ -469,9 +470,10 @@ async def chat_report(request: ChatReportRequest):
       - 需要搜索：先发送 "__SEARCHING__\\n"，再流式发送最终答案
     """
     config = config_manager.get()
-    if not config.openai_api_key or not config.openai_base_url:
+    api_key = config.gemini_api_key or config.openai_api_key
+    if not api_key:
         return JSONResponse(status_code=400,
-                            content={"error": "未配置 LLM API"})
+                            content={"error": "未配置 Gemini API Key"})
 
     system_prompt = _build_report_system_prompt(request.context)
     history = [{"role": m["role"], "content": m["content"]} for m in request.messages]
@@ -482,9 +484,8 @@ async def chat_report(request: ChatReportRequest):
 
     def _stream():
         try:
-            from openai import OpenAI
-            client = OpenAI(api_key=config.openai_api_key,
-                            base_url=config.openai_base_url, timeout=90.0)
+            from citationclaw.core.gemini_client import GeminiClient
+            client = GeminiClient(api_key=api_key, timeout=90.0)
 
             # ── Step 1: 分类器 —— 判断是否需要联网搜索 ──────────────────────
             needs_search = False
@@ -581,41 +582,39 @@ class APITestRequest(BaseModel):
 
 @app.post("/api/test_openai")
 async def test_openai_api(request: APITestRequest):
-    """测试OpenAI API是否支持web search"""
+    """测试 Gemini 官方 API 是否可用，并验证 google_search 工具开关。
+
+    端点名保留为 /api/test_openai 以兼容前端；实际调用 Google Gemini API。
+    `request.base_url` 会被忽略（Gemini 官方 SDK 使用内置 endpoint）。
+    """
     try:
-        from openai import OpenAI
+        from citationclaw.core.gemini_client import GeminiClient
 
-        # 创建客户端
-        client = OpenAI(
-            api_key=request.api_key,
-            base_url=request.base_url,
-            timeout=60.0
-        )
+        client = GeminiClient(api_key=request.api_key, timeout=60.0)
 
-        # 不带web_search_options的测试
+        # 不启用 google_search 工具（走 -nothinking 等价路径）
         try:
             response_no_web = client.chat.completions.create(
                 model=request.model,
                 messages=[{"role": "user", "content": request.test_query}],
-                temperature=0.1
+                temperature=0.1,
             )
             result_no_web = response_no_web.choices[0].message.content
         except Exception as e:
             result_no_web = f"错误: {str(e)}"
 
-        # 带web_search_options的测试
+        # 启用 google_search 工具（通过 extra_body 强制开启）
         try:
             response_with_web = client.chat.completions.create(
                 model=request.model,
                 messages=[{"role": "user", "content": request.test_query}],
                 temperature=0.1,
-                extra_body={"web_search_options": {}}
+                extra_body={"web_search_options": {}},
             )
             result_with_web = response_with_web.choices[0].message.content
         except Exception as e:
             result_with_web = f"错误: {str(e)}"
 
-        # 判断是否支持web search
         has_web_search = "错误" not in result_with_web and result_with_web != result_no_web
 
         return {
@@ -623,9 +622,10 @@ async def test_openai_api(request: APITestRequest):
             "has_web_search": has_web_search,
             "test_results": {
                 "without_web_search": result_no_web,
-                "with_web_search": result_with_web
+                "with_web_search": result_with_web,
             },
-            "message": "✅ API连接成功" if has_web_search else "⚠️ API可用但可能不支持web search"
+            "message": "✅ Gemini API 连接成功" if has_web_search
+                       else "⚠️ Gemini API 可用，但 google_search 工具可能未生效",
         }
 
     except Exception as e:
@@ -633,9 +633,9 @@ async def test_openai_api(request: APITestRequest):
             status_code=400,
             content={
                 "status": "error",
-                "message": f"API测试失败: {str(e)}",
-                "has_web_search": False
-            }
+                "message": f"Gemini API 测试失败: {str(e)}",
+                "has_web_search": False,
+            },
         )
 
 

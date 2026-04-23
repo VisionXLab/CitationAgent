@@ -135,8 +135,8 @@
       <input type="text" id="idx-scraper-keys" class="form-control" placeholder="key1,key2,key3">
     </div>
     <div class="col-md-6">
-      <label class="form-label">V-API Key <a href="https://api.gpt.ge/register?aff=qH2n" target="_blank" rel="noopener" style="font-weight:400;font-size:12px;color:var(--light);text-decoration:underline dotted">(前往第三方中转平台注册充值)</a></label>
-      <input type="text" id="idx-openai-key" class="form-control" placeholder="sk-..." autocomplete="off">
+      <label class="form-label">Gemini API Key <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener" style="font-weight:400;font-size:12px;color:var(--light);text-decoration:underline dotted">(前往 Google AI Studio 申请)</a></label>
+      <input type="text" id="idx-openai-key" class="form-control" placeholder="AIza..." autocomplete="off">
     </div>
   </div>
   <div style="margin-top:12px">
@@ -151,17 +151,14 @@
   <div class="collapse" id="config-advanced">
     <div class="row g-3" style="margin-top:4px">
       <div class="col-md-6">
-        <label class="form-label">Base URL</label>
-        <input type="text" id="idx-openai-url" class="form-control" placeholder="https://api.gpt.ge/v1/">
+        <label class="form-label">Base URL <span style="color:var(--light);font-weight:400">(已废弃，Gemini 官方 API 忽略此字段)</span></label>
+        <input type="text" id="idx-openai-url" class="form-control" placeholder="留空即可（历史字段）">
       </div>
       <div class="col-md-3">
-        <label class="form-label">Search Model</label>
+        <label class="form-label">Search Model <span style="color:var(--light);font-weight:400">(-search 后缀启用 google_search 工具)</span></label>
         <select id="idx-openai-model" class="form-select">
           <option value="gemini-3-flash-preview-search" selected>gemini-3-flash-preview-search</option>
-          <option value="gemini-3.1-pro-preview-search">gemini-3.1-pro-preview-search</option>
-          <option value="gpt-5-search-api">gpt-5-search-api</option>
-          <option value="deepseek-r1-search">deepseek-r1-search</option>
-          <option value="deepseek-v3-search">deepseek-v3-search</option>
+          <option value="gemini-3-pro-preview-search">gemini-3-pro-preview-search</option>
         </select>
       </div>
       <div class="col-md-3">

@@ -2,8 +2,7 @@ import json
 import asyncio
 from pathlib import Path
 from typing import Callable, Optional
-from openai import AsyncOpenAI
-import httpx
+from citationclaw.core.gemini_client import AsyncGeminiClient
 from citationclaw.core.author_cache import AuthorInfoCache
 
 
@@ -43,34 +42,9 @@ class AuthorSearcher:
             renowned_scholar_model: 二次筛选使用的模型
             renowned_scholar_prompt: 二次筛选的Prompt
         """
-        # 使用AsyncOpenAI客户端，配置适当的连接池限制
-        # 根据API文档建议，支持高并发（最高2000）
-        try:
-            # 配置httpx连接池限制，避免TCP连接积累
-            http_client = httpx.AsyncClient(
-                limits=httpx.Limits(
-                    max_connections=100,      # 最大连接数
-                    max_keepalive_connections=20,  # 保持活跃的连接数
-                    keepalive_expiry=30.0     # 连接保持时间（秒）
-                ),
-                timeout=30.0
-            )
-
-            self.client = AsyncOpenAI(
-                api_key=api_key,
-                base_url=base_url,
-                http_client=http_client,
-                max_retries=2
-            )
-        except Exception as e:
-            self.log_callback(f"初始化AsyncOpenAI客户端失败: {e}")
-            # 尝试不带自定义http_client的初始化（兼容某些API中转平台）
-            self.client = AsyncOpenAI(
-                api_key=api_key,
-                base_url=base_url,
-                timeout=30.0,
-                max_retries=2
-            )
+        # 使用 Gemini 官方 API 的异步客户端（OpenAI 兼容 shim）
+        # api_key 即 Google Gemini API Key；base_url 已不再使用，保留签名兼容。
+        self.client = AsyncGeminiClient(api_key=api_key, base_url=base_url, timeout=30.0)
 
         self.model = model
         self.log_callback = log_callback
@@ -178,7 +152,7 @@ class AuthorSearcher:
             搜索结果,失败返回'ERROR'
         """
         try:
-            # 使用AsyncOpenAI的原生async调用，无需run_in_executor
+            # 使用异步 Gemini 客户端的原生 async 调用，无需 run_in_executor
             if self.debug_mode:
                 self.log_callback(f"🔍 [DEBUG] 发送搜索请求 (模型: {self.model})")
                 self.log_callback(f"🔍 [DEBUG] 请求内容: {query[:200]}...")

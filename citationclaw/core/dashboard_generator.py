@@ -13,7 +13,7 @@ from pathlib import Path
 from typing import Callable, Optional
 
 import pandas as pd
-from openai import OpenAI
+from citationclaw.core.gemini_client import GeminiClient
 
 _FAMOUS_INSTITUTIONS = {
     # 国际科技企业
@@ -88,7 +88,7 @@ class DashboardGenerator:
         log_callback: Callable,
         test_mode: bool = False,
     ):
-        self.client = OpenAI(api_key=api_key, base_url=base_url)
+        self.client = GeminiClient(api_key=api_key, base_url=base_url)
         self.model = model
         self.log = log_callback
         self.test_mode = test_mode

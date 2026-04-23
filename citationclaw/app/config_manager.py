@@ -12,10 +12,14 @@ class AppConfig(BaseModel):
         description="ScraperAPI的API Keys列表"
     )
 
-    # OpenAI兼容API配置
-    openai_api_key: str = Field(default="", description="OpenAI兼容的API Key")
-    openai_base_url: str = Field(default="https://api.gpt.ge/v1/", description="API Base URL")
-    openai_model: str = Field(default="gemini-3-flash-preview-search", description="模型名称")
+    # Gemini 官方 API 配置（当前默认使用 Google 官方 API，api_key 从此字段读取）
+    gemini_api_key: str = Field(default="", description="Google Gemini 官方 API Key")
+
+    # OpenAI兼容API配置（历史字段；openai_api_key 为空时 Gemini shim 会回退到它，
+    # openai_base_url 仅在非 Gemini 调用时使用，现已忽略）
+    openai_api_key: str = Field(default="", description="OpenAI兼容的API Key（保留兼容；Gemini 优先）")
+    openai_base_url: str = Field(default="https://api.gpt.ge/v1/", description="API Base URL（历史字段，Gemini 调用时忽略）")
+    openai_model: str = Field(default="gemini-3-flash-preview-search", description="搜索模型名称（-search 后缀触发 google_search 工具）")
 
     # 任务配置
     default_output_prefix: str = Field(default="paper", description="默认输出文件前缀")
