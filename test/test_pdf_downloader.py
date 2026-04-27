@@ -294,6 +294,48 @@ class TestPdfTitleMatches:
         assert _pdf_title_matches(b"%PDF-1.4 broken", "Any Title") is True
 
 
+class TestPdfSourceAudit:
+    def _make_fake_pdf(self, first_page_text: str) -> bytes:
+        try:
+            import fitz
+            doc = fitz.open()
+            for _ in range(5):
+                page = doc.new_page()
+                page.insert_text((72, 72), first_page_text)
+            data = doc.tobytes()
+            doc.close()
+            return data
+        except ImportError:
+            pytest.skip("PyMuPDF not installed")
+
+    @pytest.mark.asyncio
+    async def test_download_records_source_and_sidecar(self, tmp_path, monkeypatch):
+        pdf = self._make_fake_pdf("Short\n" * 120)
+
+        async def fake_try_url(self, client, url, *args, **kwargs):
+            return pdf
+
+        monkeypatch.setattr(PDFDownloader, "_try_url", fake_try_url)
+        dl = PDFDownloader(
+            cache_dir=tmp_path,
+            scraper_api_keys=[],
+            disable_llm_search=True,
+            cdp_debug_port=0,
+        )
+        paper = {
+            "Paper_Title": "Short",
+            "pdf_url": "https://example.edu/short.pdf",
+            "doi": "",
+            "paper_link": "",
+        }
+
+        path = await dl.download(paper)
+
+        assert path is not None
+        assert paper["_pdf_source"] == "openaccess"
+        assert path.with_suffix(".pdf.src").read_text(encoding="utf-8") == "openaccess"
+
+
 class TestExtractIeeePdf:
     def test_pdf_url_json(self):
         html = '<script>var meta = {"pdfUrl": "/stamp/stamp.jsp?tp=&arnumber=123"};</script>'

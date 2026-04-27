@@ -2344,6 +2344,14 @@ class PDFDownloader:
         _emit_ok = log_ok if log_ok else log
         cached = self._cache_path(paper)
         if self._cache_is_valid(cached, full_title):
+            src_file = cached.with_suffix(".pdf.src")
+            if src_file.exists():
+                try:
+                    paper["_pdf_source"] = src_file.read_text(encoding="utf-8").strip() or "cache"
+                except Exception:
+                    paper["_pdf_source"] = "cache"
+            else:
+                paper["_pdf_source"] = "cache"
             if _emit_ok:
                 _emit_ok(f"    [PDF缓存] {title}")
             return cached
@@ -2491,6 +2499,11 @@ class PDFDownloader:
                             pass
                     return False
             cached.write_bytes(data)
+            paper["_pdf_source"] = source
+            try:
+                cached.with_suffix(".pdf.src").write_text(source, encoding="utf-8")
+            except Exception:
+                pass
             # 2026-04-21: route [PDF OK] through log_ok (SUCCESS level)
             # when available so the UI paints it green and users can
             # set config.log_min_level=SUCCESS to hide the noisy INFO
