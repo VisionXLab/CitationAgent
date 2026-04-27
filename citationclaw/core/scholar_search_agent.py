@@ -6,6 +6,7 @@ The key advantage over v1.0.9: the LLM receives structured data
 (real author names, affiliations, h-index from APIs) instead of
 searching blindly from just a paper title.
 """
+import asyncio
 import re
 from dataclasses import dataclass, field
 from typing import Optional, List, Dict
@@ -121,8 +122,7 @@ class ScholarSearchAgent:
         )
 
         try:
-            import asyncio as _aio
-            response = await _aio.wait_for(
+            response = await asyncio.wait_for(
                 self._client.chat.completions.create(
                     model=self._model,
                     messages=[{"role": "user", "content": prompt}],
@@ -134,10 +134,10 @@ class ScholarSearchAgent:
             text = response.choices[0].message.content.strip()
             return self._parse_response(text)
         except asyncio.TimeoutError:
-            self._log(f"    ⚠ 搜索LLM超时 (90s)")
+            self._log(f"    [WARN] 搜索LLM超时 (90s)")
             return []
         except Exception as e:
-            self._log(f"    ⚠ 搜索LLM调用失败: {e}")
+            self._log(f"    [WARN] 搜索LLM调用失败: {e}")
             return []
 
     def _parse_response(self, text: str) -> List[ScholarResult]:

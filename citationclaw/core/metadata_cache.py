@@ -12,7 +12,14 @@ from pathlib import Path
 from datetime import datetime, timezone
 from typing import Optional, Dict, Any
 
-CACHE_FILE = Path("data/cache/metadata_cache.json")
+# Anchor cache file to CitationClaw-v2 project root so CWD changes don't
+# orphan the cache (e.g. when the eval harness runs from a sibling dir).
+try:
+    from citationclaw.app.config_manager import DATA_DIR as _DATA_DIR
+    CACHE_FILE = _DATA_DIR / "cache" / "metadata_cache.json"
+except Exception:
+    CACHE_FILE = (Path(__file__).resolve().parent.parent.parent
+                  / "data" / "cache" / "metadata_cache.json")
 WRITE_EVERY = 10
 
 

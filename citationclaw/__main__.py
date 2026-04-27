@@ -17,6 +17,27 @@ import urllib.request
 import urllib.error
 
 
+# 2026-04-20: The banner print below contains the 🦞 emoji, which is
+# not GBK-encodable. On Chinese Windows the default console is GBK
+# (cp936), and printing the banner raises `UnicodeEncodeError` before
+# uvicorn ever starts -- the server exits with a traceback and `--no-
+# browser` users never see the modal at all.
+#
+# log_manager.py has a similar `_best_effort_utf8_console()` for the
+# long-lived logger, but that only runs after log_manager is imported
+# (which happens inside uvicorn.run, AFTER this module's banner print).
+# Do the same best-effort reconfigure here at the earliest possible
+# point so the banner + any early error messages survive.
+for _stream_name in ("stdout", "stderr"):
+    _stream = getattr(sys, _stream_name, None)
+    _reconfigure = getattr(_stream, "reconfigure", None) if _stream else None
+    if callable(_reconfigure):
+        try:
+            _reconfigure(encoding="utf-8", errors="replace")
+        except Exception:
+            pass
+
+
 def _port_in_use(host: str, port: int) -> bool:
     """Return True if the port is already bound."""
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:

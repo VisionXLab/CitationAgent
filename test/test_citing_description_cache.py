@@ -48,10 +48,11 @@ def test_different_target_papers_different_keys(tmp_path):
     assert cache.get("http://p1", "Paper A", "Target Y") == "Desc Y"
 
 
-def test_persists_to_disk(tmp_path):
+def test_flush_persists_pending_updates(tmp_path):
     f = tmp_path / "cache.json"
     cache1 = CitingDescriptionCache(cache_file=f)
     run(cache1.update("http://p1", "Paper A", "Target", "Saved desc"))
+    run(cache1.flush())
 
     cache2 = CitingDescriptionCache(cache_file=f)
     assert cache2.get("http://p1", "Paper A", "Target") == "Saved desc"

@@ -966,7 +966,7 @@
         </p>
         <div class="alert alert-warning py-2 mb-2" role="alert" style="font-size:0.88rem">
           <i class="bi bi-exclamation-triangle-fill"></i>
-          <strong>按年份遍历</strong>将逐年分段抓取，可获取更完整数据，但会额外消耗约数倍 ScraperAPI 与 LLM 额度。
+          <strong>按年份遍历</strong>将逐年分段抓取，可获取更完整数据，但会额外消耗-约数倍 ScraperAPI 与 LLM 额度。
         </div>
         <p class="text-muted mb-0" style="font-size:0.85rem">
           若不启用，本次将只抓取前 1000 条引用。
@@ -978,6 +978,40 @@
         </button>
         <button type="button" class="btn btn-warning" id="yt-btn-enable">
           <i class="bi bi-calendar-check"></i> 开启年份遍历
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ Phase 2 Login Checkpoint Modal ═══ -->
+<div class="modal fade" id="phase2LoginModal" tabindex="-1" aria-labelledby="phase2LoginModalLabel" aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header border-0 pb-0">
+        <h5 class="modal-title" id="phase2LoginModalLabel">
+          <i class="bi bi-shield-lock-fill text-primary"></i> Phase 2 · 出版商登录检查点
+        </h5>
+      </div>
+      <div class="modal-body">
+        <p>
+          已自动弹出 Chrome/Edge 调试浏览器，并打开以下出版商页面。请在浏览器中 <strong>登录你的机构账号</strong>（IEEE Xplore / Springer / Elsevier 等），完成后点击下方「继续」。
+        </p>
+        <div class="alert alert-info py-2 mb-2" role="alert" style="font-size:0.88rem">
+          <i class="bi bi-info-circle-fill"></i>
+          Cookies 会持久化保存到 <code>runtime/debug_browser_profile</code>，下次运行无需再登录。
+        </div>
+        <ul id="p2l-url-list" class="small mb-2" style="max-height:140px;overflow-y:auto"></ul>
+        <p class="text-muted mb-0" style="font-size:0.82rem">
+          <i class="bi bi-clock"></i> <strong id="p2l-countdown">—</strong> 秒后自动继续（使用当前 cookies）。
+        </p>
+      </div>
+      <div class="modal-footer border-0 pt-0">
+        <button type="button" class="btn btn-outline-secondary" id="p2l-btn-skip">
+          跳过，直接继续
+        </button>
+        <button type="button" class="btn btn-primary" id="p2l-btn-continue">
+          <i class="bi bi-check-circle"></i> 已登录，继续 Phase 2
         </button>
       </div>
     </div>

@@ -64,7 +64,7 @@ class CitationFetchSkill:
             ctx.log(f"[Phase1 cache] full hit, skipping scrape: {url[:60]}...")
             out.parent.mkdir(parents=True, exist_ok=True)
             out.write_text(cache.build_jsonl(url), encoding="utf-8")
-            ctx.log(f"[Phase1 cache] reused {len(cache._data.get(url, {}).get('papers', {}))} papers")
+            ctx.log(f"[Phase1 cache] reused {cache.paper_count(url)} papers")
             return SkillResult(name=self.name, data={"output_file": str(out), "from_cache": True})
 
         # -- page callback: write each page into cache --
@@ -85,7 +85,7 @@ class CitationFetchSkill:
             page_callback=on_page,
             year_complete_callback=on_year_complete,
             cached_years=set(
-                int(y) for y, v in cache._data.get(url, {}).get("years", {}).items()
+                int(y) for y, v in cache.cached_years(url).items()
                 if v.get("complete")
             ) if enable_year_traverse else None,
         )
@@ -93,6 +93,6 @@ class CitationFetchSkill:
         # -- mark complete (only if not cancelled) --
         if not (ctx.cancel_check and ctx.cancel_check()):
             await cache.mark_complete(url)
-            ctx.log(f"[Phase1 cache] saved {len(cache._data.get(url, {}).get('papers', {}))} papers")
+            ctx.log(f"[Phase1 cache] saved {cache.paper_count(url)} papers")
 
         return SkillResult(name=self.name, data={"output_file": str(out), "from_cache": False})

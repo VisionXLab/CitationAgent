@@ -934,6 +934,63 @@ function initIndexPage() {
         };
     });
 
+    // Phase 2 登录检查点：server 广播 phase2_login_prompt 后，显示模态并开倒计时
+    ws.on('phase2_login_prompt', data => {
+        const urls = (data && Array.isArray(data.urls)) ? data.urls : [];
+        const waitSeconds = (data && data.wait_seconds) ? data.wait_seconds : 180;
+
+        const listEl = document.getElementById('p2l-url-list');
+        if (listEl) {
+            listEl.innerHTML = '';
+            urls.forEach(u => {
+                const li = document.createElement('li');
+                const a = document.createElement('a');
+                a.href = u; a.target = '_blank'; a.rel = 'noopener';
+                a.textContent = u;
+                li.appendChild(a);
+                listEl.appendChild(li);
+            });
+            if (!urls.length) {
+                listEl.innerHTML = '<li class="text-muted">（未配置 phase2_login_urls，仅启动了调试浏览器）</li>';
+            }
+        }
+
+        const modalEl = document.getElementById('phase2LoginModal');
+        if (!modalEl) return;
+        const modal = new bootstrap.Modal(modalEl);
+        modal.show();
+
+        // 倒计时显示（仅展示用，真正超时在服务端 asyncio.wait_for 处理）
+        const cdEl = document.getElementById('p2l-countdown');
+        let remaining = waitSeconds;
+        if (cdEl) cdEl.textContent = String(remaining);
+        const timerId = setInterval(() => {
+            remaining -= 1;
+            if (cdEl) cdEl.textContent = String(Math.max(0, remaining));
+            if (remaining <= 0) { clearInterval(timerId); }
+        }, 1000);
+
+        const postReady = async () => {
+            try {
+                await fetch('/api/task/phase2-login-ready', { method: 'POST' });
+            } catch (e) { console.error('phase2-login-ready failed', e); }
+        };
+
+        const btnContinue = document.getElementById('p2l-btn-continue');
+        if (btnContinue) btnContinue.onclick = async () => {
+            clearInterval(timerId);
+            modal.hide();
+            await postReady();
+        };
+
+        const btnSkip = document.getElementById('p2l-btn-skip');
+        if (btnSkip) btnSkip.onclick = async () => {
+            clearInterval(timerId);
+            modal.hide();
+            await postReady();
+        };
+    });
+
     ws.on('quota_exceeded', data => {
         const msgEl = document.getElementById('quota-exceeded-message');
         if (msgEl && data.message) {

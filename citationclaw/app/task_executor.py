@@ -51,6 +51,11 @@ class TaskExecutor:
         self._year_traverse_event: Optional[asyncio.Event] = None
         self._year_traverse_choice: bool = False   # True = 用户同意开启
         self._year_traverse_prompted: bool = False  # 本次运行已提示过，不再重复
+
+        # Phase 2 登录检查点（CDP 启用时 Phase 2 开始前弹浏览器等登录）
+        self._phase2_login_event: Optional[asyncio.Event] = None
+        self._phase2_login_done: bool = False  # 本次运行已完成/跳过，不重复提示
+
         self.skills_runtime = SkillsRuntime()
 
     async def _run_skill(self, skill_name: str, config: AppConfig, **kwargs):
@@ -71,6 +76,245 @@ class TaskExecutor:
                     self.log_manager.warning(f"Skill {skill_name} reported {key}={p} but file does not exist")
         return result
 
+    # ── Phase 2 login-stamp sentinel helpers ──────────────────────────
+    # Path is lazily resolved via pdf_downloader's DEBUG_BROWSER_PROFILE_DIR
+    # so we inherit the 2026-04-20 absolute-path fix automatically.
+    _STAMP_FILENAME = "phase2_login_stamp.json"
+
+    def _phase2_stamp_path(self):
+        from citationclaw.core.pdf_downloader import DEBUG_BROWSER_PROFILE_DIR
+        return DEBUG_BROWSER_PROFILE_DIR / self._STAMP_FILENAME
+
+    def _phase2_stamp_is_fresh(self, ttl_hours: int) -> tuple:
+        """Return (is_fresh, stamp_dict_or_None, age_hours_or_None).
+
+        Fresh = stamp file exists, parses as JSON, and its `timestamp`
+        is within `ttl_hours` of now. Returns (False, None, None) on any
+        failure so callers can treat missing / corrupt stamps the same.
+        """
+        if ttl_hours <= 0:
+            return (False, None, None)
+        path = self._phase2_stamp_path()
+        if not path.exists():
+            return (False, None, None)
+        try:
+            data = _json.loads(path.read_text(encoding="utf-8"))
+            ts_iso = data.get("timestamp", "")
+            stamp_at = datetime.fromisoformat(ts_iso)
+        except Exception:
+            return (False, None, None)
+        age_s = (datetime.now() - stamp_at).total_seconds()
+        age_hours = age_s / 3600.0
+        return (age_hours < ttl_hours, data, age_hours)
+
+    def _phase2_stamp_write(self, outcome: str, urls: list) -> None:
+        """Persist a stamp file so the next run knows we logged in recently.
+
+        outcome: 'user_confirmed' | 'timeout' | 'probe_pass'
+          - user_confirmed: user clicked 继续 / POSTed ready endpoint
+          - timeout: checkpoint timed out (cookies assumed still valid)
+          - probe_pass: we skipped the checkpoint via stamp AND the
+            post-probe passed, so we refresh the stamp forward in time
+        """
+        path = self._phase2_stamp_path()
+        try:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(_json.dumps({
+                "timestamp": datetime.now().isoformat(timespec="seconds"),
+                "outcome": outcome,
+                "urls": urls,
+            }, ensure_ascii=False, indent=2), encoding="utf-8")
+        except Exception as e:
+            # Never let stamp write failure abort the pipeline.
+            self.log_manager.warning(
+                f"[Phase2登录] 无法写入 sentinel 文件: {e}"
+            )
+
+    async def _prompt_phase2_login(self, config: AppConfig) -> None:
+        """Phase 2 入口：自动弹出浏览器 + 出版商登录页，等待用户完成登录。
+
+        触发条件（任一不满足即静默跳过，行为与旧版一致）：
+          - `config.cdp_debug_port > 0` （没开 CDP 根本不需要浏览器登录）
+          - `config.enable_phase2_login_checkpoint` 为 True
+          - 本次任务尚未完成过该检查点（`_phase2_login_done` 为 False）
+
+        流程：
+          0. 若 `runtime/debug_browser_profile/phase2_login_stamp.json`
+             存在且年龄 < `phase2_login_stamp_hours` 小时，跳过 tab/等待
+             阶段，直接进 probe。老用户一天内多次跑免 180s 等待。
+          1. 调用 `_cdp_ensure_browser` 自动启动 Chrome/Edge（若未启动）
+             并使用 `runtime/debug_browser_profile` 持久化 cookies。
+          2. 用 `_cdp_open_login_pages` 批量打开 `phase2_login_urls`。
+          3. 通过 WebSocket 广播 `phase2_login_prompt`，让 UI 弹模态。
+          4. 在 `asyncio.Event` 上 wait，最多 `phase2_login_wait_seconds` 秒。
+          5. 用户点「继续」POST `/api/task/phase2-login-ready` 即解锁；
+             否则超时自动继续（已登录过的用户 cookies 仍有效）。
+          6. 写 sentinel 文件供下次跑复用。
+          7. 可选：跑 probe 验证各出版商 auth 状态。
+        """
+        if self._phase2_login_done:
+            return
+        self._phase2_login_done = True  # 至多触发一次，哪怕早退
+
+        cdp_port = int(getattr(config, "cdp_debug_port", 0) or 0)
+        if cdp_port <= 0:
+            return
+        if not getattr(config, "enable_phase2_login_checkpoint", True):
+            return
+
+        login_urls = list(getattr(config, "phase2_login_urls", []) or [])
+        wait_seconds = int(getattr(config, "phase2_login_wait_seconds", 180) or 180)
+        stamp_ttl_hours = int(getattr(config, "phase2_login_stamp_hours", 24) or 0)
+
+        # 1) 启动浏览器（幂等，已在跑就直接复用）
+        from citationclaw.core.pdf_downloader import (
+            _cdp_ensure_browser,
+            _cdp_check_connection,
+            _cdp_open_login_pages,
+            _cdp_available,
+        )
+
+        if not _cdp_available():
+            self.log_manager.warning(
+                "[Phase2登录] 未安装 websocket-client，跳过自动弹出登录页。"
+                "运行 `pip install websocket-client` 后重启服务即可启用。"
+            )
+            return
+
+        launched = _cdp_ensure_browser(cdp_port)
+        if not launched and not _cdp_check_connection(cdp_port):
+            self.log_manager.warning(
+                f"[Phase2登录] 无法启动调试浏览器（port={cdp_port}）。"
+                "请手动运行 chrome.exe --remote-debugging-port=9222 后重试。"
+            )
+            return
+
+        # 0) Sentinel short-circuit: if we successfully completed the
+        # checkpoint within `stamp_ttl_hours`, skip tab-open + wait.
+        # User already knows the drill; no need to pop 5 tabs again.
+        fresh, stamp_data, age_hours = self._phase2_stamp_is_fresh(stamp_ttl_hours)
+        if fresh:
+            age_str = (f"{age_hours:.1f}h" if age_hours is not None else "?")
+            prev_outcome = (stamp_data or {}).get("outcome", "?")
+            self.log_manager.info(
+                f"[Phase2登录] {age_str} 前已完成过检查点 (outcome={prev_outcome})，"
+                f"跳过 tab 弹出 + 等待（sentinel TTL {stamp_ttl_hours}h）。"
+            )
+            # Still run the probe so we catch "cookies expired since last run".
+            if getattr(config, "enable_phase2_login_probe", True):
+                await self._run_phase2_login_probe(cdp_port)
+                # Refresh the stamp forward after a successful skip-then-probe,
+                # so a long-running session keeps the TTL rolling.
+                self._phase2_stamp_write("probe_pass", login_urls)
+            return
+
+        # 2) 弹开出版商登录页
+        opened = _cdp_open_login_pages(cdp_port, login_urls) if login_urls else 0
+        if opened:
+            self.log_manager.info(
+                f"[Phase2登录] 已弹出 {opened} 个出版商页面（IEEE / Springer / Elsevier 等）。"
+            )
+        else:
+            self.log_manager.info(
+                "[Phase2登录] 未配置 phase2_login_urls 或打开失败，"
+                "仅启动了调试浏览器。"
+            )
+
+        # 3) 广播 WebSocket 事件 + 准备 asyncio.Event
+        self._phase2_login_event = asyncio.Event()
+        self.log_manager.broadcast_event("phase2_login_prompt", {
+            "urls": login_urls,
+            "wait_seconds": wait_seconds,
+            "cdp_port": cdp_port,
+        })
+        self.log_manager.warning(
+            f"[Phase2登录] 请在弹出的浏览器中完成出版商登录，然后在页面点击"
+            f"「继续」(或 POST /api/task/phase2-login-ready)。"
+            f"{wait_seconds}s 后自动继续。"
+        )
+
+        # 4) 等用户确认或超时
+        outcome = "timeout"
+        try:
+            await asyncio.wait_for(self._phase2_login_event.wait(), timeout=wait_seconds)
+            self.log_manager.info("[Phase2登录] 用户已确认登录完成，继续 Phase 2")
+            outcome = "user_confirmed"
+        except asyncio.TimeoutError:
+            self.log_manager.warning(
+                f"[Phase2登录] 等待超时（{wait_seconds}s），按现有 cookies 继续。"
+                "若下载失败较多，下次可提高 phase2_login_wait_seconds。"
+            )
+        finally:
+            self._phase2_login_event = None
+
+        # 5) Persist sentinel so subsequent runs within TTL can skip.
+        # Written regardless of outcome -- timeout case still implies the
+        # user was given the chance and current cookies are "known good
+        # enough for this session".
+        if stamp_ttl_hours > 0:
+            self._phase2_stamp_write(outcome, login_urls)
+
+        # 6) 登录后自动验证各出版商 CDP auth 状态（opt-in via config flag）。
+        if getattr(config, "enable_phase2_login_probe", True):
+            await self._run_phase2_login_probe(cdp_port)
+
+    async def _run_phase2_login_probe(self, cdp_port: int) -> None:
+        """Post-login diagnostic: probe IEEE/ACM/Elsevier/Springer/Wiley via CDP.
+
+        Runs `core.cdp_login_probe.probe_all` synchronously on a worker
+        thread (each probe opens a tab + 8s wait + PDF fetch, so 5 x ~10s
+        = ~50s total) and logs per-publisher results. Non-fatal: any
+        probe exception is caught and logged as a warning; the pipeline
+        continues regardless.
+
+        Rationale: if ACM still wants a captcha or step-up auth that the
+        login checkpoint didn't clear, the user should know BEFORE we
+        burn 20 minutes on 122 paper downloads. A failed probe just
+        means "expect ACM CDP tier to miss"; doesn't abort anything.
+        """
+        try:
+            from citationclaw.core.cdp_login_probe import (
+                probe_all, format_summary, PASSING_STATUSES,
+            )
+        except Exception as e:
+            self.log_manager.warning(
+                f"[Phase2验证] 无法加载 cdp_login_probe 模块: {e}"
+            )
+            return
+
+        self.log_manager.info(
+            "[Phase2验证] 正在验证 5 个出版商的 CDP 认证状态 (IEEE / ACM / "
+            "Elsevier / Springer / Wiley，约 50s)..."
+        )
+        try:
+            # probe_all is blocking (time.sleep + _cdp_evaluate network I/O).
+            # Run on a worker thread to avoid stalling the asyncio loop.
+            results = await asyncio.to_thread(probe_all, cdp_port, None)
+        except Exception as e:
+            self.log_manager.warning(
+                f"[Phase2验证] probe_all 异常: {type(e).__name__}: {e}"
+            )
+            return
+
+        # Per-publisher line: INFO for passing, WARNING for failing.
+        for r in results:
+            line = (f"  [{r.publisher:<9}] {r.icon():<11} "
+                    f"({r.elapsed_s:>4.1f}s)  {r.detail[:75]}")
+            if r.status in PASSING_STATUSES:
+                self.log_manager.info(line)
+            else:
+                self.log_manager.warning(line)
+
+        # Roll-up summary line.
+        passed = sum(1 for r in results if r.status in PASSING_STATUSES)
+        total = len(results)
+        summary_line = (f"[Phase2验证] {passed}/{total} 出版商认证通过 "
+                        f"({format_summary(results)})")
+        if passed == total:
+            self.log_manager.info(summary_line)
+        else:
+            self.log_manager.warning(summary_line)
+
     async def _run_new_phase2_and_3(
         self,
         citing_files: List[Tuple[Path, str]],
@@ -83,6 +327,28 @@ class TaskExecutor:
 
         Returns: (merged_jsonl, excel_file, json_file, pdf_paths) or None on failure.
         """
+        # 2026-04-21: apply log-level threshold from config. Setting
+        # `log_min_level=SUCCESS` in config.json collapses the UI to
+        # just green [PDF OK] / [PDF缓存] + yellow warnings + red
+        # [PDF失败] blocks -- hides the cascade-internal "HTTP 403" /
+        # "Connection error" INFO noise that makes users feel the
+        # pipeline is broken. User request: "在最后的产品阶段可以
+        # 关掉输出调试信息（INFO），只输出绿色的成功和红色的失败".
+        _lvl = (getattr(config, "log_min_level", "INFO") or "INFO").upper()
+        self.log_manager.set_min_level(_lvl)
+        if _lvl != "INFO":
+            # One-time hint at WARNING level so the user remembers this
+            # is suppressing output (WARNING passes through at any
+            # setting except ERROR).
+            self.log_manager.warning(
+                f"[日志] log_min_level={_lvl}：已屏蔽 INFO 级别的 cascade "
+                f"诊断行；仍会看到成功/警告/错误。完整日志在 run.log 里。"
+            )
+
+        # 登录检查点：让用户先在真实浏览器里登录 IEEE/Springer/Elsevier 等，
+        # 之后所有需要 CDP 的 PDF 下载都能复用 cookies。
+        await self._prompt_phase2_login(config)
+
         adapter = PipelineAdapter()
         metadata_cache = MetadataCache()
         collector = MetadataCollector(
@@ -394,12 +660,38 @@ class TaskExecutor:
         self.log_manager.info("Phase 2 · PDF 并行下载 + MinerU 解析 + 作者交叉验证")
         self.log_manager.info("=" * 50)
 
+        _cdp_port = getattr(config, 'cdp_debug_port', 0)
+        _enable_llm_search = getattr(config, 'enable_pdf_llm_search', False)
         downloader = PDFDownloader(
             scraper_api_keys=config.scraper_api_keys,
             llm_api_key=config.openai_api_key,
             llm_base_url=config.openai_base_url,
-            llm_model=getattr(config, 'dashboard_model', '') or config.openai_model,
-            cdp_debug_port=getattr(config, 'cdp_debug_port', 0),
+            # Use the main model (typically search-grounded) for PDF search,
+            # NOT the dashboard_model (lightweight/nothinking).
+            # The LLM search needs web search capability to find preprints.
+            llm_model=config.openai_model,
+            cdp_debug_port=_cdp_port,
+            # Read from config (was hardcoded True; flipped to opt-in flag).
+            disable_llm_search=not _enable_llm_search,
+            # S2 key bumps rate-limit from 1 req/s → 100 req/s
+            s2_api_key=getattr(config, 's2_api_key', ''),
+            # CORE API enables the aggregator source (free tier: 1000 req/day)
+            core_api_key=getattr(config, 'core_api_key', ''),
+        )
+
+        # CDP availability diagnostic — tells the user *why* CDP tier is/isn't used
+        _cdp_status = "未启用"
+        if _cdp_port:
+            from citationclaw.core.pdf_downloader import _cdp_check_connection, _cdp_available
+            if not _cdp_available():
+                _cdp_status = f"端口 {_cdp_port} 但 websocket-client 未安装"
+            elif _cdp_check_connection(_cdp_port):
+                _cdp_status = f"端口 {_cdp_port} 已连通"
+            else:
+                _cdp_status = f"端口 {_cdp_port} 未连通（Chrome 未启动或无 --remote-debugging-port）"
+        self.log_manager.info(
+            f"[PDF下载] CDP: {_cdp_status}, "
+            f"LLM搜索: {'启用' if _enable_llm_search else '禁用'}"
         )
         parser = MinerUParser(
             log_callback=self.log_manager.info,
@@ -437,30 +729,106 @@ class TaskExecutor:
         # Use 5 workers (not 10) to avoid rate-limiting on S2/Sci-Hub/LLM APIs
         _DL_CONCURRENCY = 5
         need_download = sum(1 for i in range(len(dl_papers)) if not self_cite_map.get(i, False))
+
+        # ── Dedupe by cache path: two Phase-1 records can flatten to the
+        # same paper (identical DOI / title after normalization). We coalesce
+        # them BEFORE dispatching so the second record reuses the first
+        # record's download result instead of racing for the same cache file.
+        _key_to_leader: dict = {}          # cache_path_str -> leader idx
+        _follower_to_leader: dict = {}     # follower idx -> leader idx
+        for i, paper in enumerate(dl_papers):
+            if self_cite_map.get(i, False):
+                continue
+            try:
+                _key = str(downloader._cache_path(paper))
+            except Exception:
+                continue
+            if _key in _key_to_leader:
+                _follower_to_leader[i] = _key_to_leader[_key]
+            else:
+                _key_to_leader[_key] = i
+        if _follower_to_leader:
+            for follower, leader in _follower_to_leader.items():
+                lt = dl_papers[leader].get("Paper_Title", "?")[:45]
+                ft = dl_papers[follower].get("Paper_Title", "?")[:45]
+                self.log_manager.info(
+                    f"  [PDF去重] #{follower+1} ({ft}) 与 #{leader+1} ({lt}) 映射到同一 cache，共享下载结果"
+                )
+        unique_downloads = need_download - len(_follower_to_leader)
         self.log_manager.info(
-            f"[PDF下载] 并行下载 {need_download} 篇非自引论文 "
-            f"(跳过 {self_cite_count} 篇自引) ({_DL_CONCURRENCY} workers)..."
+            f"[PDF下载] 并行下载 {unique_downloads} 篇非自引论文 "
+            f"(跳过 {self_cite_count} 篇自引"
+            + (f", {len(_follower_to_leader)} 篇与其他记录同 cache 共享" if _follower_to_leader else "")
+            + f") ({_DL_CONCURRENCY} workers)..."
         )
 
-        # Set self-citation papers to None (skip download)
-        async def _dl_if_needed(idx, paper):
+        # Set self-citation papers to None (skip download); followers wait
+        # for their leader and reuse the result.
+        _leader_results: dict = {}  # leader idx -> asyncio.Future
+
+        async def _dl_leader(idx, paper):
             if self_cite_map.get(idx, False):
-                return None  # Skip self-citation
+                return None
             try:
-                return await downloader.download(paper, log=self.log_manager.info)
+                # Three-tier log routing (2026-04-21):
+                #   log       = INFO (cascade chatter, "HTTP 403" etc.)
+                #   log_ok    = SUCCESS (green [PDF OK] + [PDF缓存])
+                #   log_error = ERROR (red terminal-failure diagnostic)
+                # Users can set config.log_min_level=SUCCESS to collapse
+                # the UI to just green + red without losing any info in
+                # run.log file (still captured at INFO).
+                return await downloader.download(
+                    paper,
+                    log=self.log_manager.info,
+                    log_error=self.log_manager.error,
+                    log_ok=self.log_manager.success,
+                )
             except Exception as e:
                 title = paper.get("Paper_Title", "?")[:40]
                 self.log_manager.warning(f"  PDF 下载异常 ({title}): {str(e)[:60]}")
                 return None
 
         sem = asyncio.Semaphore(_DL_CONCURRENCY)
-        async def _dl_with_sem(idx, paper):
-            async with sem:
-                return await _dl_if_needed(idx, paper)
 
-        pdf_paths = await asyncio.gather(*[
-            _dl_with_sem(i, p) for i, p in enumerate(dl_papers)
-        ])
+        async def _dl_with_sem(idx, paper):
+            # Follower: wait for the leader's result
+            if idx in _follower_to_leader:
+                leader = _follower_to_leader[idx]
+                fut = _leader_results.get(leader)
+                if fut is not None:
+                    return await fut
+                return None  # leader never scheduled (shouldn't happen)
+            # Leader or standalone: acquire semaphore and download
+            async with sem:
+                return await _dl_leader(idx, paper)
+
+        # Create futures for leaders so followers can await them
+        loop = asyncio.get_event_loop()
+        _leader_tasks = {}
+        for i in range(len(dl_papers)):
+            if i in _follower_to_leader:
+                continue
+            _leader_tasks[i] = loop.create_task(_dl_with_sem(i, dl_papers[i]))
+            _leader_results[i] = _leader_tasks[i]
+
+        # Gather in original index order (followers reuse leader future)
+        async def _resolve(i):
+            if i in _leader_tasks:
+                return await _leader_tasks[i]
+            return await _dl_with_sem(i, dl_papers[i])
+
+        pdf_paths = await asyncio.gather(*[_resolve(i) for i in range(len(dl_papers))])
+
+        for idx, _pdf_path in enumerate(pdf_paths):
+            src_idx = _follower_to_leader.get(idx, idx)
+            if src_idx >= len(dl_papers) or idx >= len(records_data):
+                continue
+            src_paper = dl_papers[src_idx]
+            record_paper = records_data[idx][0]
+            if src_paper.get("_pdf_source"):
+                record_paper["_pdf_source"] = src_paper["_pdf_source"]
+            if src_paper.get("_pdf_failures"):
+                record_paper["_pdf_failures"] = src_paper["_pdf_failures"]
 
         downloaded = sum(1 for i, p in enumerate(pdf_paths) if p and not self_cite_map.get(i, False))
         failed = need_download - downloaded
@@ -468,6 +836,32 @@ class TaskExecutor:
             f"PDF 下载: {downloaded}/{need_download} 篇成功"
             f"（{failed} 篇失败, {self_cite_count} 篇自引已跳过）"
         )
+
+        # 2026-04-21: When any paper fails, emit a consolidated ERROR-level
+        # summary listing the titles. Each individual [PDF失败] block
+        # (emitted by PDFDownloader.download's diagnostic dump) already
+        # contains the full per-paper cascade trace, so this rollup just
+        # gives the user the "scoreboard" + a pointer to find the details.
+        if failed > 0:
+            failed_titles = []
+            for i, p in enumerate(pdf_paths):
+                if p is None and not self_cite_map.get(i, False):
+                    t = dl_papers[i].get("Paper_Title") or \
+                        dl_papers[i].get("title") or "?"
+                    failed_titles.append(t)
+            self.log_manager.error(
+                f"[PDF失败汇总] {failed}/{need_download} 篇未能下载 "
+                f"(cascade + {downloader._RETRY_ATTEMPTS} 次重试均未命中)："
+            )
+            for idx, t in enumerate(failed_titles, start=1):
+                self.log_manager.error(f"  {idx}. {t[:80]}")
+            # Point users at the per-paper diagnostic blocks that
+            # PDFDownloader.download has already emitted at ERROR level.
+            self.log_manager.error(
+                "  每篇失败 paper 的完整 cascade 尝试链（15+ tiers × 3 attempts）"
+                "已在 run.log 里以 [PDF失败] 开头的 ERROR 块形式打印。"
+                "用 `grep '\\[PDF失败\\]' run.log` 或在 UI 里搜索 ERROR 级别即可定位。"
+            )
 
         # Parse + extract authors + cross-validate (parallel, 10 workers for Cloud API)
         if downloaded > 0:
@@ -832,10 +1226,19 @@ class TaskExecutor:
 
                 self_cite_result = {"is_self_citation": is_self, "method": "pre-checked"}
 
-                # PDF download info
+                # PDF download info. Resolve to absolute path so downstream
+                # consumers (dashboards, Phase 4, eval harnesses) can open the
+                # file regardless of their working directory. Empty string
+                # when no PDF was obtained.
                 _pdf = pdf_paths[i] if i < len(pdf_paths) else None
                 _pdf_ok = _pdf is not None
-                _pdf_rel = str(_pdf) if _pdf else ""
+                if _pdf:
+                    try:
+                        _pdf_rel = str(Path(_pdf).resolve())
+                    except Exception:
+                        _pdf_rel = str(_pdf)
+                else:
+                    _pdf_rel = ""
 
                 record_idx += 1
                 record = adapter.to_legacy_record(
@@ -1192,6 +1595,9 @@ class TaskExecutor:
             result_dir.mkdir(parents=True, exist_ok=True)
             file_prefix = f"{output_prefix}-{timestamp}"
 
+            # Start persistent log file in result directory
+            self.log_manager.set_log_file(result_dir / "run.log")
+
             self.log_manager.info(f"文件前缀: {file_prefix}")
             self.log_manager.info(f"结果目录: {result_dir}")
 
@@ -1367,6 +1773,7 @@ class TaskExecutor:
             raise
         finally:
             self.is_running = False
+            self.log_manager.close_log_file()
             if author_cache is not None:
                 try:
                     await author_cache.flush()
@@ -1451,6 +1858,7 @@ class TaskExecutor:
             raise
         finally:
             self.is_running = False
+            self.log_manager.close_log_file()
 
     async def import_history(self, file_path: Path, config: AppConfig) -> dict:
         """
@@ -1580,6 +1988,7 @@ class TaskExecutor:
             raise
         finally:
             self.is_running = False
+            self.log_manager.close_log_file()
 
     async def execute_for_titles(
         self,
@@ -1602,6 +2011,8 @@ class TaskExecutor:
         self._year_traverse_event = None
         self._year_traverse_choice = False
         self._year_traverse_prompted = False
+        self._phase2_login_event = None
+        self._phase2_login_done = False
         self.quota_exceeded_event = asyncio.Event()
 
         # 初始化费用追踪器
@@ -1617,6 +2028,10 @@ class TaskExecutor:
             folder_name = f"{_folder_prefix}-result-{timestamp}" if _folder_prefix else f"result-{timestamp}"
             result_dir = DATA_DIR / folder_name
             result_dir.mkdir(parents=True, exist_ok=True)
+
+            # Start persistent log file in result directory
+            self.log_manager.set_log_file(result_dir / "run.log")
+
             self.log_manager.info(f"结果目录: {result_dir}")
 
             # 运行前快照 LLM 额度 (token masked in logs)
@@ -1925,6 +2340,7 @@ class TaskExecutor:
             raise
         finally:
             self.is_running = False
+            self.log_manager.close_log_file()
             if author_cache is not None:
                 try:
                     await author_cache.flush()
@@ -2019,6 +2435,10 @@ class TaskExecutor:
             folder_name = f"{_folder_prefix}-result-{timestamp}" if _folder_prefix else f"result-{timestamp}"
             result_dir = DATA_DIR / folder_name
             result_dir.mkdir(parents=True, exist_ok=True)
+
+            # Start persistent log file in result directory
+            self.log_manager.set_log_file(result_dir / "run.log")
+
             self.log_manager.info(f"结果目录: {result_dir}")
 
             # 保存主 Excel（Phase 5 输入）
@@ -2083,6 +2503,7 @@ class TaskExecutor:
             raise
         finally:
             self.is_running = False
+            self.log_manager.close_log_file()
 
     def _handle_quota_exceeded(self):
         """Called when any phase signals that API quota is exhausted."""
