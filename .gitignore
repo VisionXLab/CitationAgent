@@ -47,6 +47,10 @@ run_benchmark_baseline.py
 
 # Docs (shared externally, not needed in repo)
 docs/
+!docs/
+!docs/superpowers/
+!docs/superpowers/specs/
+!docs/superpowers/specs/*.md
 
 # Office temp files
 ~$*
