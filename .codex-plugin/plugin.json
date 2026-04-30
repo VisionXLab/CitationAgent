@@ -1,0 +1,42 @@
+{
+  "name": "citationclaw",
+  "version": "0.1.0",
+  "description": "Codex plugin shell for CitationClaw citation-impact analysis.",
+  "author": {
+    "name": "VisionXLab",
+    "url": "https://github.com/VisionXLab"
+  },
+  "homepage": "https://visionxlab.github.io/CitationClaw/",
+  "repository": "https://github.com/VisionXLab/CitationClaw",
+  "license": "CC-BY-NC-4.0",
+  "keywords": [
+    "citation",
+    "academic",
+    "research",
+    "codex",
+    "mcp"
+  ],
+  "skills": "./skills/",
+  "mcpServers": "./.mcp.json",
+  "interface": {
+    "displayName": "CitationClaw",
+    "shortDescription": "Citation-impact analysis for research agents.",
+    "longDescription": "Adds a thin Codex plugin entry for CitationClaw while preserving the existing Python package, FastAPI UI, and five-phase citation pipeline.",
+    "developerName": "VisionXLab",
+    "category": "Research",
+    "capabilities": [
+      "Interactive",
+      "Read",
+      "Write"
+    ],
+    "websiteURL": "https://visionxlab.github.io/CitationClaw/",
+    "composerIcon": "./citationclaw/static/citationclaw_icon.png",
+    "logo": "./citationclaw/static/citationclaw_icon.png",
+    "defaultPrompt": [
+      "Validate my CitationClaw agent configuration.",
+      "Run CitationClaw for these paper titles and return the generated artifacts.",
+      "List the latest CitationClaw result folders."
+    ],
+    "brandColor": "#D1492E"
+  }
+}

@@ -116,6 +116,27 @@ For first-time users, follow the complete guide with screenshots:
 - [Quick Start (online)](https://visionxlab.github.io/CitationClaw/guidelines.html#installation)
 - [Quick Start (local file)](./docs/guidelines.html#installation)
 
+## 🤖 Agent / MCP Usage
+
+CitationClaw also provides a headless adapter for Codex, MCP clients, and other agents:
+
+```bash
+citationclaw-agent validate-config --request request.json --pretty
+citationclaw-agent run --request request.json --pretty
+citationclaw-agent list-results --data-dir data --pretty
+```
+
+If console scripts are not on `PATH`, use `python3 -m citationclaw.agent_cli` with the same subcommands.
+
+For MCP support:
+
+```bash
+pip install "citationclaw[agent]"
+python3 -m citationclaw.mcp_server
+```
+
+See [Agent Usage](./docs/agent-usage.md) for request examples, environment variables, offline smoke tests, and the Codex plugin/skill surface.
+
 ## ⚙️ Configuration Highlights
 
 - **Required keys**:
@@ -194,4 +215,3 @@ Useful links:
 [![Star History Chart](https://api.star-history.com/svg?repos=VisionXLab/CitationClaw&type=Date)](https://star-history.com/#VisionXLab/CitationClaw&Date)
 
 </div>
-

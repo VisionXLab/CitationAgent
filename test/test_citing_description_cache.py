@@ -5,11 +5,11 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 import asyncio
 import json
 import pytest
-from core.citing_description_cache import CitingDescriptionCache
+from citationclaw.core.citing_description_cache import CitingDescriptionCache
 
 
 def run(coro):
-    return asyncio.get_event_loop().run_until_complete(coro)
+    return asyncio.run(coro)
 
 
 def test_miss_returns_none(tmp_path):
@@ -52,6 +52,7 @@ def test_persists_to_disk(tmp_path):
     f = tmp_path / "cache.json"
     cache1 = CitingDescriptionCache(cache_file=f)
     run(cache1.update("http://p1", "Paper A", "Target", "Saved desc"))
+    run(cache1.flush())
 
     cache2 = CitingDescriptionCache(cache_file=f)
     assert cache2.get("http://p1", "Paper A", "Target") == "Saved desc"

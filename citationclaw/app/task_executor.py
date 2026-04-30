@@ -428,7 +428,7 @@ class TaskExecutor:
                 template_file = Path("test/mock_author_info.jsonl")
                 if not template_file.exists():
                     self.log_manager.error("❌ 测试数据不存在: test/mock_author_info.jsonl")
-                    return
+                    return {"status": "error", "message": "test/mock_author_info.jsonl not found"}
                 template_text = template_file.read_text(encoding="utf-8")
 
                 for i, (title, canonical) in enumerate(all_search_titles):
@@ -556,7 +556,7 @@ class TaskExecutor:
                             break
                         if self.quota_exceeded_event.is_set():
                             self._handle_quota_exceeded()
-                            return
+                            return {"status": "quota_exceeded", "result_dir": str(result_dir)}
                         author_info_files.append(author_file)
                     else:
                         self.log_manager.info("⏭ 跳过 Phase 2（skip_author_search=True）")
@@ -576,14 +576,14 @@ class TaskExecutor:
                             _total_citing += len(_page_data.get("paper_dict", {}))
                     except Exception:
                         continue
-            if _total_citing == 0:
+            if _total_citing == 0 and not (config.test_mode and author_info_files):
                 self.log_manager.warning("⚠️ Phase 1 未爬取到任何引用文献，任务结束")
-                return
+                return {"status": "empty", "result_dir": str(result_dir), "message": "No citing papers found"}
 
             if not config.skip_author_search:
                 if not author_info_files:
                     self.log_manager.warning("没有成功处理的论文，任务结束")
-                    return
+                    return {"status": "empty", "result_dir": str(result_dir), "message": "No author records generated"}
 
                 # —— 合并所有 author JSONL，按 (Paper_Link, Citing_Paper) 去重 ——
                 # 注意：每行格式为 {count: record_dict}，需提取内层 record_dict 才能访问字段
@@ -685,7 +685,7 @@ class TaskExecutor:
                                                      "Citations", "Citing_Paper", "Authors_with_Profile"])
                     excel_file.parent.mkdir(parents=True, exist_ok=True)
                     empty_df.to_excel(excel_file, index=False)
-                    return
+                    return {"status": "empty", "result_dir": str(result_dir), "outputs": {"excel": str(excel_file)}}
 
                 # verify/specified 模式：报告学者匹配结果
                 if config.citing_description_scope == "specified_only":
@@ -786,7 +786,7 @@ class TaskExecutor:
                         )
                         if self.quota_exceeded_event.is_set():
                             self._handle_quota_exceeded()
-                            return
+                            return {"status": "quota_exceeded", "result_dir": str(result_dir)}
                         s = phase4_result.get("cache_stats", {})
                         self.log_manager.info(
                             f"引用描述记忆池: 共 {s.get('total_entries', 0)} 条 | "
@@ -879,12 +879,23 @@ class TaskExecutor:
             self.log_manager.info("=" * 50)
 
             self.log_manager.success("=" * 50)
+            result = {
+                "status": "success",
+                "result_dir": str(result_dir),
+                "outputs": {
+                    "excel": str(excel_file),
+                    "json": str(json_file),
+                    "dashboard": str(html_file) if html_file else None,
+                },
+                "cost_summary": cost_summary,
+            }
             await self.log_manager._broadcast({"type": "all_done", "data": {
                 "excel": str(excel_file),
                 "json": str(json_file),
                 "dashboard": str(html_file) if html_file else None,
                 "cost_summary": cost_summary,
             }})
+            return result
 
         except Exception as e:
             self.log_manager.error(f"任务错误: {e}")

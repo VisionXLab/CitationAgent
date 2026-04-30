@@ -42,6 +42,16 @@ Repository = "https://github.com/VisionXLab/CitationClaw"
 
 [project.scripts]
 citationclaw = "citationclaw.__main__:main"
+citationclaw-agent = "citationclaw.agent_cli:main"
+citationclaw-mcp = "citationclaw.mcp_server:main"
+
+[project.optional-dependencies]
+agent = [
+  "mcp>=1.0.0",
+]
+dev = [
+  "pytest>=8.0.0",
+]
 
 [tool.setuptools.packages.find]
 where = ["."]

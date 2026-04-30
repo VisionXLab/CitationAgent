@@ -88,6 +88,29 @@ python start.py --port 8080   # 指定自定义端口
 
 ---
 
+## Agent / MCP 使用
+
+CitationClaw 现在也提供面向 Codex、MCP 客户端和其他 Agent 的 headless 入口：
+
+```bash
+citationclaw-agent validate-config --request request.json --pretty
+citationclaw-agent run --request request.json --pretty
+citationclaw-agent list-results --data-dir data --pretty
+```
+
+如果 console script 不在 `PATH`，可用 `python3 -m citationclaw.agent_cli` 运行相同子命令。
+
+如需 MCP 支持：
+
+```bash
+pip install "citationclaw[agent]"
+python3 -m citationclaw.mcp_server
+```
+
+请求示例、环境变量、离线 smoke test 和 Codex plugin / skill 入口见 [Agent Usage](./docs/agent-usage.md)。
+
+---
+
 ## 画像报告包含什么
 
 生成的 HTML 报告是本工具的核心产出，一份报告涵盖：
