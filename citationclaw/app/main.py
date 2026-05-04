@@ -200,10 +200,6 @@ async def get_providers():
 async def save_config(config: ConfigUpdate):
     try:
         data = config.model_dump()
-        # Debug: log MinerU token save status
-        token = data.get("mineru_api_token", "")
-        if token:
-            print(f"[CONFIG] MinerU token 已保存: {token[:8]}...({len(token)} chars)")
 
         # ── Sensitive-key preservation ──
         # For API keys that are often set out-of-band (directly in config.json

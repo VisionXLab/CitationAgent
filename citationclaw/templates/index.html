@@ -137,8 +137,8 @@
       <span class="api-config-title">ScraperAPI</span>
       <span class="api-config-desc">— 爬取 Google Scholar 引用列表</span>
     </div>
-    <input type="text" id="idx-scraper-keys" class="form-control"
-           placeholder="ScraperAPI Key（多个用英文逗号分隔）">
+    <input type="password" id="idx-scraper-keys" class="form-control"
+           placeholder="ScraperAPI Key（多个用英文逗号分隔）" autocomplete="off" spellcheck="false">
   </div>
 
   <!-- ② V-API -->
@@ -152,7 +152,7 @@
     </div>
     <div class="row g-2">
       <div class="col-md-7">
-        <input type="text" id="idx-openai-key" class="form-control" placeholder="V-API Key: sk-..." autocomplete="off">
+        <input type="password" id="idx-openai-key" class="form-control" placeholder="V-API Key: sk-..." autocomplete="off" spellcheck="false">
       </div>
       <div class="col-md-4" style="display:flex;align-items:center">
         <select id="idx-openai-model" class="form-select" style="font-size:12.5px">
@@ -186,7 +186,7 @@
       </div>
       <div class="col-md-3">
         <label class="form-label">API Key</label>
-        <input type="text" id="idx-light-api-key" class="form-control" placeholder="留空则复用 V-API Key" autocomplete="off">
+        <input type="password" id="idx-light-api-key" class="form-control" placeholder="留空则复用 V-API Key" autocomplete="off" spellcheck="false">
       </div>
       <div class="col-md-4">
         <label class="form-label">模型名称</label>
@@ -221,8 +221,9 @@
       <i class="bi bi-file-earmark-pdf" style="color:var(--accent)"></i> MinerU API Token
       <span style="font-size:11px;color:var(--text-light)">(可选，大文件 >20 页时使用精准 API)</span>
     </span>
-    <input type="text" id="idx-mineru-token" class="form-control form-control-sm"
+    <input type="password" id="idx-mineru-token" class="form-control form-control-sm"
            placeholder="留空则使用免费 Agent API（≤20页）或本地解析" autocomplete="off"
+           spellcheck="false"
            style="flex:1;font-size:12px;max-width:360px">
     <a href="https://mineru.net/apiManage" target="_blank" rel="noopener"
        style="font-size:11px;color:var(--accent);white-space:nowrap;text-decoration:none">获取 Token →</a>
@@ -242,7 +243,7 @@
     <div class="row g-3" style="margin-top:4px">
       <div class="col-md-5">
         <label class="form-label">Semantic Scholar API Key <span style="color:var(--light);font-weight:400">(可选)</span></label>
-        <input type="text" id="idx-s2-api-key" class="form-control form-control-sm" placeholder="留空使用免费配额" autocomplete="off">
+        <input type="password" id="idx-s2-api-key" class="form-control form-control-sm" placeholder="留空使用免费配额" autocomplete="off" spellcheck="false">
       </div>
       <div class="col-md-3">
         <label class="form-label">结果文件夹前缀</label>
@@ -261,8 +262,8 @@
         </label>
         <div class="row g-2">
           <div class="col-md-5">
-            <input type="text" id="idx-api-access-token" class="form-control form-control-sm"
-              placeholder="系统令牌（个人中心 → 生成令牌）" autocomplete="off">
+            <input type="password" id="idx-api-access-token" class="form-control form-control-sm"
+              placeholder="系统令牌（个人中心 → 生成令牌）" autocomplete="off" spellcheck="false">
           </div>
           <div class="col-md-3">
             <input type="text" id="idx-api-user-id" class="form-control form-control-sm"
@@ -411,12 +412,14 @@
                         <label for="scraper-api-keys" class="form-label">
                             ScraperAPI Keys <span class="text-muted small">(多个用逗号分隔)</span>
                         </label>
-                        <textarea
+                        <input
+                            type="password"
                             class="form-control font-monospace"
                             id="scraper-api-keys"
-                            rows="3"
                             placeholder="key1,key2,key3"
-                        ></textarea>
+                            autocomplete="off"
+                            spellcheck="false"
+                        >
                         <div class="form-text">
                             建议使用多个API Key轮换,降低被封概率
                         </div>
@@ -427,10 +430,12 @@
                         <div class="col-md-6 mb-3">
                             <label for="openai-api-key" class="form-label">API Key</label>
                             <input
-                                type="text"
+                                type="password"
                                 class="form-control font-monospace"
                                 id="openai-api-key"
                                 placeholder="your-api-key"
+                                autocomplete="off"
+                                spellcheck="false"
                             >
                         </div>
                         <div class="col-md-6 mb-3">
@@ -757,11 +762,12 @@
                                 系统令牌 <span class="text-muted small">(在中转站个人中心生成)</span>
                             </label>
                             <input
-                                type="text"
+                                type="password"
                                 class="form-control font-monospace"
                                 id="api-access-token"
                                 placeholder="点击「生成令牌」获取"
                                 autocomplete="off"
+                                spellcheck="false"
                             >
                             <div class="form-text">
                                 用于查询 LLM API 额度变化，不可用于请求模型

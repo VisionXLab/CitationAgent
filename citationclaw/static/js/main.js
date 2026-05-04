@@ -291,6 +291,29 @@ window.scrollToApiConfig = function() {
     if (card) card.scrollIntoView({behavior: 'smooth', block: 'center'});
 };
 
+const SENSITIVE_CONFIG_INPUT_IDS = [
+    'idx-scraper-keys',
+    'idx-openai-key',
+    'idx-light-api-key',
+    'idx-mineru-token',
+    'idx-s2-api-key',
+    'idx-api-access-token',
+    'scraper-api-keys',
+    'openai-api-key',
+    'api-access-token',
+];
+
+function maskSensitiveConfigInput(input) {
+    if (!input || input.tagName !== 'INPUT') return;
+    input.type = 'password';
+    input.autocomplete = 'off';
+    input.spellcheck = false;
+}
+
+function maskSensitiveConfigInputs() {
+    SENSITIVE_CONFIG_INPUT_IDS.forEach(id => maskSensitiveConfigInput(document.getElementById(id)));
+}
+
 // ==================== Config Panel Functions (module scope) ====================
 async function loadConfig() {
     try {
@@ -328,6 +351,7 @@ async function loadConfig() {
         if (el('author-verify-prompt')) el('author-verify-prompt').value = config.author_verify_prompt || '';
         if (el('api-access-token')) el('api-access-token').value = config.api_access_token || '';
         if (el('api-user-id')) el('api-user-id').value = config.api_user_id || '';
+        maskSensitiveConfigInputs();
 
         // Toggle visibility for sub-config sections
         var renownedScholarConfig = el('renowned-scholar-config');
@@ -577,10 +601,36 @@ function initIndexPage() {
     const ws = new WebSocketManager();
     ws.connect();
 
-    // API Key 输入框：有内容时切换为 password 类型（遮盖），空时切回 text（显示 placeholder）
+    maskSensitiveConfigInputs();
+
+    // API Key 输入框始终使用 password 类型，避免加载后把密钥明文打到页面上
     function _syncApiKeyType(input) {
-        input.type = input.value ? 'password' : 'text';
+        maskSensitiveConfigInput(input);
     }
+    let _homeSaveTimeout = null;
+    const IDX_CONFIG_INPUT_IDS = [
+        'idx-scraper-keys',
+        'idx-openai-key',
+        'idx-openai-url',
+        'idx-openai-model',
+        'idx-light-api-key',
+        'idx-dashboard-model',
+        'idx-mineru-token',
+        'idx-s2-api-key',
+        'idx-result-folder-prefix',
+        'idx-output-prefix',
+        'idx-api-access-token',
+        'idx-api-user-id',
+        'idx-renowned-scholar',
+        'idx-author-verify',
+        'idx-dashboard',
+        'idx-service-tier',
+    ];
+    function scheduleIndexConfigSave() {
+        clearTimeout(_homeSaveTimeout);
+        _homeSaveTimeout = setTimeout(() => saveIndexConfig(), 1000);
+    }
+
     var openaiKeyEl = document.getElementById('idx-openai-key');
     if (openaiKeyEl) {
         openaiKeyEl.addEventListener('input', function () {
@@ -623,6 +673,7 @@ function initIndexPage() {
             if (lightModelEl && preset.default_model) {
                 lightModelEl.value = preset.default_model;
             }
+            scheduleIndexConfigSave();
         });
     });
 
@@ -666,13 +717,20 @@ function initIndexPage() {
             if (el('idx-mineru-token')) el('idx-mineru-token').value = cfg.mineru_api_token || '';
             if (el('idx-api-access-token')) el('idx-api-access-token').value = cfg.api_access_token || '';
             if (el('idx-api-user-id')) el('idx-api-user-id').value = cfg.api_user_id || '';
+            maskSensitiveConfigInputs();
         } catch (e) {
             console.error('加载配置失败:', e);
         }
     })();
 
+    IDX_CONFIG_INPUT_IDS.forEach(id => {
+        const input = document.getElementById(id);
+        if (!input) return;
+        input.addEventListener('input', scheduleIndexConfigSave);
+        input.addEventListener('change', scheduleIndexConfigSave);
+    });
+
     // 保存配置按钮 (with debounce)
-    let _homeSaveTimeout = null;
     var saveCfgBtn = document.getElementById('idx-save-config-btn');
     if (saveCfgBtn) {
         saveCfgBtn.addEventListener('click', async () => {
@@ -713,8 +771,6 @@ function initIndexPage() {
                 api_access_token: el('idx-api-access-token')?.value || '',
                 api_user_id: el('idx-api-user-id')?.value || '',
             };
-            // Debug: log what we're about to save
-            if (body.mineru_api_token) console.log('[CONFIG] MinerU token to save:', body.mineru_api_token.substring(0, 8) + '...');
             const cfgResp = await safeFetch('/api/config');
             const existing = await cfgResp.json();
             // 敏感字段：空值不覆盖已有配置

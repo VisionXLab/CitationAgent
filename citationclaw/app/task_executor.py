@@ -80,6 +80,7 @@ class TaskExecutor:
     # Path is lazily resolved via pdf_downloader's DEBUG_BROWSER_PROFILE_DIR
     # so we inherit the 2026-04-20 absolute-path fix automatically.
     _STAMP_FILENAME = "phase2_login_stamp.json"
+    _TRUSTED_PHASE2_STAMP_OUTCOMES = {"user_confirmed", "probe_pass"}
 
     def _phase2_stamp_path(self):
         from citationclaw.core.pdf_downloader import DEBUG_BROWSER_PROFILE_DIR
@@ -88,9 +89,11 @@ class TaskExecutor:
     def _phase2_stamp_is_fresh(self, ttl_hours: int) -> tuple:
         """Return (is_fresh, stamp_dict_or_None, age_hours_or_None).
 
-        Fresh = stamp file exists, parses as JSON, and its `timestamp`
-        is within `ttl_hours` of now. Returns (False, None, None) on any
-        failure so callers can treat missing / corrupt stamps the same.
+        Fresh = stamp file exists, parses as JSON, has a trusted outcome,
+        and its `timestamp` is within `ttl_hours` of now. Returns
+        (False, None, None) on missing/corrupt stamps. Untrusted outcomes
+        such as timeout/probe_failed return the stamp data for diagnostics
+        but are never allowed to skip the login checkpoint.
         """
         if ttl_hours <= 0:
             return (False, None, None)
@@ -105,16 +108,20 @@ class TaskExecutor:
             return (False, None, None)
         age_s = (datetime.now() - stamp_at).total_seconds()
         age_hours = age_s / 3600.0
-        return (age_hours < ttl_hours, data, age_hours)
+        outcome = str(data.get("outcome", ""))
+        is_trusted = outcome in self._TRUSTED_PHASE2_STAMP_OUTCOMES
+        return (is_trusted and age_hours < ttl_hours, data, age_hours)
 
     def _phase2_stamp_write(self, outcome: str, urls: list) -> None:
         """Persist a stamp file so the next run knows we logged in recently.
 
-        outcome: 'user_confirmed' | 'timeout' | 'probe_pass'
+        outcome: 'user_confirmed' | 'timeout' | 'probe_pass' | 'probe_failed'
           - user_confirmed: user clicked 继续 / POSTed ready endpoint
-          - timeout: checkpoint timed out (cookies assumed still valid)
+          - timeout: checkpoint timed out (record only; not trusted)
           - probe_pass: we skipped the checkpoint via stamp AND the
             post-probe passed, so we refresh the stamp forward in time
+          - probe_failed: cached cookies no longer look usable; next run
+            must prompt again
         """
         path = self._phase2_stamp_path()
         try:
@@ -202,11 +209,18 @@ class TaskExecutor:
             )
             # Still run the probe so we catch "cookies expired since last run".
             if getattr(config, "enable_phase2_login_probe", True):
-                await self._run_phase2_login_probe(cdp_port)
-                # Refresh the stamp forward after a successful skip-then-probe,
-                # so a long-running session keeps the TTL rolling.
-                self._phase2_stamp_write("probe_pass", login_urls)
-            return
+                probe_ok = await self._run_phase2_login_probe(cdp_port)
+                if probe_ok:
+                    # Refresh the stamp forward after a successful skip-then-probe,
+                    # so a long-running session keeps the TTL rolling.
+                    self._phase2_stamp_write("probe_pass", login_urls)
+                    return
+                self._phase2_stamp_write("probe_failed", login_urls)
+                self.log_manager.warning(
+                    "[Phase2登录] 缓存登录检查未通过，重新弹出登录页并等待确认。"
+                )
+            else:
+                return
 
         # 2) 弹开出版商登录页
         opened = _cdp_open_login_pages(cdp_port, login_urls) if login_urls else 0
@@ -247,18 +261,24 @@ class TaskExecutor:
         finally:
             self._phase2_login_event = None
 
-        # 5) Persist sentinel so subsequent runs within TTL can skip.
-        # Written regardless of outcome -- timeout case still implies the
-        # user was given the chance and current cookies are "known good
-        # enough for this session".
-        if stamp_ttl_hours > 0:
-            self._phase2_stamp_write(outcome, login_urls)
-
-        # 6) 登录后自动验证各出版商 CDP auth 状态（opt-in via config flag）。
+        # 5) 登录后自动验证各出版商 CDP auth 状态（opt-in via config flag）。
+        probe_ok = None
         if getattr(config, "enable_phase2_login_probe", True):
-            await self._run_phase2_login_probe(cdp_port)
+            probe_ok = await self._run_phase2_login_probe(cdp_port)
 
-    async def _run_phase2_login_probe(self, cdp_port: int) -> None:
+        # 6) Persist sentinel so subsequent runs within TTL can skip only
+        # when the user explicitly confirmed or the probe passed. Timeout is
+        # recorded for diagnostics, but it is not trusted by
+        # _phase2_stamp_is_fresh.
+        if stamp_ttl_hours > 0:
+            if probe_ok is True:
+                self._phase2_stamp_write("probe_pass", login_urls)
+            elif probe_ok is False:
+                self._phase2_stamp_write("probe_failed", login_urls)
+            else:
+                self._phase2_stamp_write(outcome, login_urls)
+
+    async def _run_phase2_login_probe(self, cdp_port: int) -> bool:
         """Post-login diagnostic: probe IEEE/ACM/Elsevier/Springer/Wiley via CDP.
 
         Runs `core.cdp_login_probe.probe_all` synchronously on a worker
@@ -280,7 +300,7 @@ class TaskExecutor:
             self.log_manager.warning(
                 f"[Phase2验证] 无法加载 cdp_login_probe 模块: {e}"
             )
-            return
+            return False
 
         self.log_manager.info(
             "[Phase2验证] 正在验证 5 个出版商的 CDP 认证状态 (IEEE / ACM / "
@@ -294,7 +314,7 @@ class TaskExecutor:
             self.log_manager.warning(
                 f"[Phase2验证] probe_all 异常: {type(e).__name__}: {e}"
             )
-            return
+            return False
 
         # Per-publisher line: INFO for passing, WARNING for failing.
         for r in results:
@@ -314,6 +334,7 @@ class TaskExecutor:
             self.log_manager.info(summary_line)
         else:
             self.log_manager.warning(summary_line)
+        return passed == total
 
     async def _run_new_phase2_and_3(
         self,

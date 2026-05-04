@@ -17,7 +17,7 @@ Download priority (tried in order):
   9b. OpenReview title search (ICLR/NeurIPS/ICML workshops)
   10. GS paper_link + smart transform (CVF/OpenReview/MDPI/IEEE/Springer/ACL)
   11. ScraperAPI publisher download (IEEE/Springer/Elsevier — anti-bot bypass)
-  12. CDP browser session (IEEE/Elsevier — real browser with auth)
+  12. CDP browser session (IEEE/Elsevier/ACM — real browser with auth)
   13. LLM search for alternative PDF (preprints, author pages, repos)
   14. curl + socks5 + Chrome Cookie (legacy fallback)
   15. DOI redirect
@@ -35,6 +35,7 @@ import os
 import asyncio
 from pathlib import Path
 from typing import Optional, List
+from http.client import RemoteDisconnected
 from urllib.parse import urlparse, quote
 
 import subprocess
@@ -108,6 +109,7 @@ _SOURCE_LABELS = {
     "arxiv_search": "arXiv(搜索)",
     "cdp_ieee": "CDP-IEEE",
     "cdp_elsevier": "CDP-Elsevier",
+    "cdp_acm": "CDP-ACM",
     "gs_versions_pdf": "GS所有版本(PDF直链)",
     "gs_versions_link": "GS所有版本(主链接)",
     "core": "CORE聚合器",
@@ -654,6 +656,24 @@ def _pdf_title_matches(pdf_data: bytes, expected_title: str, threshold: float = 
         return True  # Any error — accept the PDF (don't block downloads)
 
 
+def _html_looks_like_cloudflare_challenge(html: str) -> bool:
+    """Return True when a rendered publisher page is a Cloudflare challenge."""
+    if not html:
+        return False
+    lower = html.lower()
+    markers = (
+        "challenge-platform",
+        "cf-turnstile",
+        "turnstile",
+        "are you a robot",
+        "captcha challenge",
+        "checking your browser",
+        "just a moment",
+        "正在验证",
+    )
+    return any(marker in lower for marker in markers)
+
+
 # ── CDP (Chrome DevTools Protocol) helpers ────────────────────────────
 # Download PDFs via a live, authenticated browser session.
 # Requires: websocket-client (pip install websocket-client)
@@ -695,20 +715,20 @@ def _cdp_ensure_browser(debug_port: int) -> bool:
     import platform
     if platform.system() == "Windows":
         browser_paths = [
-            "C:/Program Files/Google/Chrome/Application/chrome.exe",
-            "C:/Program Files (x86)/Google/Chrome/Application/chrome.exe",
             "C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe",
             "C:/Program Files/Microsoft/Edge/Application/msedge.exe",
+            "C:/Program Files/Google/Chrome/Application/chrome.exe",
+            "C:/Program Files (x86)/Google/Chrome/Application/chrome.exe",
         ]
     elif platform.system() == "Darwin":
         browser_paths = [
-            "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
             "/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge",
+            "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
         ]
     else:
         browser_paths = [
-            "/usr/bin/google-chrome", "/usr/bin/chromium-browser",
             "/usr/bin/microsoft-edge",
+            "/usr/bin/google-chrome", "/usr/bin/chromium-browser",
         ]
 
     binary = None
@@ -875,6 +895,8 @@ fetch(window.__pdfUrl, {credentials: "include"})
 class PDFDownloader:
     """Smart multi-source PDF downloader with caching."""
 
+    _cdp_lock = asyncio.Lock()
+
     def __init__(self, cache_dir: Optional[Path] = None, email: Optional[str] = None,
                  scraper_api_keys: Optional[list] = None,
                  llm_api_key: str = "", llm_base_url: str = "", llm_model: str = "",
@@ -891,35 +913,9 @@ class PDFDownloader:
         self._llm_model = llm_model
         self._cdp_debug_port = cdp_debug_port
         self._llm_search_disabled = disable_llm_search  # True = skip LLM search entirely
-        # 2026-04-21: circuit breaker for CDP-Elsevier Cloudflare stalls.
-        # Observed run: 70 attempts, 0 successes, ~8 min wasted waiting
-        # for manual Turnstile clicks that never came. Once we've burned
-        # through _CDP_ELSEVIER_MAX_CF_TIMEOUTS consecutive Cloudflare
-        # timeouts we assume the user isn't available / the challenge is
-        # uncrackable this session and skip the tier to save time. Reset
-        # on any successful CDP-Elsevier download.
-        self._cdp_elsevier_cf_timeouts: int = 0
-        self._cdp_elsevier_disabled: bool = False
-        # 2026-04-21: ScienceDirect risk-control mitigation. User observed
-        # that rapid tab switching trips SD's own rate limiter on top of
-        # Cloudflare Turnstile. Three mitigations:
-        #   1. `_elsevier_sem` -- serialize CDP-Elsevier attempts to
-        #      concurrency=1. Prevents 5 workers navigating 5 SD tabs at
-        #      once which SD reliably treats as bot behavior.
-        #   2. Inter-request pacing: wait at least _ELSEVIER_MIN_GAP_S
-        #      seconds between two CDP-Elsevier attempts so tab switches
-        #      look human.
-        #   3. Cooldown window after CF detection: once we hit a CF
-        #      challenge, skip Elsevier entirely for _ELSEVIER_COOLDOWN_S
-        #      so the IP can fall out of SD's bad-bot window. Unlike the
-        #      circuit breaker above, cooldown is TEMPORARY -- the tier
-        #      recovers after the window passes.
-        # Lazy-init the semaphore on first use -- creating an asyncio
-        # primitive in __init__ risks "attached to a different loop" if
-        # the PDFDownloader is shared across loops.
-        self._elsevier_sem = None  # type: ignore[assignment]
-        self._elsevier_last_request_at: float = 0.0
-        self._elsevier_cooldown_until: float = 0.0
+        # CDP publisher work is serialized by the class-level _cdp_lock.
+        # 2026-05-04: Elsevier uses the 0e persistent wait/refresh flow, so
+        # there is no run-wide Cloudflare breaker or cooldown state here.
         # S2 API key — drops rate-limit from 1 req/s to 100 req/s
         self._s2_api_key = s2_api_key or ""
         # CORE API key (free tier: 1000 req/day) — enables the CORE source
@@ -971,6 +967,25 @@ class PDFDownloader:
                or paper.get("title") or "unknown")
         h = hashlib.md5(key.encode()).hexdigest()
         return self._cache_dir / f"{h}.pdf"
+
+    def _ensure_cdp_ready(self, source: str, log=None) -> bool:
+        """Ensure the configured debug browser is reachable before CDP download."""
+        if not self._cdp_debug_port:
+            if log:
+                log(f"  [{source}] skipped: cdp_debug_port is not configured")
+            return False
+        if _cdp_check_connection(self._cdp_debug_port):
+            return True
+        if log:
+            log(f"  [{source}] port {self._cdp_debug_port} unreachable, trying to launch debug browser...")
+        if _cdp_ensure_browser(self._cdp_debug_port):
+            return True
+        if log:
+            log(
+                f"  [{source}] debug browser unavailable on port {self._cdp_debug_port}; "
+                "run scripts/launch_edge_debug.ps1 and sign in first"
+            )
+        return False
 
     # ── Core: try downloading a single URL ────────────────────────────
     async def _try_url(self, client, url: str, cookies: dict = None,
@@ -1940,75 +1955,119 @@ class PDFDownloader:
     async def _try_cdp_ieee(self, paper: dict, log=None) -> Optional[bytes]:
         """Download IEEE paper via CDP browser session.
 
-        Reuses an existing authenticated IEEE tab, or opens stamp.jsp and
-        waits for user to complete authentication if needed.
-        Uses in-page fetch() to download getPDF.jsp with session cookies.
+        0e flow: open the article page first so institutional auth and
+        redirects settle in a visible tab, then navigate/fetch the stamp
+        getPDF URL inside the authenticated browser context.
         """
-        if not _cdp_ensure_browser(self._cdp_debug_port):
+        if not self._ensure_cdp_ready("CDP-IEEE", log):
             return None
 
-        link = paper.get("paper_link", "")
+        link = paper.get("paper_link") or ""
         m = re.search(r'/document/(\d+)', link)
         if not m:
             m = re.search(r'arnumber=(\d+)', link)
         if not m:
+            if log:
+                log(f"  [CDP-IEEE] no arnumber found in link: {link or '(empty)'}")
             return None
         arnumber = m.group(1)
 
         port = self._cdp_debug_port
-        get_pdf_url = f"https://ieeexplore.ieee.org/stampPDF/getPDF.jsp?tp=&arnumber={arnumber}&ref="
+        article_url = link or f"https://ieeexplore.ieee.org/document/{arnumber}/"
+        stamp_url = f"https://ieeexplore.ieee.org/stamp/stamp.jsp?tp=&arnumber={arnumber}"
+        default_get_pdf_url = (
+            f"https://ieeexplore.ieee.org/stampPDF/getPDF.jsp?tp=&arnumber={arnumber}"
+            f"&ref={quote(article_url, safe=':/?&=%')}"
+        )
 
         def _sync():
             import time as _t
+            _log = log or (lambda msg: None)
 
-            # Strategy 1: reuse existing IEEE tab
+            # 0e behavior: close stale IEEE tabs so page context belongs to
+            # this paper, then open the article landing page first.
             for t in _cdp_list_tabs(port):
-                if t.get("type") == "page" and "ieeexplore.ieee.org" in t.get("url", ""):
-                    ws = t.get("webSocketDebuggerUrl", "")
-                    if ws:
-                        data = _cdp_fetch_pdf_in_context(ws, get_pdf_url)
-                        if data:
-                            return data
-                    break
+                url_t = t.get("url", "")
+                if t.get("type") == "page" and "ieeexplore.ieee.org" in url_t:
+                    _cdp_close_page(port, t["id"])
 
-            # Strategy 2: open stamp page, handle auth
-            stamp_url = f"https://ieeexplore.ieee.org/stamp/stamp.jsp?tp=&arnumber={arnumber}"
-            page = _cdp_open_page(port, stamp_url)
+            _log(f"  [CDP-IEEE] opening article page (arnumber={arnumber})...")
+            page = _cdp_open_page(port, article_url)
             ws_url = page.get("webSocketDebuggerUrl", "")
             if not ws_url:
+                _log("  [CDP-IEEE] failed to get WebSocket URL")
                 return None
 
             _t.sleep(8)
 
             current = _cdp_evaluate(ws_url, "window.location.href", msg_id=5)
-            if current and "login" in str(current).lower():
-                if log:
-                    log("  [CDP-IEEE] 需要登录 — 请在浏览器窗口完成认证")
+            _log(f"  [CDP-IEEE] page loaded: {str(current)[:80]}")
+
+            def _has_paper_context(url_value) -> bool:
+                if not url_value:
+                    return False
+                cur = str(url_value).lower()
+                return (
+                    "ieeexplore" in cur
+                    and "login" not in cur
+                    and "home.jsp" not in cur
+                    and any(marker in cur for marker in (
+                        f"{arnumber}", "/document/", "stamp.jsp", "getpdf"
+                    ))
+                )
+
+            if not _has_paper_context(current):
+                _log("  [CDP-IEEE] new tab is not in paper context yet, waiting for user authentication")
+                _log("  [CDP-IEEE] authentication required — complete login in the browser window (120s)")
                 deadline = _t.time() + 120
+                last_msg = 0
                 while _t.time() < deadline:
                     _t.sleep(3)
                     try:
                         url_now = _cdp_evaluate(ws_url, "window.location.href", msg_id=50)
                     except Exception:
                         _t.sleep(2)
-                        for tab in _cdp_list_tabs(port):
-                            if (tab.get("type") == "page"
-                                    and "ieeexplore.ieee.org" in tab.get("url", "")
-                                    and "login" not in tab.get("url", "").lower()):
-                                ws_url = tab.get("webSocketDebuggerUrl", ws_url)
-                                url_now = tab.get("url", "")
-                                break
-                        else:
-                            continue
-                    if url_now and "login" not in str(url_now).lower() and "ieeexplore" in str(url_now).lower():
+                        continue
+                    now = _t.time()
+                    if now - last_msg > 15:
+                        _log(f"  [CDP-IEEE] waiting for authentication... ({int(deadline - now)}s remaining)")
+                        last_msg = now
+                    if _has_paper_context(url_now):
                         break
                 else:
+                    _log("  [CDP-IEEE] auth timeout (120s)")
                     return None
 
+                _log("  [CDP-IEEE] auth complete, navigating to stamp page...")
                 _cdp_call(ws_url, "Page.navigate", {"url": stamp_url}, msg_id=6)
                 _t.sleep(8)
 
+                check = _cdp_evaluate(ws_url, "window.location.href", msg_id=7)
+                if not _has_paper_context(check):
+                    _log(f"  [CDP-IEEE] stamp page did not reach paper context: {str(check)[:80]}")
+                    return None
+
+            html = _cdp_evaluate(ws_url, "document.documentElement.outerHTML", msg_id=9) or ""
+            get_pdf_url = default_get_pdf_url
+            for pat in [
+                r'src=["\'](https?://[^"\']*getPDF[^"\']*)["\']',
+                r'src=["\']([^"\']*getPDF\.jsp[^"\']*)["\']',
+            ]:
+                mm = re.search(pat, html, re.I)
+                if mm:
+                    candidate = mm.group(1)
+                    if candidate.startswith("/"):
+                        candidate = f"https://ieeexplore.ieee.org{candidate}"
+                    elif candidate.startswith("//"):
+                        candidate = f"https:{candidate}"
+                    get_pdf_url = candidate
+                    break
+
+            _log(f"  [CDP-IEEE] fetching PDF from: {get_pdf_url[:120]}")
             data = _cdp_fetch_pdf_in_context(ws_url, get_pdf_url)
+            if not data and get_pdf_url != default_get_pdf_url:
+                _log("  [CDP-IEEE] extracted getPDF URL failed, retrying fallback URL")
+                data = _cdp_fetch_pdf_in_context(ws_url, default_get_pdf_url)
             try:
                 _cdp_call(ws_url, "Page.navigate", {"url": "about:blank"}, msg_id=99)
             except Exception:
@@ -2017,136 +2076,130 @@ class PDFDownloader:
 
         try:
             return await asyncio.to_thread(_sync)
-        except Exception:
+        except Exception as e:
+            if log:
+                log(f"  [CDP-IEEE] exception: {type(e).__name__}: {e}")
             return None
 
     # ── CDP: Elsevier / ScienceDirect ─────────────────────────────────
     async def _try_cdp_elsevier(self, paper: dict, log=None) -> Optional[bytes]:
         """Download Elsevier paper via CDP browser session.
 
-        Opens article page, extracts pdfDownload metadata from rendered HTML,
-        navigates to pdfft URL. User passes Cloudflare Turnstile if prompted.
-        Extracts PDF via Edge/Chrome PDF viewer or in-page fetch().
-
-        Circuit breaker (2026-04-21): if this method has timed out on
-        Cloudflare N consecutive times within the same run, subsequent
-        invocations short-circuit to None without waiting. Resets on
-        any successful download.
+        0e flow: keep trying the visible ScienceDirect tab long enough for
+        the user to clear Cloudflare, auto-refresh stuck challenge/article
+        states, then fetch the viewer's original PDF URL in browser context.
         """
-        # Circuit-breaker short-circuit
-        if self._cdp_elsevier_disabled:
-            if log:
-                log("  [CDP-Elsevier] 跳过: 电路断路器已熔断 "
-                    f"(本次 run 连续 {self._cdp_elsevier_cf_timeouts} 次 "
-                    "Cloudflare 超时)")
+        if not self._ensure_cdp_ready("CDP-Elsevier", log):
             return None
 
-        # ScienceDirect cooldown window (2026-04-21). Triggered when a
-        # previous attempt saw a CF challenge; gives SD's risk-control
-        # window a chance to forget our IP before we hit them again.
-        loop = asyncio.get_event_loop()
-        now = loop.time()
-        if now < self._elsevier_cooldown_until:
-            remaining = int(self._elsevier_cooldown_until - now)
-            if log:
-                log(f"  [CDP-Elsevier] 跳过: SD 冷却中 (还需 {remaining}s; "
-                    f"上次 CF 检测触发 {self._ELSEVIER_COOLDOWN_S}s 冷却)")
-            return None
-
-        if not _cdp_ensure_browser(self._cdp_debug_port):
-            return None
-
-        link = paper.get("paper_link", "")
+        link = paper.get("paper_link") or ""
         m = re.search(r'/pii/([A-Z0-9]+)', link)
         if not m:
+            if log:
+                log(f"  [CDP-Elsevier] no PII found in link: {link or '(empty)'}")
             return None
         target_pii = m.group(1)
-
-        # Lazy-init the semaphore on the current loop.
-        if self._elsevier_sem is None:
-            self._elsevier_sem = asyncio.Semaphore(1)
 
         port = self._cdp_debug_port
         article_url = link or f"https://www.sciencedirect.com/science/article/pii/{target_pii}"
 
-        # 2026-04-21: track whether _sync hit a Cloudflare challenge
-        # during this invocation (set by the inner wait loops). Used by
-        # the async wrapper to bump the CF-timeout circuit-breaker
-        # counter.
-        _hit_cf_box = {"saw": False}
-
         def _sync():
             import time as _t
+            _log = log or (lambda msg: None)
 
-            # Get or create a ScienceDirect tab
-            ws_url = None
+            # 0e behavior: close stale ScienceDirect/PDF-viewer tabs so the
+            # viewer URL we inspect belongs to the current paper.
             for t in _cdp_list_tabs(port):
-                if t.get("type") == "page" and "sciencedirect.com" in t.get("url", ""):
-                    ws_url = t.get("webSocketDebuggerUrl", "")
-                    break
+                url_t = t.get("url", "")
+                tp = t.get("type", "")
+                if tp == "page" and "sciencedirect.com" in url_t:
+                    _cdp_close_page(port, t["id"])
+                elif tp == "page" and "pdf.sciencedirectassets.com" in url_t:
+                    _cdp_close_page(port, t["id"])
+                elif tp == "webview" and "edge_pdf" in url_t:
+                    _cdp_close_page(port, t["id"])
 
-            if ws_url:
-                try:
-                    _cdp_call(ws_url, "Page.navigate", {"url": article_url}, msg_id=1)
-                except Exception:
-                    ws_url = None
-
+            page = _cdp_open_page(port, article_url)
+            ws_url = page.get("webSocketDebuggerUrl", "")
             if not ws_url:
-                page = _cdp_open_page(port, article_url)
-                ws_url = page.get("webSocketDebuggerUrl", "")
-                if not ws_url:
-                    return None
+                _log("  [CDP-Elsevier] failed to open tab")
+                return None
 
-            _t.sleep(10)
+            _t.sleep(8)
 
-            # Extract pdfDownload metadata (with Cloudflare retry, up to 60s)
+            # Extract pdfDownload metadata (with Cloudflare retry + auto-refresh, up to 90s)
             pdfft_url = None
-            deadline_meta = _t.time() + 60
-            attempt = 0
+            deadline_meta = _t.time() + 90
+            refresh_count = 0
+            cloudflare_seen = False
+            last_cf_log = 0
             while _t.time() < deadline_meta:
-                attempt += 1
                 html = _cdp_evaluate(ws_url, "document.documentElement.outerHTML", msg_id=10)
                 if not html:
                     _t.sleep(3)
                     continue
 
                 # Cloudflare challenge page?
-                if "challenge-platform" in html or "Just a moment" in html or len(html) < 5000:
-                    _hit_cf_box["saw"] = True
-                    if log and attempt <= 3:
-                        log("  [CDP-Elsevier] Cloudflare 验证 — 请在浏览器中完成验证")
-                    _t.sleep(5)
+                if _html_looks_like_cloudflare_challenge(html):
+                    cloudflare_seen = True
+                    now = _t.time()
+                    if log and now - last_cf_log > 10:
+                        _log("  [CDP-Elsevier] page blocked by Cloudflare — waiting; complete verification in browser")
+                        last_cf_log = now
+                    _t.sleep(3)
                     continue
+
+                if cloudflare_seen:
+                    cloudflare_seen = False
+                    _log("  [CDP-Elsevier] Cloudflare passed, continuing on current page...")
 
                 mm = _SD_PDF_DOWNLOAD_RE.search(html)
-                if not mm:
-                    if _t.time() + 10 < deadline_meta:
-                        _t.sleep(5)
+                if mm:
+                    md5, pid, found_pii, ext, path = mm.groups()
+                    if found_pii != target_pii:
+                        _cdp_call(ws_url, "Page.navigate", {"url": article_url}, msg_id=11)
+                        _t.sleep(8)
                         continue
-                    return None
+                    pdfft_url = f"https://www.sciencedirect.com/{path}/{found_pii}{ext}?md5={md5}&pid={pid}"
+                    _log("  [CDP-Elsevier] metadata found")
+                    break
 
-                md5, pid, found_pii, ext, path = mm.groups()
-                if found_pii != target_pii:
-                    _cdp_call(ws_url, "Page.navigate", {"url": article_url}, msg_id=11)
-                    _t.sleep(10)
+                if refresh_count < 2:
+                    refresh_count += 1
+                    _log(f"  [CDP-Elsevier] metadata not found, auto-refreshing ({refresh_count}/2)...")
+                    _cdp_call(ws_url, "Page.navigate", {"url": article_url}, msg_id=12)
+                    _t.sleep(8)
                     continue
 
-                pdfft_url = f"https://www.sciencedirect.com/{path}/{found_pii}{ext}?md5={md5}&pid={pid}"
-                break
+                if _t.time() + 8 < deadline_meta:
+                    _t.sleep(5)
+                    continue
+                _log("  [CDP-Elsevier] pdfDownload metadata not found in article page")
+                return None
 
             if not pdfft_url:
                 return None
 
             # Navigate to pdfft (may trigger Cloudflare Turnstile)
-            if log:
-                log("  [CDP-Elsevier] 导航到 PDF 下载页")
+            _log("  [CDP-Elsevier] navigating to pdfft — complete Cloudflare verification if prompted")
             _cdp_call(ws_url, "Page.navigate", {"url": pdfft_url}, msg_id=15)
 
-            # Wait for PDF viewer to appear (up to 120s)
+            # Wait for PDF viewer to appear with the correct PII (up to 120s)
             deadline_pdf = _t.time() + 120
             last_msg = 0
+            pdfft_refreshes = 0
+            next_pdfft_refresh_remaining = 90
             while _t.time() < deadline_pdf:
                 _t.sleep(3)
+                html = _cdp_evaluate(ws_url, "document.documentElement.outerHTML", msg_id=20)
+                if _html_looks_like_cloudflare_challenge(html or ""):
+                    now = _t.time()
+                    remaining = int(deadline_pdf - now)
+                    if log and now - last_msg > 15:
+                        _log(f"  [CDP-Elsevier] pdfft blocked by Cloudflare — waiting for verification ({remaining}s remaining)")
+                        last_msg = now
+                    continue
+
                 viewer = None
                 pdf_page = None
                 for t in _cdp_list_tabs(port):
@@ -2169,101 +2222,135 @@ class PDFDownloader:
                                     or target_pii.upper() in pdf_page.get("url", "").upper()):
                                 data = _cdp_fetch_pdf_in_context(pdf_page["webSocketDebuggerUrl"], orig_url)
                                 if data:
+                                    _cdp_close_page(port, pdf_page["id"])
+                                    _cdp_close_page(port, viewer["id"])
                                     return data
                     except Exception:
                         pass
 
-                # Fallback: try fetching pdfft directly in page context
-                if pdf_page:
-                    try:
-                        data = _cdp_fetch_pdf_in_context(pdf_page["webSocketDebuggerUrl"], pdfft_url)
-                        if data:
-                            return data
-                    except Exception:
-                        pass
-
                 now = _t.time()
+                remaining = int(deadline_pdf - now)
                 if log and now - last_msg > 15:
-                    log(f"  [CDP-Elsevier] 等待 PDF... ({int(deadline_pdf - now)}s)")
+                    _log(f"  [CDP-Elsevier] waiting for PDF... ({remaining}s remaining)")
                     last_msg = now
-
-            # 2026-04-21: PDF viewer never showed up after 120s. On
-            # ScienceDirect this almost always means CF is holding the
-            # pdfft URL hostage (Turnstile not solved). Mark as CF so
-            # the outer wrapper triggers cooldown + counts toward the
-            # circuit breaker.
-            _hit_cf_box["saw"] = True
+                elif pdfft_refreshes < 2 and remaining <= next_pdfft_refresh_remaining:
+                    pdfft_refreshes += 1
+                    _log(f"  [CDP-Elsevier] PDF viewer still not ready, auto-refreshing pdfft ({pdfft_refreshes}/2)...")
+                    _cdp_call(ws_url, "Page.navigate", {"url": pdfft_url}, msg_id=30 + pdfft_refreshes)
+                    next_pdfft_refresh_remaining -= 30
+                    _t.sleep(6)
             return None
 
-        # Serialize + pace CDP-Elsevier operations (2026-04-21).
-        # Acquiring the semaphore means only ONE worker is talking to
-        # ScienceDirect at a time. The min-gap enforcement means even
-        # if one worker finishes quickly, the next worker waits
-        # `_ELSEVIER_MIN_GAP_S` seconds before starting its tab
-        # navigation. This addresses SD's risk-control mechanism that
-        # flags rapid same-IP tab switches as bot behavior.
-        async with self._elsevier_sem:
-            now = loop.time()
-            gap = now - self._elsevier_last_request_at
-            if 0 < gap < self._ELSEVIER_MIN_GAP_S:
-                wait = self._ELSEVIER_MIN_GAP_S - gap
-                if log:
-                    log(f"  [CDP-Elsevier] SD 降速: 与上次请求间隔 "
-                        f"{gap:.1f}s < {self._ELSEVIER_MIN_GAP_S}s, "
-                        f"等待 {wait:.1f}s")
-                await asyncio.sleep(wait)
-            self._elsevier_last_request_at = loop.time()
-
+        for attempt in range(2):
             try:
-                result = await asyncio.to_thread(_sync)
-            except Exception:
-                result = None
+                return await asyncio.to_thread(_sync)
+            except RemoteDisconnected as e:
+                if log:
+                    log(f"  [CDP-Elsevier] transient disconnect (attempt {attempt + 1}/2): {e}")
+                if attempt == 0:
+                    await asyncio.sleep(2)
+                    continue
+                return None
+            except Exception as e:
+                if log:
+                    log(f"  [CDP-Elsevier] exception: {type(e).__name__}: {e}")
+                return None
+        return None
 
-        # Circuit-breaker bookkeeping (2026-04-21).
-        if result:
-            # Success -> reset the counter so a later transient stall
-            # doesn't permanently disable the tier.
-            self._cdp_elsevier_cf_timeouts = 0
-        elif _hit_cf_box["saw"]:
-            # We tried, we saw CF, we gave up. Count it + trigger
-            # cooldown so next worker doesn't immediately try SD again.
-            self._cdp_elsevier_cf_timeouts += 1
-            self._elsevier_cooldown_until = (
-                loop.time() + self._ELSEVIER_COOLDOWN_S
-            )
-            if (self._cdp_elsevier_cf_timeouts
-                    >= self._CDP_ELSEVIER_MAX_CF_TIMEOUTS):
-                self._cdp_elsevier_disabled = True
-                if log:
-                    log(f"  [CDP-Elsevier] 连续 "
-                        f"{self._cdp_elsevier_cf_timeouts} 次 Cloudflare "
-                        f"超时，本次 run 自动禁用 CDP-Elsevier 通道 "
-                        f"（节省后续 Elsevier paper 各 120s 空等）。"
-                        f"下次启动 server 会自动重置。")
-            else:
-                if log:
-                    log(f"  [CDP-Elsevier] 本篇超时 "
-                        f"(CF 计数 {self._cdp_elsevier_cf_timeouts}/"
-                        f"{self._CDP_ELSEVIER_MAX_CF_TIMEOUTS}); "
-                        f"SD 冷却 {self._ELSEVIER_COOLDOWN_S}s 期间后续 "
-                        f"Elsevier paper 跳过 CDP 通道")
-        return result
+    # ── CDP: ACM Digital Library ───────────────────────────────────────
+    async def _try_cdp_acm(self, paper: dict, log=None) -> Optional[bytes]:
+        """Download ACM paper via an authenticated CDP browser session."""
+        link = paper.get("paper_link") or ""
+        if not self._ensure_cdp_ready("CDP-ACM", log):
+            return None
+
+        doi_field = self._normalize_doi(paper.get("doi") or "")
+        doi = doi_field if doi_field.startswith("10.1145/") else ""
+        if not doi:
+            m = re.search(r'(10\.1145/[^/?#\s]+)', link)
+            if m:
+                doi = m.group(1)
+        if not doi:
+            if log:
+                log(f"  [CDP-ACM] no ACM DOI (10.1145/...) found in link: {link or '(empty)'}")
+            return None
+
+        port = self._cdp_debug_port
+        article_url = f"https://dl.acm.org/doi/{doi}"
+        pdf_url = f"https://dl.acm.org/doi/pdf/{doi}"
+
+        def _sync():
+            import time as _t
+            _log = log or (lambda msg: None)
+
+            for t in _cdp_list_tabs(port):
+                url_t = t.get("url", "")
+                if t.get("type") == "page" and "dl.acm.org" in url_t:
+                    _cdp_close_page(port, t["id"])
+
+            _log(f"  [CDP-ACM] opening article page (doi={doi})...")
+            page = _cdp_open_page(port, article_url)
+            ws_url = page.get("webSocketDebuggerUrl", "")
+            if not ws_url:
+                _log("  [CDP-ACM] failed to get WebSocket URL")
+                return None
+
+            _t.sleep(8)
+            current = _cdp_evaluate(ws_url, "window.location.href", msg_id=5)
+            _log(f"  [CDP-ACM] page loaded: {str(current)[:80]}")
+
+            def _has_paper_context(url_value) -> bool:
+                if not url_value:
+                    return False
+                cur = str(url_value).lower()
+                return (
+                    "dl.acm.org" in cur
+                    and "login" not in cur
+                    and "signin" not in cur
+                    and (doi.lower() in cur or "/doi/" in cur)
+                )
+
+            if not _has_paper_context(current):
+                _log("  [CDP-ACM] authentication required — complete login in the browser window (120s)")
+                deadline = _t.time() + 120
+                last_msg = 0
+                while _t.time() < deadline:
+                    _t.sleep(3)
+                    try:
+                        url_now = _cdp_evaluate(ws_url, "window.location.href", msg_id=50)
+                    except Exception:
+                        _t.sleep(2)
+                        continue
+                    now = _t.time()
+                    if now - last_msg > 15:
+                        _log(f"  [CDP-ACM] waiting for authentication... ({int(deadline - now)}s remaining)")
+                        last_msg = now
+                    if _has_paper_context(url_now):
+                        break
+                else:
+                    _log("  [CDP-ACM] auth timeout (120s)")
+                    return None
+
+            _log(f"  [CDP-ACM] fetching PDF from: {pdf_url[:120]}")
+            data = _cdp_fetch_pdf_in_context(ws_url, pdf_url)
+            if data and data[:5] == b"%PDF-":
+                return data
+
+            _log("  [CDP-ACM] direct fetch did not return PDF, navigating tab to pdf URL...")
+            _cdp_call(ws_url, "Page.navigate", {"url": pdf_url}, msg_id=10)
+            _t.sleep(10)
+            return _cdp_fetch_pdf_in_context(ws_url, pdf_url)
+
+        try:
+            return await asyncio.to_thread(_sync)
+        except Exception as e:
+            if log:
+                log(f"  [CDP-ACM] exception: {type(e).__name__}: {e}")
+            return None
 
     # ── Main download method (PaperRadar-style smart download) ────────
     _RETRY_ATTEMPTS = 2      # total attempts = 1 + retries
     _RETRY_DELAY = 8         # seconds between retries
-    # CDP-Elsevier Cloudflare Turnstile circuit breaker (2026-04-21).
-    # After this many consecutive attempts that hit a CF challenge AND
-    # time out without resolution, disable CDP-Elsevier for the rest of
-    # the run. The alternative is waiting 120s per Elsevier paper in
-    # a 100-paper batch -- that's an hour of dead time.
-    _CDP_ELSEVIER_MAX_CF_TIMEOUTS = 3
-    # ScienceDirect pacing (2026-04-21). SD's own rate limiter flags
-    # rapid-fire navigation from the same IP/session as bot behavior,
-    # on TOP of Cloudflare Turnstile. These two constants serialize and
-    # pace CDP-Elsevier attempts so the traffic looks less bot-like.
-    _ELSEVIER_MIN_GAP_S = 15   # minimum seconds between consecutive attempts
-    _ELSEVIER_COOLDOWN_S = 300 # after CF hit, skip SD for 5 minutes
     # On terminal failure, how many of the cascade's own log lines to
     # replay as part of the diagnostic block. Observed 2026-04-21: a
     # typical Taylor & Francis failure produces 44 lines (GS版本页 tier
@@ -2847,7 +2934,7 @@ class PDFDownloader:
                 if _ok(data, f"scraper_{_pub_from_doi}"):
                     return cached
 
-        # ── 12. CDP browser session (IEEE/Elsevier — real browser with auth)
+        # ── 12. CDP browser session (IEEE/Elsevier/ACM — real browser with auth)
         # Uses Chrome DevTools Protocol to download via authenticated browser.
         # Requires: cdp_debug_port > 0 and websocket-client installed.
         #
@@ -2862,41 +2949,51 @@ class PDFDownloader:
             if log:
                 log("    [CDP] websocket-client 未安装，CDP 通道不可用")
         else:
-            # Gate variables split out so we can log each decision.
-            _is_ieee = bool(paper_link and "ieeexplore.ieee.org" in paper_link)
-            _is_elsevier = bool(paper_link and (
-                "sciencedirect.com" in paper_link
-                or _pub_from_doi == "elsevier"
-            )) or (not paper_link and _pub_from_doi == "elsevier")
-            if _is_ieee:
-                data = await self._try_cdp_ieee(paper, log=log)
-                if _ok(data, "cdp_ieee"):
-                    return cached
-            elif _pub_from_doi == "ieee" or _pub_from_link == "ieee":
-                if log:
-                    log(f"    [CDP-IEEE] 跳过: paper_link 不是 ieeexplore 域 "
-                        f"(link={paper_link[:60]!r})")
-            if _is_elsevier:
-                # _try_cdp_elsevier internally requires /pii/XXX in
-                # paper_link. Pass through but also log if we're about
-                # to call it with a link that lacks pii.
-                if paper_link and "/pii/" not in paper_link:
-                    if log:
-                        log(f"    [CDP-Elsevier] 跳过: paper_link 无 /pii/ "
-                            f"段 (link={paper_link[:60]!r})")
-                elif not paper_link:
-                    if log:
-                        log("    [CDP-Elsevier] 跳过: 无 paper_link "
-                            "(Elsevier DOI 但 GS 没给 pii URL)")
-                else:
-                    data = await self._try_cdp_elsevier(paper, log=log)
-                    if _ok(data, "cdp_elsevier"):
+            async with PDFDownloader._cdp_lock:
+                # Gate variables split out so we can log each decision.
+                _is_ieee = bool(paper_link and "ieeexplore.ieee.org" in paper_link)
+                _is_elsevier = bool(paper_link and (
+                    "sciencedirect.com" in paper_link
+                    or _pub_from_doi == "elsevier"
+                )) or (not paper_link and _pub_from_doi == "elsevier")
+                _is_acm = bool(paper_link and "dl.acm.org" in paper_link) or doi.startswith("10.1145/")
+                if _is_ieee:
+                    data = await self._try_cdp_ieee(paper, log=log)
+                    if _ok(data, "cdp_ieee"):
                         return cached
-            elif _pub_from_doi == "elsevier" or _pub_from_link == "elsevier":
-                # Shouldn't reach here due to _is_elsevier OR above, but
-                # defensive in case gate logic changes.
-                if log:
-                    log("    [CDP-Elsevier] 跳过: publisher gate 不满足")
+                elif _pub_from_doi == "ieee" or _pub_from_link == "ieee":
+                    if log:
+                        log(f"    [CDP-IEEE] 跳过: paper_link 不是 ieeexplore 域 "
+                            f"(link={paper_link[:60]!r})")
+                if _is_elsevier:
+                    # _try_cdp_elsevier internally requires /pii/XXX in
+                    # paper_link. Pass through but also log if we're about
+                    # to call it with a link that lacks pii.
+                    if paper_link and "/pii/" not in paper_link:
+                        if log:
+                            log(f"    [CDP-Elsevier] 跳过: paper_link 无 /pii/ "
+                                f"段 (link={paper_link[:60]!r})")
+                    elif not paper_link:
+                        if log:
+                            log("    [CDP-Elsevier] 跳过: 无 paper_link "
+                                "(Elsevier DOI 但 GS 没给 pii URL)")
+                    else:
+                        data = await self._try_cdp_elsevier(paper, log=log)
+                        if _ok(data, "cdp_elsevier"):
+                            return cached
+                elif _pub_from_doi == "elsevier" or _pub_from_link == "elsevier":
+                    # Shouldn't reach here due to _is_elsevier OR above, but
+                    # defensive in case gate logic changes.
+                    if log:
+                        log("    [CDP-Elsevier] 跳过: publisher gate 不满足")
+                if _is_acm:
+                    data = await self._try_cdp_acm(paper, log=log)
+                    if _ok(data, "cdp_acm"):
+                        return cached
+                elif _pub_from_doi == "acm" or _pub_from_link == "acm":
+                    if log:
+                        log(f"    [CDP-ACM] 跳过: paper_link/DOI 不足以构造 ACM PDF "
+                            f"(link={paper_link[:60]!r}, doi={doi[:40]!r})")
 
         # ── 13. LLM search for alternative PDF (preprints, author pages, repos)
         # Uses search-grounded model to find freely accessible versions.

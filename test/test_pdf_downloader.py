@@ -741,6 +741,74 @@ class TestCdpHelpers:
             "old relative literal reintroduced — would refragment profiles"
         )
 
+    def test_cdp_ensure_browser_prefers_edge_before_chrome(self):
+        # The 0e branch's CDP path worked better on this Windows setup because
+        # the debug browser auto-launch preferred Edge, matching the manual
+        # launch script and the user's authenticated publisher session.
+        from citationclaw.core.pdf_downloader import _cdp_ensure_browser
+        import inspect
+        src = inspect.getsource(_cdp_ensure_browser)
+        assert src.index("Microsoft/Edge/Application/msedge.exe") < src.index(
+            "Google/Chrome/Application/chrome.exe"
+        )
+        assert src.index("/Applications/Microsoft Edge.app") < src.index(
+            "/Applications/Google Chrome.app"
+        )
+        assert src.index("/usr/bin/microsoft-edge") < src.index(
+            "/usr/bin/google-chrome"
+        )
+
+
+class TestCdp0eMerge:
+    """2026-05-04: carry over the stronger 0e CDP publisher paths into v2.
+
+    The 0e branch produced verified wins mostly through CDP-IEEE /
+    CDP-Elsevier / CDP-ACM. These guards keep those control-flow pieces
+    present while preserving v2's `_ok()` validation gate.
+    """
+
+    def test_acm_cdp_method_and_label_exist(self):
+        from citationclaw.core.pdf_downloader import _SOURCE_LABELS
+        assert _SOURCE_LABELS.get("cdp_acm") == "CDP-ACM"
+        assert hasattr(PDFDownloader, "_try_cdp_acm")
+
+    def test_download_cdp_branch_serializes_and_routes_all_sources_through_ok(self):
+        import inspect
+        src = inspect.getsource(PDFDownloader._download_once)
+        assert "async with PDFDownloader._cdp_lock" in src
+        assert "_try_cdp_ieee" in src and '_ok(data, "cdp_ieee")' in src
+        assert "_try_cdp_elsevier" in src and '_ok(data, "cdp_elsevier")' in src
+        assert "_try_cdp_acm" in src and '_ok(data, "cdp_acm")' in src
+
+    def test_ieee_cdp_uses_0e_article_first_flow(self):
+        import inspect
+        src = inspect.getsource(PDFDownloader._try_cdp_ieee)
+        assert "article_url =" in src
+        assert "_cdp_open_page(port, article_url)" in src
+        assert "default_get_pdf_url" in src
+        assert "document.documentElement.outerHTML" in src
+        assert "getPDF" in src
+
+    def test_elsevier_cdp_uses_0e_refresh_waits_without_runwide_short_circuit(self):
+        import inspect
+        src = inspect.getsource(PDFDownloader._try_cdp_elsevier)
+        assert "deadline_meta = _t.time() + 90" in src
+        assert "_html_looks_like_cloudflare_challenge(html)" in src
+        assert "waiting; complete verification in browser" in src
+        assert "deadline_pdf = _t.time() + 120" in src
+        assert "PDF viewer still not ready" in src
+        assert "_cdp_elsevier_disabled" not in src
+        assert "_elsevier_cooldown_until" not in src
+
+    def test_acm_cdp_mirrors_0e_authenticated_fetch_flow(self):
+        import inspect
+        src = inspect.getsource(PDFDownloader._try_cdp_acm)
+        assert "10.1145/" in src
+        assert "article_url = f\"https://dl.acm.org/doi/{doi}\"" in src
+        assert "pdf_url = f\"https://dl.acm.org/doi/pdf/{doi}\"" in src
+        assert "_cdp_fetch_pdf_in_context" in src
+        assert "authentication required" in src
+
 
 class TestCdpLoginProbe:
     """2026-04-20: CDP per-publisher probe (core.cdp_login_probe).
@@ -942,6 +1010,26 @@ class TestPhase2LoginStamp:
         assert 0.9 < age < 1.1
         assert data["outcome"] == "user_confirmed"
 
+    def test_stamp_fresh_returns_false_for_timeout_outcome(self, tmp_path, monkeypatch):
+        import json
+        from datetime import datetime, timedelta
+        from citationclaw.core import pdf_downloader as pdl
+        from citationclaw.app.task_executor import TaskExecutor
+        from citationclaw.app.log_manager import LogManager
+        from citationclaw.app.config_manager import ConfigManager
+        monkeypatch.setattr(pdl, "DEBUG_BROWSER_PROFILE_DIR", tmp_path)
+        stamp = tmp_path / "phase2_login_stamp.json"
+        stamp.write_text(json.dumps({
+            "timestamp": (datetime.now() - timedelta(minutes=10)).isoformat(),
+            "outcome": "timeout",
+            "urls": [],
+        }), encoding="utf-8")
+        te = TaskExecutor(LogManager(), ConfigManager())
+        fresh, data, age = te._phase2_stamp_is_fresh(ttl_hours=24)
+        assert fresh is False
+        assert data["outcome"] == "timeout"
+        assert age is not None and age < 1
+
     def test_stamp_fresh_returns_false_when_stale(self, tmp_path, monkeypatch):
         import json
         from datetime import datetime, timedelta
@@ -1009,6 +1097,78 @@ class TestPhase2LoginStamp:
         assert data["outcome"] == "user_confirmed"
         assert data["urls"] == ["https://a.example", "https://b.example"]
         assert "timestamp" in data
+
+    def test_phase2_probe_returns_false_when_any_publisher_fails(self, monkeypatch):
+        import asyncio
+        from citationclaw.app.task_executor import TaskExecutor
+        from citationclaw.app.log_manager import LogManager
+        from citationclaw.app.config_manager import ConfigManager
+        from citationclaw.core import cdp_login_probe as probe_mod
+
+        def fake_probe_all(port, publishers):
+            return [
+                probe_mod.ProbeResult("ieee", probe_mod.STATUS_AUTH_OK, "ok"),
+                probe_mod.ProbeResult("elsevier", probe_mod.STATUS_CAPTCHA, "captcha"),
+            ]
+
+        monkeypatch.setattr(probe_mod, "probe_all", fake_probe_all)
+        te = TaskExecutor(LogManager(), ConfigManager())
+        ok = asyncio.get_event_loop().run_until_complete(
+            te._run_phase2_login_probe(9222)
+        )
+        assert ok is False
+
+    def test_prompt_phase2_login_reopens_tabs_when_cached_probe_fails(self, tmp_path, monkeypatch):
+        import asyncio
+        import json
+        from datetime import datetime
+        from citationclaw.core import pdf_downloader as pdl
+        from citationclaw.app import task_executor as task_executor_mod
+        from citationclaw.app.task_executor import TaskExecutor
+        from citationclaw.app.log_manager import LogManager
+        from citationclaw.app.config_manager import AppConfig, ConfigManager
+
+        monkeypatch.setattr(pdl, "DEBUG_BROWSER_PROFILE_DIR", tmp_path)
+        (tmp_path / "phase2_login_stamp.json").write_text(json.dumps({
+            "timestamp": datetime.now().isoformat(),
+            "outcome": "user_confirmed",
+            "urls": [],
+        }), encoding="utf-8")
+
+        opened = {"count": 0}
+        monkeypatch.setattr(pdl, "_cdp_available", lambda: True)
+        monkeypatch.setattr(pdl, "_cdp_ensure_browser", lambda port: True)
+        monkeypatch.setattr(pdl, "_cdp_check_connection", lambda port: True)
+
+        def fake_open_login_pages(port, urls):
+            opened["count"] += 1
+            return len(urls)
+
+        monkeypatch.setattr(pdl, "_cdp_open_login_pages", fake_open_login_pages)
+
+        async def fake_probe(self, cdp_port):
+            return False
+
+        monkeypatch.setattr(TaskExecutor, "_run_phase2_login_probe", fake_probe)
+
+        async def fake_wait_for(awaitable, timeout):
+            if hasattr(awaitable, "close"):
+                awaitable.close()
+            raise task_executor_mod.asyncio.TimeoutError()
+
+        monkeypatch.setattr(task_executor_mod.asyncio, "wait_for", fake_wait_for)
+
+        te = TaskExecutor(LogManager(), ConfigManager())
+        config = AppConfig(
+            cdp_debug_port=9222,
+            enable_phase2_login_checkpoint=True,
+            enable_phase2_login_probe=True,
+            phase2_login_urls=["https://www.sciencedirect.com/"],
+            phase2_login_wait_seconds=1,
+            phase2_login_stamp_hours=24,
+        )
+        asyncio.get_event_loop().run_until_complete(te._prompt_phase2_login(config))
+        assert opened["count"] == 1
 
     def test_prompt_phase2_login_short_circuits_via_stamp(self):
         # Source-level guard: the checkpoint method must check the
@@ -1499,167 +1659,70 @@ class TestArxivDoiRecognition:
         assert "arxiv_from_doi" in src
 
 
-class TestCdpElsevierCircuitBreaker:
-    """2026-04-21: observed run 2026-04-21 01:25 -- 70 CDP-Elsevier
-    Cloudflare timeouts, 0 successes, ~8 minutes of wait time. The
-    Turnstile challenge needs manual user interaction; if the user
-    isn't available, waiting out the 120s timer per paper is waste.
-    Circuit breaker pattern (same shape as the V-API 2026-04-20
-    `_llm_search_429_misses` breaker) disables the tier after N
-    consecutive CF timeouts.
+class TestCdpElsevier0ePersistence:
+    """2026-05-04: prefer the 0e Elsevier CDP flow over v2's old breaker.
+
+    The 0e run recovered many verified ScienceDirect PDFs by continuing to
+    wait/refresh while the user solved Cloudflare. The run-wide breaker and
+    cooldown are intentionally absent from the live method now.
     """
 
-    def test_downloader_exposes_circuit_breaker_state(self):
-        from citationclaw.core.pdf_downloader import PDFDownloader
-        dl = PDFDownloader(scraper_api_keys=["k"])
-        assert hasattr(dl, "_cdp_elsevier_cf_timeouts")
-        assert hasattr(dl, "_cdp_elsevier_disabled")
-        assert dl._cdp_elsevier_cf_timeouts == 0
-        assert dl._cdp_elsevier_disabled is False
-        assert PDFDownloader._CDP_ELSEVIER_MAX_CF_TIMEOUTS == 3
-
-    def test_cdp_elsevier_short_circuits_when_disabled(self):
-        import asyncio
-        from citationclaw.core.pdf_downloader import PDFDownloader
-        dl = PDFDownloader(scraper_api_keys=["k"], cdp_debug_port=9222)
-        dl._cdp_elsevier_disabled = True
-        # paper dict with a valid /pii/ link so we'd normally proceed
-        paper = {
-            "paper_link": "https://www.sciencedirect.com/science/article/pii/S1566253524005840",
-            "doi": "10.1016/j.inffus.2024.102806",
-        }
-        captured = []
-        result = asyncio.get_event_loop().run_until_complete(
-            dl._try_cdp_elsevier(paper, log=lambda s: captured.append(s))
-        )
-        assert result is None
-        assert any("电路断路器" in s for s in captured), (
-            "short-circuit path must log why it skipped"
-        )
-
-    def test_cdp_elsevier_has_cf_box_and_counter_logic(self):
-        # Source-level check that the counter-increment logic is in
-        # place (hard to exercise the full async flow without a live
-        # Chrome). Guards against refactors that drop the tracking.
+    def test_elsevier_cdp_does_not_short_circuit_from_stale_breaker_state(self):
         from citationclaw.core.pdf_downloader import PDFDownloader
         import inspect
         src = inspect.getsource(PDFDownloader._try_cdp_elsevier)
-        assert "_hit_cf_box" in src, (
-            "must track whether the attempt hit Cloudflare"
-        )
-        assert "_cdp_elsevier_cf_timeouts += 1" in src, (
-            "must increment the CF-timeout counter on Cloudflare-caused "
-            "failure"
-        )
-        assert "_cdp_elsevier_cf_timeouts = 0" in src, (
-            "must reset the counter on success"
-        )
-        assert "_cdp_elsevier_disabled = True" in src, (
-            "must actually flip the breaker after threshold"
-        )
+        assert "_cdp_elsevier_disabled" not in src
+        assert "_elsevier_cooldown_until" not in src
+        assert "_hit_cf_box" not in src
 
-
-class TestElsevierPacingAndCooldown:
-    """2026-04-21: user reported SD's own risk control triggers when
-    5 concurrent workers all navigate SD tabs at once AND when tabs
-    switch too fast. Mitigations:
-      1. Instance semaphore (concurrency=1 for SD work)
-      2. Minimum inter-request gap of 15s
-      3. 5-minute cooldown after any Cloudflare hit
-    These tests lock the new state + config constants so a refactor
-    can't silently regress.
-    """
-
-    def test_constants_set_to_reasonable_values(self):
-        from citationclaw.core.pdf_downloader import PDFDownloader
-        assert PDFDownloader._ELSEVIER_MIN_GAP_S >= 10, (
-            "pacing gap too short risks triggering SD's rate limiter"
-        )
-        assert PDFDownloader._ELSEVIER_MIN_GAP_S <= 60, (
-            "pacing gap too long makes batch runs take forever"
-        )
-        assert PDFDownloader._ELSEVIER_COOLDOWN_S >= 60, (
-            "cooldown too short means we re-hit the CF window before "
-            "SD forgets us"
-        )
-        assert PDFDownloader._ELSEVIER_COOLDOWN_S <= 900, (
-            "cooldown longer than 15min is overkill"
-        )
-
-    def test_downloader_exposes_pacing_state(self):
-        from citationclaw.core.pdf_downloader import PDFDownloader
-        dl = PDFDownloader(scraper_api_keys=["k"])
-        # Semaphore is lazy-init'd (None until first SD request)
-        assert dl._elsevier_sem is None
-        assert dl._elsevier_last_request_at == 0.0
-        assert dl._elsevier_cooldown_until == 0.0
-
-    def test_cdp_elsevier_skips_during_cooldown(self):
-        import asyncio
-        from citationclaw.core.pdf_downloader import PDFDownloader
-        dl = PDFDownloader(scraper_api_keys=["k"], cdp_debug_port=9222)
-        # Put us in the middle of a cooldown window.
-        loop = asyncio.new_event_loop()
-        dl._elsevier_cooldown_until = loop.time() + 300
-        paper = {
-            "paper_link": "https://www.sciencedirect.com/science/article/pii/S1234567890",
-            "doi": "10.1016/j.test.2024.1",
-        }
-        captured = []
-        result = loop.run_until_complete(
-            dl._try_cdp_elsevier(paper, log=lambda s: captured.append(s))
-        )
-        loop.close()
-        assert result is None
-        assert any("SD 冷却中" in s for s in captured), (
-            "cooldown short-circuit must log why it skipped"
-        )
-
-    def test_cf_hit_sets_cooldown(self):
+    def test_elsevier_cdp_keeps_0e_wait_and_refresh_controls(self):
         from citationclaw.core.pdf_downloader import PDFDownloader
         import inspect
         src = inspect.getsource(PDFDownloader._try_cdp_elsevier)
-        # The CF-hit branch must set the cooldown timestamp.
-        assert "_elsevier_cooldown_until =" in src, (
-            "CF hit must populate _elsevier_cooldown_until so future "
-            "attempts skip SD during the cooldown window"
-        )
-        assert "_ELSEVIER_COOLDOWN_S" in src
+        assert "deadline_meta = _t.time() + 90" in src
+        assert "metadata not found, auto-refreshing" in src
+        assert "deadline_pdf = _t.time() + 120" in src
+        assert "PDF viewer still not ready" in src
 
-    def test_cdp_elsevier_uses_semaphore_and_pacing(self):
+    def test_elsevier_cdp_waits_on_turnstile_without_resetting_challenge(self):
+        from citationclaw.core.pdf_downloader import (
+            PDFDownloader,
+            _html_looks_like_cloudflare_challenge,
+        )
+        import inspect
+        html = """
+        <html><title>Are you a robot?</title>
+        <body>Please confirm you are a human by completing the captcha challenge below.
+        <div class="cf-turnstile">正在验证...</div></body></html>
+        """
+        assert _html_looks_like_cloudflare_challenge(html)
+        src = inspect.getsource(PDFDownloader._try_cdp_elsevier)
+        challenge_branch = src[
+            src.index("_html_looks_like_cloudflare_challenge(html)"):
+            src.index("if cloudflare_seen:")
+        ]
+        assert "Page.navigate" not in challenge_branch
+        assert "auto-refreshing article" not in challenge_branch
+        assert "Cloudflare passed, loading article" not in src
+
+    def test_elsevier_cdp_waits_on_pdfft_turnstile_without_refreshing(self):
         from citationclaw.core.pdf_downloader import PDFDownloader
         import inspect
         src = inspect.getsource(PDFDownloader._try_cdp_elsevier)
-        # Semaphore acquire wrapping the _sync call
-        assert "async with self._elsevier_sem" in src, (
-            "CDP-Elsevier must serialize via _elsevier_sem to keep "
-            "concurrency=1"
-        )
-        # Min-gap enforcement before the _sync call
-        assert "_ELSEVIER_MIN_GAP_S" in src
-        assert "_elsevier_last_request_at" in src
+        pdf_wait = src[src.index("while _t.time() < deadline_pdf:"):]
+        assert "_html_looks_like_cloudflare_challenge" in pdf_wait
+        challenge_wait = pdf_wait[
+            pdf_wait.index("_html_looks_like_cloudflare_challenge"):
+            pdf_wait.index("for t in _cdp_list_tabs(port):")
+        ]
+        assert "Page.navigate" not in challenge_wait
+        assert "auto-refreshing pdfft" not in challenge_wait
 
-    def test_pdf_viewer_timeout_marks_cf_hit(self):
+    def test_download_branch_serializes_all_cdp_publishers_with_one_lock(self):
         from citationclaw.core.pdf_downloader import PDFDownloader
         import inspect
-        src = inspect.getsource(PDFDownloader._try_cdp_elsevier)
-        # The second wait loop (PDF viewer appearance) times out at
-        # deadline_pdf. 95%+ of the time that's CF holding pdfft;
-        # mark it so the outer wrapper triggers cooldown.
-        # Look for the pattern: loop ends -> mark _hit_cf_box -> return
-        assert '_hit_cf_box["saw"] = True' in src, (
-            "the _hit_cf_box flag must be settable"
-        )
-        # The viewer-timeout branch should set it too.
-        viewer_loop_idx = src.find("Wait for PDF viewer")
-        next_return_none_idx = src.find("return None",
-                                         viewer_loop_idx + 1)
-        # Between the viewer-loop comment and the return None that
-        # follows, there should be the _hit_cf_box["saw"] = True line.
-        assert '_hit_cf_box["saw"] = True' in src[
-            viewer_loop_idx:next_return_none_idx + 20
-        ], (
-            "PDF-viewer-never-appeared timeout must mark _hit_cf_box "
-            "so SD cooldown triggers (viewer stalls are CF in 95%+ "
-            "of observed cases)"
-        )
+        src = inspect.getsource(PDFDownloader._download_once)
+        assert "async with PDFDownloader._cdp_lock" in src
+        assert "_try_cdp_ieee" in src
+        assert "_try_cdp_elsevier" in src
+        assert "_try_cdp_acm" in src
