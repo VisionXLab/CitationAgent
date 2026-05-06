@@ -175,12 +175,100 @@ class PDFCitationParser:
     def _split_references(self, text: str) -> Tuple[str, str]:
         """Split full text into body and references section."""
         match = re.search(
-            r'(?:^|\n)\s*(?:References|Bibliography|REFERENCES)\s*\n',
+            r'(?:^|\n)\s*(?:\d+[\.\s]*)?(?:References|Bibliography|REFERENCES)\s*\n',
             text, re.MULTILINE
         )
         if match:
             return text[:match.start()], text[match.start():]
         return text, ""
+
+    @staticmethod
+    def _merge_ref_entries(ref_text: str) -> List[Tuple[Optional[str], str]]:
+        """Merge multi-line reference entries into single strings.
+
+        Returns: [(ref_id_or_None, full_entry_text), ...]
+        e.g., [("[1]", "Smith J. et al. Title of paper..."), ("[2]", "...")]
+        or [("1", "Smith J. et al. ..."), ...] for "1." format
+        """
+        if not ref_text:
+            return []
+
+        lines = ref_text.split('\n')
+        entries: List[Tuple[Optional[str], str]] = []
+        current_id: Optional[str] = None
+        current_lines: List[str] = []
+
+        # Skip "References" / "Bibliography" header line
+        header_pat = re.compile(r'^\s*(?:\d+[\.\s]*)?(?:References|Bibliography|REFERENCES)\s*$', re.IGNORECASE)
+        lines = [l for l in lines if not header_pat.match(l.strip())]
+
+        # Detect reference entry boundary patterns
+        # Pattern 1: [N] — e.g., "[1] Smith, J. ..."
+        # Pattern 2: N. — e.g., "1. Smith, J. ..."
+        # Pattern 3: (N) — e.g., "(1) Smith, J. ..."
+        bracket_pat = re.compile(r'^\s*\[(\d+)\]')
+        dot_pat = re.compile(r'^\s*(\d+)\.\s+[A-Z]')
+        paren_pat = re.compile(r'^\s*\((\d+)\)')
+
+        def _flush():
+            if current_lines:
+                text = ' '.join(l.strip() for l in current_lines if l.strip())
+                if text:
+                    entries.append((current_id, text))
+
+        # First pass: try to detect numbered format
+        has_numbered = False
+        for line in lines:
+            stripped = line.strip()
+            if not stripped:
+                continue
+            if bracket_pat.match(stripped) or dot_pat.match(stripped) or paren_pat.match(stripped):
+                has_numbered = True
+                break
+
+        if has_numbered:
+            # Parse numbered entries (may span multiple lines)
+            for line in lines:
+                stripped = line.strip()
+                if not stripped:
+                    continue
+
+                new_id = None
+                m = bracket_pat.match(stripped)
+                if m:
+                    new_id = f"[{m.group(1)}]"
+                else:
+                    m = dot_pat.match(stripped)
+                    if m:
+                        new_id = m.group(1)
+                    else:
+                        m = paren_pat.match(stripped)
+                        if m:
+                            new_id = m.group(1)
+
+                if new_id is not None:
+                    _flush()
+                    current_id = new_id
+                    current_lines = [stripped]
+                else:
+                    current_lines.append(stripped)
+
+            _flush()
+        else:
+            # Fallback: blank-line separated entries (author-year format)
+            for line in lines:
+                stripped = line.strip()
+                if not stripped:
+                    if current_lines:
+                        text = ' '.join(current_lines)
+                        entries.append((None, text))
+                        current_lines = []
+                else:
+                    current_lines.append(stripped)
+            if current_lines:
+                entries.append((None, ' '.join(current_lines)))
+
+        return entries
 
     def _find_reference_id(
         self, ref_text: str, target_title: str, target_authors: List[dict]
@@ -189,37 +277,42 @@ class PDFCitationParser:
         if not ref_text:
             return None
 
-        # Strategy 1: Match by title keywords (first 6 significant words)
-        # Use \W+ between words to handle stop words like "is", "a", "the" in between
+        entries = self._merge_ref_entries(ref_text)
         title_words = [w for w in target_title.lower().split() if len(w) > 2][:6]
+
+        # Strategy 1: Match by title keywords (first 6 significant words)
         if len(title_words) >= 3:
             title_pattern = r'\W+(?:\w+\W+)*?'.join(re.escape(w) for w in title_words)
-            for line in ref_text.split('\n'):
-                if re.search(title_pattern, line, re.IGNORECASE):
-                    ref_match = re.match(r'\s*\[(\d+)\]', line)
-                    if ref_match:
-                        return f"[{ref_match.group(1)}]"
+            for ref_id, entry_text in entries:
+                if re.search(title_pattern, entry_text, re.IGNORECASE):
+                    if ref_id and ref_id.startswith('['):
+                        return ref_id
+                    elif ref_id:
+                        return f"[{ref_id}]"
 
-        # Strategy 2: First author surname + partial title (handles slight title variations)
+        # Strategy 2: First author surname + partial title
         first_surname = _extract_first_author_surname(target_authors)
         if first_surname and len(title_words) >= 2:
             partial_pattern = r'\W+(?:\w+\W+)*?'.join(re.escape(w) for w in title_words[:3])
-            for line in ref_text.split('\n'):
-                if (first_surname.lower() in line.lower()
-                        and re.search(partial_pattern, line, re.IGNORECASE)):
-                    ref_match = re.match(r'\s*\[(\d+)\]', line)
-                    if ref_match:
-                        return f"[{ref_match.group(1)}]"
+            for ref_id, entry_text in entries:
+                entry_lower = entry_text.lower()
+                if (first_surname.lower() in entry_lower
+                        and re.search(partial_pattern, entry_text, re.IGNORECASE)):
+                    if ref_id and ref_id.startswith('['):
+                        return ref_id
+                    elif ref_id:
+                        return f"[{ref_id}]"
 
-        # Strategy 3: Author surname alone (last resort, less precise)
+        # Strategy 3: Author surname + at least 2 title words
         if first_surname:
-            for line in ref_text.split('\n'):
-                if first_surname.lower() in line.lower():
-                    # Require at least 2 title words to reduce false positives
-                    if any(w in line.lower() for w in title_words[:2]):
-                        ref_match = re.match(r'\s*\[(\d+)\]', line)
-                        if ref_match:
-                            return f"[{ref_match.group(1)}]"
+            for ref_id, entry_text in entries:
+                entry_lower = entry_text.lower()
+                if first_surname.lower() in entry_lower:
+                    if sum(1 for w in title_words[:2] if w in entry_lower) >= 2:
+                        if ref_id and ref_id.startswith('['):
+                            return ref_id
+                        elif ref_id:
+                            return f"[{ref_id}]"
 
         return None
 
@@ -344,20 +437,17 @@ class PDFCitationParser:
         surname_lower = first_surname.lower()
         year_str = str(target_year)
 
-        # Search reference entries for the target paper
-        for line in ref_text.split('\n'):
-            line_lower = line.lower()
-            # Must have the surname and year
-            if surname_lower not in line_lower:
+        entries = self._merge_ref_entries(ref_text)
+        for _ref_id, entry_text in entries:
+            entry_lower = entry_text.lower()
+            if surname_lower not in entry_lower:
                 continue
-            if year_str not in line_lower:
+            if year_str not in entry_lower:
                 continue
-            # Must have at least 2 title words
-            if sum(1 for w in title_words if w in line_lower) < min(2, len(title_words)):
+            if sum(1 for w in title_words if w in entry_lower) < min(2, len(title_words)):
                 continue
 
-            # Found the reference entry — extract the year suffix (a, b, c...)
-            year_match = re.search(rf'({year_str}[a-z]?)', line_lower)
+            year_match = re.search(rf'({year_str}[a-z]?)', entry_lower)
             if year_match:
                 exact_year = year_match.group(1)
                 return f"{surname_lower}.*{exact_year}"
@@ -379,7 +469,7 @@ class PDFCitationParser:
         1. Reference ID [N] match (most precise)
         2. Exact (Author, Year[a/b]) match using key from references section
         3. (Author, Year) pattern match (with same-surname safeguards)
-        4. Direct title mention (partial, ≥4 consecutive words)
+        4. Direct title mention (partial, ≥3 consecutive words)
         """
         hits = []
         title_words = [w for w in target_title.lower().split() if len(w) > 2]
@@ -446,11 +536,11 @@ class PDFCitationParser:
                         matched = True
                         break
 
-            # Strategy 4: Direct title mention (≥4 consecutive significant words)
+            # Strategy 4: Direct title mention (≥3 consecutive significant words)
             # Use flexible gap pattern to handle stop words between significant words
-            if not matched and len(title_words) >= 4:
-                for start in range(len(title_words) - 3):
-                    chunk = title_words[start:start + 4]
+            if not matched and len(title_words) >= 3:
+                for start in range(len(title_words) - 2):
+                    chunk = title_words[start:start + 3]
                     chunk_pattern = r'\W+(?:\w+\W+)*?'.join(re.escape(w) for w in chunk)
                     if re.search(chunk_pattern, text_lower):
                         matched = True
@@ -474,34 +564,35 @@ class PDFCitationParser:
             return "", ""
 
         title_words = [w for w in target_title.lower().split() if len(w) > 3][:5]
+        entries = self._merge_ref_entries(ref_text)
         ref_entry = ""
+        ref_id = None
 
-        for line in ref_text.split('\n'):
-            line_s = line.strip()
-            if not line_s or len(line_s) < 10:
+        for entry_id, entry_text in entries:
+            if len(entry_text) < 10:
                 continue
-            line_lower = line_s.lower()
-            # Match by title words (at least 3 of 5)
-            if sum(1 for w in title_words if w in line_lower) >= min(3, len(title_words)):
-                ref_entry = line_s
+            entry_lower = entry_text.lower()
+            if sum(1 for w in title_words if w in entry_lower) >= min(3, len(title_words)):
+                ref_entry = entry_text
+                ref_id = entry_id
                 break
-            # Or by first surname + 2 title words
-            if first_surname and first_surname.lower() in line_lower:
-                if sum(1 for w in title_words if w in line_lower) >= 2:
-                    ref_entry = line_s
+            if first_surname and first_surname.lower() in entry_lower:
+                if sum(1 for w in title_words if w in entry_lower) >= 2:
+                    ref_entry = entry_text
+                    ref_id = entry_id
                     break
 
         if not ref_entry:
             return "", ""
 
-        # Extract citation key from the reference entry
+        # Extract citation key
         citation_key = ""
-        # Try [N] format
-        m = re.match(r'\s*\[(\d+)\]', ref_entry)
-        if m:
-            citation_key = f"[{m.group(1)}]"
+        if ref_id and (ref_id.startswith('[') or ref_id.startswith('(')):
+            citation_key = ref_id
+        elif ref_id:
+            citation_key = f"[{ref_id}]"
         else:
-            # Try to build author-year key: "Fan et al., 2025" or "Fan (2025)"
+            # Try to build author-year key
             if first_surname:
                 year_match = re.search(r'((?:19|20)\d{2}[a-z]?)', ref_entry)
                 if year_match:
@@ -587,10 +678,10 @@ class PDFCitationParser:
 
             # Match by citation key (most precise)
             has_key = any(k in text_lower if len(k) > 2 else k in text for k in search_keys)
-            # Match by distinctive title words (at least 2)
+            # Match by distinctive title words (at least 1)
             title_hits = sum(1 for w in title_keys if w in text_lower)
 
-            if has_key or title_hits >= 2:
+            if has_key or title_hits >= 1:
                 results.append({
                     "section": section,
                     "text": text.strip(),

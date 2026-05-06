@@ -65,16 +65,12 @@ class CitationExtractSkill:
 
                     citing_title = paper.get("Paper_Title", paper.get("title", ""))
 
-                    # Skip self-citation papers
+                    # Tag self-citation papers but still extract citation description
                     is_self = paper.get("Is_Self_Citation")
                     if is_self and str(is_self).lower() not in ('false', '0', 'nan', 'none', ''):
-                        paper["Citing_Description"] = "自引论文，已跳过"
-                        paper["citing_desc_source"] = "self_citation_skip"
+                        paper["_is_self_citation"] = True
                         stats["self_cite_skip"] += 1
-                        result_slots[i] = paper
-                        if ctx.progress:
-                            ctx.progress(i + 1, total)
-                        return
+                        # Continue to extract — self-citations still have citation contexts
 
                     # Check cache (args: paper_link, citing_paper_title, target_title)
                     if cache:
@@ -239,7 +235,8 @@ class CitationExtractSkill:
 
         Agent 1 (Extractor): Finds citation key and extracts the exact sentence.
         Agent 2 (Reviewer): Verifies correctness, rejects false matches, assigns sentiment.
-        Up to 2 retries if reviewer rejects.
+        - High-confidence (direct ★ match) skips reviewer.
+        - Up to 2 retries if reviewer rejects.
         """
         try:
             from openai import AsyncOpenAI
@@ -252,6 +249,10 @@ class CitationExtractSkill:
             )
 
             parsed_paragraphs = self._build_paragraphs(contexts)
+            # Check if we have high-confidence direct matches (★ tagged)
+            has_direct_match = any(
+                c.get("match_type") == "direct" for c in contexts
+            )
             max_attempts = 3
             prev_rejections = []  # Track rejected sentences to avoid repeats
 
@@ -278,6 +279,10 @@ class CitationExtractSkill:
                 extract_data = self._parse_json(resp1.choices[0].message.content or "")
 
                 if not extract_data or not extract_data.get("found", False):
+                    if attempt == 0 and has_direct_match:
+                        # Direct match exists but LLM said not found — retry with higher temp
+                        prev_rejections.append("(LLM误判found=false，请重新搜索带★段落)")
+                        continue
                     return "未在PDF中找到相关引用描述"
 
                 sentence = (extract_data.get("sentence") or "").strip()
@@ -286,10 +291,17 @@ class CitationExtractSkill:
                 ref_entry = (extract_data.get("ref_entry") or "").strip()
 
                 if not sentence:
+                    if attempt == 0 and has_direct_match:
+                        continue
                     return "未在PDF中找到相关引用描述"
                 if self._looks_like_ref_entry(sentence):
                     prev_rejections.append(sentence[:80])
                     continue  # Rule-based reject, retry
+
+                # ── High-confidence: skip reviewer, use rule-based sentiment ──
+                if has_direct_match:
+                    sentiment = self._detect_sentiment(sentence)
+                    return self._format_output(section, sentence, sentiment)
 
                 # ── Agent 2: Reviewer ──
                 review_prompt = prompt_loader.render(
@@ -344,6 +356,51 @@ class CitationExtractSkill:
         elif sentiment == "负面":
             parts.append("【负面引用】")
         return " ".join(parts)
+
+    @staticmethod
+    def _detect_sentiment(text: str) -> str:
+        """Rule-based sentiment detection for citation sentences."""
+        text_lower = text.lower()
+        positive = [
+            "state-of-the-art", "sota", "pioneering", "novel", "significantly outperforms",
+            "remarkable", "superior", "impressive", "groundbreaking", "innovative",
+            "excellent", "promising", "successfully", "effectively", "efficiently",
+            "outperforms", "surpasses", "advances", "improves upon",
+        ]
+        negative = [
+            "limited", "fails to", "suffers from", "drawback", "shortcoming",
+            "inadequate", "poor", "weakness", "inferior", "degrades",
+            "cannot handle", "unable to", "problematic", "suboptimal",
+        ]
+        for w in positive:
+            if w in text_lower:
+                return "正面"
+        for w in negative:
+            if w in text_lower:
+                return "负面"
+        return "中性"
+
+    @staticmethod
+    def _looks_like_table_row(text: str) -> bool:
+        """Check if text looks like a table data row rather than a prose sentence.
+
+        Table rows have many numbers, few words, and structured formatting.
+        """
+        import re
+        text = text.strip()
+        # Count numeric tokens (including decimals like 46.00)
+        numbers = re.findall(r'\d+\.?\d*', text)
+        words = re.findall(r'[a-zA-Z]{3,}', text)
+        # Table rows: many numbers relative to words
+        if len(numbers) >= 5 and len(numbers) > len(words):
+            return True
+        # Rows with repeated delimiter patterns (pipes, tabs, multiple spaces)
+        if text.count('|') >= 3 or text.count('\t') >= 3:
+            return True
+        # Short text that's mostly numbers/symbols (like "Method [8] 46.00 47.00 ...")
+        if len(text) < 150 and len(numbers) >= 4:
+            return True
+        return False
 
     @staticmethod
     def _looks_like_ref_entry(text: str) -> bool:

@@ -155,12 +155,8 @@ _SCRAPER_PUBLISHER_PROFILES = {
 }
 
 # ── Proxy detection (same as PaperRadar: skip socks, use HTTP) ─────────
+# Disabled: proxy causes SSL handshake failures with most sites in this env
 _HTTP_PROXY = None
-for _var in ["HTTP_PROXY", "http_proxy", "HTTPS_PROXY", "https_proxy"]:
-    _val = os.environ.get(_var, "")
-    if _val and _val.startswith("http"):
-        _HTTP_PROXY = _val
-        break
 
 
 # ── Chrome cookie injection ────────────────────────────────────────────
@@ -628,6 +624,7 @@ class PDFDownloader:
         import httpx
         return httpx.AsyncClient(
             follow_redirects=True, timeout=timeout, trust_env=False,
+            verify=False,
             proxy=_HTTP_PROXY,
             headers={
                 "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "

@@ -1,5 +1,7 @@
 import asyncio
 import json as _json
+import os
+import tempfile
 from pathlib import Path
 from typing import Optional, List, Tuple
 from datetime import datetime
@@ -999,11 +1001,21 @@ class TaskExecutor:
                         if first_inst and "未知" not in first_inst:
                             rec["First_Author_Institution"] = first_inst
 
-            # Write back
+            # Write back (atomic: tempfile + os.replace to prevent data loss)
             if fixed_total > 0:
-                with open(merged_file, "w", encoding="utf-8") as f:
-                    for record in lines:
-                        f.write(_json.dumps(record, ensure_ascii=False) + "\n")
+                merged_path = Path(merged_file)
+                tmp_fd, tmp_path = tempfile.mkstemp(
+                    dir=str(merged_path.parent), suffix=".tmp"
+                )
+                try:
+                    with os.fdopen(tmp_fd, "w", encoding="utf-8") as f:
+                        for record in lines:
+                            f.write(_json.dumps(record, ensure_ascii=False) + "\n")
+                    os.replace(tmp_path, str(merged_path))
+                except BaseException:
+                    if os.path.exists(tmp_path):
+                        os.unlink(tmp_path)
+                    raise
                 self.log_manager.info(f"  → 补全了 {fixed_total} 位作者的机构信息")
             else:
                 self.log_manager.info("  → 未能补全更多机构信息")
@@ -1149,11 +1161,21 @@ class TaskExecutor:
             except Exception as e:
                 self.log_manager.info(f"  ⚠ LLM国家修正失败: {str(e)[:50]}")
 
-        # Write back
+        # Write back (atomic: tempfile + os.replace to prevent data loss)
         if fixed > 0:
-            with open(merged_file, "w", encoding="utf-8") as f:
-                for record in lines:
-                    f.write(_json.dumps(record, ensure_ascii=False) + "\n")
+            merged_path = Path(merged_file)
+            tmp_fd, tmp_path = tempfile.mkstemp(
+                dir=str(merged_path.parent), suffix=".tmp"
+            )
+            try:
+                with os.fdopen(tmp_fd, "w", encoding="utf-8") as f:
+                    for record in lines:
+                        f.write(_json.dumps(record, ensure_ascii=False) + "\n")
+                os.replace(tmp_path, str(merged_path))
+            except BaseException:
+                if os.path.exists(tmp_path):
+                    os.unlink(tmp_path)
+                raise
 
         return fixed
 

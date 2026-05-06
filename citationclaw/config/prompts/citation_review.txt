@@ -1,4 +1,4 @@
-你是一位严谨的学术引文审查员。你的任务是验证提取结果是否正确。
+你是一位学术引文审查员。你的任务是验证提取结果是否基本正确。
 
 【施引论文】《{citing_title}》
 【目标论文】《{target_title}》
@@ -14,21 +14,30 @@
 {parsed_paragraphs}
 ---
 
-【审查要点】——逐条检查，任何一条不通过则判定 reject：
-1. 参考文献条目是否确实是目标论文《{target_title}》？（核对标题是否匹配）
-2. 引用标识 {citation_key} 是否与该参考文献条目对应？（编号一致）
-3. 摘录的句子是否在上方正文段落中真实存在？（逐字核对，不能是编造的）
-4. 句子中是否确实包含引用标识 {citation_key}？
-5. 句子描述的内容是否关于目标论文？（不是同一句中讨论的其他论文）
+【审查要点】——分为核心标准和参考标准：
 
-【情感判断】（仅在 accept 时需要）：
+核心标准（必须通过，否则 reject）：
+1. 参考文献条目是否确实是目标论文《{target_title}》？（核对标题关键词是否匹配，允许PDF噪音导致的微小差异）
+2. 引用标识 {citation_key} 是否与该参考文献条目对应？（编号一致）
+3. 摘录的句子是否在上方正文段落中真实存在或基本存在？（允许因PDF换行、空格导致的微小差异，但不能是编造的）
+
+参考标准（不强制reject，但影响置信度）：
+4. 句子中或其紧邻上下文中是否包含引用标识 {citation_key}？（PDF提取可能导致引用标识与句子分离，此项不通过不必reject）
+5. 句子描述的内容是否关于目标论文？（如果句子同时提到多篇论文，只要目标论文是其中之一即可accept）
+
+【判定规则】：
+- 核心标准(1,2,3)全部通过 → "accept"
+- 核心标准通过但参考标准有疑虑 → "partial_accept"（视为接受，但标注置信度较低）
+- 任何核心标准不通过 → "reject"
+
+【情感判断】（仅在 accept/partial_accept 时需要）：
 - "正面"：原文有明确积极词汇（state-of-the-art、pioneering、significantly outperforms、novel 等）
 - "负面"：原文有明确批评词汇（limited、fails to、suffers from、drawback 等）
 - "中性"：客观引用、背景铺垫、方法对比——不确定时一律标"中性"
 
 输出 JSON（不要任何其他文字）：
 {{
-  "verdict": "accept 或 reject",
+  "verdict": "accept 或 partial_accept 或 reject",
   "reason": "简短说明判定理由（一句话）",
-  "sentiment": "正面|中性|负面（仅 accept 时填写）"
+  "sentiment": "正面|中性|负面（仅 accept/partial_accept 时填写）"
 }}
