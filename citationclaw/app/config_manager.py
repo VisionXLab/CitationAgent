@@ -1,7 +1,27 @@
 import json
 from pathlib import Path
 from typing import List
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
+
+# 2026-04-20: copy-paste from a provider's web console often leaves a leading
+# space on the API key ("  sk-..."), which makes every LLM call 401 and trips
+# the LLM-search circuit breaker to disable the whole pipeline. OpenAI's own
+# auth header is strict about whitespace. Strip all known-key/token string
+# fields at config load/save time as a belt-and-suspenders guardrail so the
+# stripped value is what ever hits the wire.
+_SENSITIVE_STRIP_FIELDS = (
+    "openai_api_key",
+    "openai_base_url",
+    "openai_model",
+    "s2_api_key",
+    "core_api_key",
+    "mineru_api_token",
+    "api_access_token",
+    "api_user_id",
+    "renowned_scholar_model",
+    "author_verify_model",
+    "dashboard_model",
+)
 
 # Project root: three levels up from this file (config_manager.py -> app -> citationclaw -> project root)
 _PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
@@ -44,6 +64,20 @@ class AppConfig(BaseModel):
 
     # 调试模式
     debug_mode: bool = Field(default=False, description="是否启用调试模式（输出详细日志和HTML）")
+
+    # 日志最低级别（2026-04-21）：控制哪些 level 的消息推到前端 UI + run.log。
+    # 典型取值:
+    #   "INFO"     -- 显示一切（当前默认，适合调试时看 cascade 每个 tier 的尝试）
+    #   "SUCCESS"  -- 只看成功 / 警告 / 错误；屏蔽 INFO 级别的
+    #                 "GS链接 HTTP 403" / "LLM搜索 异常" 等噪声行。
+    #                 适合"生产模式"——用户感受是一片绿色 SUCCESS + 偶尔红色 ERROR。
+    #   "WARNING"  -- 更激进，只看警告和错误。
+    #   "ERROR"    -- 最静默，只看 ERROR。
+    # 仅通过手动编辑 config.json 暴露，不放前端 UI（避免小白误操作）。
+    log_min_level: str = Field(
+        default="INFO",
+        description="日志最低级别 (INFO/SUCCESS/WARNING/ERROR)；改为 SUCCESS 可屏蔽 cascade 噪声",
+    )
 
     # 测试模式
     test_mode: bool = Field(default=False, description="测试模式：跳过真实API调用，使用test/mock_author_info.jsonl中的伪造数据")
@@ -140,26 +174,93 @@ class AppConfig(BaseModel):
     # Semantic Scholar API Key (提升速率限制: 1 req/s → 10-100 req/s)
     s2_api_key: str = Field(default="", description="Semantic Scholar API Key（可选，大幅提升 PDF 下载成功率）")
 
+    # CORE API Key — enables the CORE aggregator PDF source
+    # (free tier 1000 req/day). Sign up at https://core.ac.uk/services/api
+    core_api_key: str = Field(default="", description="CORE API Key（可选，启用 CORE 学术仓库聚合源）")
+
     # MinerU Cloud API
     mineru_api_token: str = Field(default="", description="MinerU Cloud Precision API Token（可选，用于大文件解析）")
 
     # CDP Browser Download (IEEE/Elsevier 通过真实浏览器下载)
     cdp_debug_port: int = Field(default=0, description="Chrome/Edge 远程调试端口（0=禁用，9222=启用 CDP 浏览器下载）")
 
+    # Phase 2 登录检查点：Phase 2 开始前自动弹出浏览器 + 出版商登录页，
+    # 让用户在 runtime/debug_browser_profile 下登录一次，cookies 持久化复用。
+    # 仅当 cdp_debug_port > 0 时生效；关闭则行为与旧版一致。
+    enable_phase2_login_checkpoint: bool = Field(
+        default=True,
+        description="Phase 2 开始前自动弹出出版商登录页并等待（仅 cdp_debug_port 启用时生效）",
+    )
+    phase2_login_urls: List[str] = Field(
+        default_factory=lambda: [
+            "https://ieeexplore.ieee.org/Xplore/home.jsp",
+            "https://www.sciencedirect.com/",
+            "https://link.springer.com/",
+            "https://dl.acm.org/",
+            "https://onlinelibrary.wiley.com/",
+        ],
+        description="Phase 2 登录检查点自动打开的出版商登录/主页列表",
+    )
+    phase2_login_wait_seconds: int = Field(
+        default=180,
+        description="Phase 2 登录检查点最长等待秒数（到时后自动继续，避免任务卡死）",
+    )
+    # 登录完成后自动对 5 个出版商各跑一次 probe（~40s），把 auth 状态
+    # 写入 run.log。让用户在下 20min 的 PDF 下载前就知道谁的 session 没登上。
+    enable_phase2_login_probe: bool = Field(
+        default=True,
+        description="登录检查点结束后自动验证各出版商 CDP 认证状态（仅 cdp_debug_port 启用时生效）",
+    )
+    # 近期成功跑完登录检查点后写 runtime/debug_browser_profile/phase2_login_stamp.json，
+    # 在此小时数内再次触发检查点会跳过弹 tab + 等待，直接进 probe。
+    # 老用户一天内第二次跑不用再等 180s 发呆。设 0 = 每次都弹。
+    phase2_login_stamp_hours: int = Field(
+        default=24,
+        description="登录检查点 sentinel 的生命周期（小时）。0 = 每次都弹检查点",
+    )
+
+    # PDF 下载兜底：LLM 搜索替代版（arXiv / 作者主页 / 仓库）
+    # 默认关闭：依赖 search-grounded 模型（如 gemini-3-flash-preview-search），
+    # 且需要 openai_api_key 有效。若中转 API 不稳定建议保持关闭。
+    enable_pdf_llm_search: bool = Field(default=False,
+        description="PDF 下载失败时使用 LLM 搜索替代版（需 search-grounded 模型且 API Key 可用）")
+
     # 费用追踪配置
     api_access_token: str = Field(default="", description="API中转站系统令牌（用于查询额度，在个人中心获取）")
     api_user_id: str = Field(default="", description="API中转站用户数字ID（在个人中心查看）")
+
+    @field_validator(*_SENSITIVE_STRIP_FIELDS, mode="before")
+    @classmethod
+    def _strip_sensitive(cls, v):
+        """Strip leading/trailing whitespace from secrets-like fields.
+
+        2026-04-20: a live config.json in this repo had
+        ``openai_api_key = " sk-o37..."`` (leading space from a copy-paste
+        out of the V-API console). Every LLM call 401'd with 无效的令牌,
+        and `_llm_search_alternative_pdf`'s circuit breaker auto-disabled
+        the whole run. This validator makes the class of bug impossible:
+        whatever the JSON disk file looks like, the in-memory AppConfig
+        (and therefore every client constructed from it) sees the trimmed
+        value.
+        """
+        if v is None:
+            return v
+        if isinstance(v, str):
+            return v.strip()
+        return v
 
 
 class ConfigManager:
     def __init__(self, config_path: str = str(_DEFAULT_CONFIG_PATH)):
         self.config_path = Path(config_path)
+        self._disk_mtime: float = 0.0  # last-seen mtime; 0 triggers initial load
         self.config = self._load()
 
     def _load(self) -> AppConfig:
         """加载配置（enable_year_traverse 始终重置为 False，不从文件读取）"""
         if self.config_path.exists():
             try:
+                self._disk_mtime = self.config_path.stat().st_mtime
                 with open(self.config_path, 'r', encoding='utf-8') as f:
                     data = json.load(f)
                     data.pop("enable_year_traverse", None)  # 永不从磁盘恢复
@@ -176,9 +277,30 @@ class ConfigManager:
         with open(self.config_path, 'w', encoding='utf-8') as f:
             json.dump(data, f, ensure_ascii=False, indent=2)
         self.config = config
+        # Keep mtime tracker in sync so the next get() doesn't re-read
+        # the file we just wrote (and our own save is authoritative).
+        try:
+            self._disk_mtime = self.config_path.stat().st_mtime
+        except OSError:
+            pass
 
     def get(self) -> AppConfig:
-        """获取配置"""
+        """获取配置。
+
+        2026-04-20: now auto-reloads when `config.json` has been modified
+        on disk since the last load. Previously the manager cached the
+        config forever at startup — a direct edit of config.json (common
+        when toggling `enable_pdf_llm_search` or adding `core_api_key`)
+        would have no effect until the FastAPI server was restarted,
+        producing silent "why is my flag ignored" bugs.
+        """
+        try:
+            if self.config_path.exists():
+                mtime = self.config_path.stat().st_mtime
+                if mtime > self._disk_mtime:
+                    self.config = self._load()
+        except OSError:
+            pass
         return self.config
 
     def update(self, **kwargs):

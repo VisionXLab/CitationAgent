@@ -133,8 +133,43 @@ class ConfigUpdate(BaseModel):
     dashboard_skip_citing_analysis: bool = False
     dashboard_model: str = "gemini-3-flash-preview-nothinking"
     s2_api_key: str = ""
+    # CORE API Key — optional, enables the CORE aggregator PDF source.
+    # Not yet wired into the UI, but listed here so that the UI's
+    # round-trip save (GET existing config -> merge with form -> POST)
+    # doesn't silently drop it from config.json. Without this field the
+    # merged POST body would be validated into ConfigUpdate which would
+    # strip the key, and the eventual AppConfig save would overwrite the
+    # real value with "".
+    core_api_key: str = ""
     mineru_api_token: str = ""
     cdp_debug_port: int = 0
+    # 2026-04-20: missing here caused the exact same silent-wipe pattern
+    # as `core_api_key` (2026-04-19). Pydantic dropped the field from any
+    # UI round-trip save, defaulted it to False, and wrote `enable_pdf_llm_search:
+    # false` back to disk — so the LLM fallback silently stopped working
+    # even though config.json once had it on.
+    enable_pdf_llm_search: bool = False
+    # Phase 2 登录检查点（2026-04-20）：Phase 2 开始前自动弹出 publisher
+    # 登录页并等待用户确认，cookies 通过 runtime/debug_browser_profile 持久化。
+    enable_phase2_login_checkpoint: bool = True
+    phase2_login_urls: list[str] = [
+        "https://ieeexplore.ieee.org/Xplore/home.jsp",
+        "https://www.sciencedirect.com/",
+        "https://link.springer.com/",
+        "https://dl.acm.org/",
+        "https://onlinelibrary.wiley.com/",
+    ]
+    phase2_login_wait_seconds: int = 180
+    # 2026-04-20: post-login CDP auth probe. Silent-wipe-protected
+    # (default True, no UI widget yet -- see the `enable_pdf_llm_search`
+    # pattern from 2026-04-20).
+    enable_phase2_login_probe: bool = True
+    # 2026-04-20: login checkpoint sentinel TTL (hours). 0 = always prompt.
+    phase2_login_stamp_hours: int = 24
+    # 2026-04-21: log noise suppression. Deliberately not exposed as a UI
+    # widget — user said "通过 config 手动修改去实现". Defaults to INFO
+    # (no change vs before).
+    log_min_level: str = "INFO"
     api_access_token: str = ""
     api_user_id: str = ""
 
@@ -165,10 +200,61 @@ async def get_providers():
 async def save_config(config: ConfigUpdate):
     try:
         data = config.model_dump()
-        # Debug: log MinerU token save status
-        token = data.get("mineru_api_token", "")
-        if token:
-            print(f"[CONFIG] MinerU token 已保存: {token[:8]}...({len(token)} chars)")
+
+        # ── Sensitive-key preservation ──
+        # For API keys that are often set out-of-band (directly in config.json
+        # or via an earlier save) but aren't edited on every UI round-trip,
+        # empty-string values in the POST body MUST NOT overwrite a real
+        # stored value. Without this guard, saving any other UI field would
+        # silently wipe these secrets.
+        existing = config_manager.get().model_dump()
+        for key in (
+            "core_api_key",
+            "s2_api_key",
+            "mineru_api_token",
+            "openai_api_key",
+            "api_access_token",
+            "api_user_id",
+            # 2026-04-20: boolean feature flag. "Not data.get(key)" evaluates
+            # to True for False/missing, so a UI POST that omits the field or
+            # sends False will NOT flip a previously-on setting back off.
+            # Flip only happens through an explicit UI widget which (as of
+            # 2026-04-20) does not exist yet.
+            "enable_pdf_llm_search",
+            # Same silent-wipe protection for the Phase 2 login checkpoint
+            # (also default-True with no UI widget yet). Guards against a UI
+            # save POSTing `False` from a form that never rendered the field.
+            "enable_phase2_login_checkpoint",
+            # 2026-04-20: post-login auth probe toggle, same pattern.
+            "enable_phase2_login_probe",
+            # 2026-04-21: observed CDP port silent-wipe. UI form didn't
+            # render a cdp_debug_port input, POSTed 0, ConfigUpdate
+            # happily overwrote 9222 with 0 -- pipeline then thought
+            # CDP was disabled for the rest of the session. `not
+            # data.get(key)` is True for 0 so the existing preservation
+            # check already works for ints too.
+            "cdp_debug_port",
+            # 2026-04-21: new log_min_level. UI doesn't render it
+            # (deliberately -- feature is "advanced users only" per
+            # user request). Protect from "" / missing.
+            "log_min_level",
+            # 2026-04-21: observed during UI smoke test -- user clicked
+            # something that triggered a config save, POST body had
+            # empty list / empty strings for these 3, silent-wipe
+            # erased the real values. Symptoms:
+            #   scraper_api_keys=[] -> ZeroDivisionError "integer
+            #     modulo by zero" in PaperURLFinder._next_key
+            #     (`self.key_idx % len(self.api_keys)` with len=0)
+            #   openai_base_url=""  -> LLM client construction fails
+            #   openai_model=""     -> chat.completions.create fails
+            # Protect them the same way as other API keys.
+            "scraper_api_keys",
+            "openai_base_url",
+            "openai_model",
+        ):
+            if not data.get(key) and existing.get(key):
+                data[key] = existing[key]
+
         new_config = AppConfig(**data)
         config_manager.save(new_config)
         return {"status": "success", "message": "配置已保存"}
@@ -610,6 +696,25 @@ async def year_traverse_respond(request: YearTraverseResponse):
     task_executor._year_traverse_choice = request.enable
     task_executor._year_traverse_event.set()
     return {"status": "success", "enable": request.enable}
+
+
+@app.post("/api/task/phase2-login-ready")
+async def phase2_login_ready():
+    """Unblock the Phase 2 login checkpoint.
+
+    Called by the UI modal's 继续 button once the user has finished
+    signing in to IEEE / Springer / Elsevier in the auto-launched
+    debug browser. A matching server-side `asyncio.Event` in
+    `TaskExecutor._prompt_phase2_login` is released; the pipeline then
+    continues into metadata + PDF download with fresh publisher cookies.
+    """
+    if task_executor._phase2_login_event is None:
+        return JSONResponse(
+            status_code=400,
+            content={"status": "error", "message": "当前无等待确认的 Phase 2 登录提示"}
+        )
+    task_executor._phase2_login_event.set()
+    return {"status": "success", "message": "登录已确认，Phase 2 继续"}
 
 
 class APITestRequest(BaseModel):

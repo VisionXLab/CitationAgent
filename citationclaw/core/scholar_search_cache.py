@@ -12,11 +12,21 @@ from typing import Optional, List
 from datetime import datetime, timezone
 
 
+# Anchor cache file to CitationClaw-v2 project root so CWD changes don't
+# orphan the cache (e.g. when the eval harness runs from a sibling dir).
+try:
+    from citationclaw.app.config_manager import DATA_DIR as _DATA_DIR
+    _DEFAULT_CACHE_FILE = _DATA_DIR / "cache" / "scholar_search_cache.json"
+except Exception:
+    _DEFAULT_CACHE_FILE = (Path(__file__).resolve().parent.parent.parent
+                           / "data" / "cache" / "scholar_search_cache.json")
+
+
 class ScholarSearchCache:
     """File-based cache for scholar search results."""
 
-    def __init__(self, cache_file: Path = Path("data/cache/scholar_search_cache.json")):
-        self.cache_file = cache_file
+    def __init__(self, cache_file: Optional[Path] = None):
+        self.cache_file = cache_file or _DEFAULT_CACHE_FILE
         self.cache_file.parent.mkdir(parents=True, exist_ok=True)
         self._data: dict = self._load()
         self._lock = asyncio.Lock()

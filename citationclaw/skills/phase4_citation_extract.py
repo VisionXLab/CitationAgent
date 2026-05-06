@@ -49,8 +49,15 @@ class CitationExtractSkill:
 
         # Prepare downloader only if Phase 2 didn't pass PDF paths
         downloader = None
-        if not phase2_pdf_paths:
-            downloader = PDFDownloader()
+        if not phase2_pdf_paths or any(p is None for p in phase2_pdf_paths):
+            downloader = PDFDownloader(
+                scraper_api_keys=ctx.config.scraper_api_keys,
+                llm_api_key=ctx.config.openai_api_key,
+                llm_base_url=ctx.config.openai_base_url,
+                llm_model=getattr(ctx.config, 'dashboard_model', '') or ctx.config.openai_model,
+                cdp_debug_port=getattr(ctx.config, 'cdp_debug_port', 0),
+                disable_llm_search=not getattr(ctx.config, "enable_pdf_llm_search", False),
+            )
 
         try:
             # Parallel processing

@@ -18,6 +18,8 @@ beautifulsoup4==4.12.3
 
 # LLM 调用
 openai==1.10.0
+websocket-client>=1.8.0
+pycookiecheat>=0.8.0
 
 # 数据验证
 # pydantic 2.9.0+ 起提供 Python 3.13 预编译 wheel（2.5.3 无 3.13 wheel，编译需要 Rust）

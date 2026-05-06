@@ -33,6 +33,8 @@ dependencies = [
   "openpyxl>=3.1.5",
   "beautifulsoup4==4.12.3",
   "openai==1.10.0",
+  "websocket-client>=1.8.0",
+  "pycookiecheat>=0.8.0",
   "pydantic>=2.9.0,<3.0.0",
   "PyMuPDF>=1.24.0",
   "playwright>=1.40.0",

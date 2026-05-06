@@ -16,6 +16,8 @@ build/
 .venv/
 venv/
 env/
+test_data/
+runtime/
 
 # MinerU local models (symlinked, ~2GB)
 data/models/
@@ -32,6 +34,7 @@ config.json
 
 # Local-only files (Claude instructions)
 CLAUDE.md
+.claude/
 .playwright-mcp/
 debug/
 
@@ -44,6 +47,10 @@ run_benchmark_baseline.py
 
 # Docs (shared externally, not needed in repo)
 docs/
+!docs/
+!docs/superpowers/
+!docs/superpowers/specs/
+!docs/superpowers/specs/*.md
 
 # Office temp files
 ~$*
